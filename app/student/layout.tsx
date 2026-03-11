@@ -1,0 +1,18 @@
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+import StudentNav from '@/components/StudentNav'
+
+export default async function StudentLayout({ children }: { children: React.ReactNode }) {
+  const session = await getServerSession(authOptions)
+  if (!session || (session.user as any).role !== 'STUDENT') {
+    redirect('/login')
+  }
+
+  return (
+    <div dir="rtl" className="min-h-screen bg-gray-50">
+      <StudentNav name={(session.user as any).name || ''} />
+      <main className="container mx-auto px-4 py-8">{children}</main>
+    </div>
+  )
+}
