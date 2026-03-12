@@ -33,11 +33,13 @@ function BookingCard({
   rescheduling,
   onReschedule,
   onStatus,
+  onRemind,
 }: {
   b: Booking
   rescheduling: string | null
   onReschedule: (bookingId: string, alt: string) => void
   onStatus: (id: string, status: string) => void
+  onRemind: (id: string) => void
 }) {
   const hasAlts = Array.isArray(b.alternativeSlots) && b.alternativeSlots.length > 0
 
@@ -102,8 +104,8 @@ function BookingCard({
           )}
         </div>
 
-        {b.status === 'PENDING' && (
-          <div className="flex flex-col gap-2 shrink-0">
+        <div className="flex flex-col gap-2 shrink-0">
+          {b.status === 'PENDING' && (<>
             <button onClick={() => onStatus(b.id, 'APPROVED')}
               className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm transition">
               אשר
@@ -112,8 +114,14 @@ function BookingCard({
               className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 text-sm transition">
               דחה
             </button>
-          </div>
-        )}
+          </>)}
+          {b.status === 'APPROVED' && b.student.phone && (
+            <button onClick={() => onRemind(b.id)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm transition">
+              שלח תזכורת SMS
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -152,6 +160,15 @@ export default function BookingsPage() {
       body: JSON.stringify({ status }),
     })
     fetchBookings()
+  }
+
+  async function sendReminder(id: string) {
+    const res = await fetch(`/api/bookings/${id}/remind`, { method: 'POST' })
+    if (res.ok) alert('התזכורת נשלחה בהצלחה!')
+    else {
+      const data = await res.json()
+      alert(data.error || 'שגיאה בשליחת התזכורת')
+    }
   }
 
   const withAlts = bookings.filter(b =>
@@ -219,6 +236,7 @@ export default function BookingsPage() {
               rescheduling={rescheduling}
               onReschedule={reschedule}
               onStatus={updateStatus}
+              onRemind={sendReminder}
             />
           ))}
         </div>
