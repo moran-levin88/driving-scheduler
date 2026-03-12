@@ -5,7 +5,8 @@ import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 
 export async function POST(req: NextRequest) {
-  const { name, email, phone, password } = await req.json()
+  const { name, email: rawEmail, phone, password } = await req.json()
+  const email = rawEmail?.toLowerCase()
 
   if (!name || !email || !password) {
     return NextResponse.json({ error: 'Name, email and password required' }, { status: 400 })
