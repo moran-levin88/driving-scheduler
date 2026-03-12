@@ -20,6 +20,13 @@ function formatTime(date: Date) {
   return format(date, "HH:mm")
 }
 
+function toInternationalPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  if (digits.startsWith('972')) return `+${digits}`
+  if (digits.startsWith('0')) return `+972${digits.slice(1)}`
+  return `+${digits}`
+}
+
 export async function sendSmsReminder(booking: BookingWithRelations) {
   const phone = booking.student.phone
   if (!phone) return
@@ -29,6 +36,6 @@ export async function sendSmsReminder(booking: BookingWithRelations) {
   await client.messages.create({
     body: message,
     from: process.env.TWILIO_PHONE_NUMBER,
-    to: phone,
+    to: toInternationalPhone(phone),
   })
 }
