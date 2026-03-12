@@ -115,12 +115,19 @@ function BookingCard({
               דחה
             </button>
           </>)}
-          {b.status === 'APPROVED' && b.student.phone && (
+          {b.status === 'APPROVED' && b.student.phone && (<>
             <button onClick={() => onRemind(b.id)}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm transition">
               שלח תזכורת SMS
             </button>
-          )}
+            <a
+              href={`https://wa.me/${b.student.phone.replace(/\D/g, '').replace(/^0/, '972')}?text=${encodeURIComponent(`שלום ${b.student.name}, תזכורת: יש לך שיעור נהיגה בתאריך ${new Date(b.availability.startTime).toLocaleDateString('he-IL')} בשעה ${new Date(b.availability.startTime).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}. בהצלחה!`)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 text-sm transition text-center">
+              שלח WhatsApp
+            </a>
+          </>)}
         </div>
       </div>
     </div>
