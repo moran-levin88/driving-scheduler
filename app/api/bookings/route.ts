@@ -62,6 +62,10 @@ export async function POST(req: NextRequest) {
       // Create a booking for each slot
       const created = []
       for (const availabilityId of availabilityIds) {
+        // Remove any old cancelled/rejected booking for this slot
+        await tx.booking.deleteMany({
+          where: { availabilityId, status: { in: ['CANCELLED', 'REJECTED'] } },
+        })
         const booking = await tx.booking.create({
           data: { studentId, availabilityId, notes, pickupAddress, alternativeSlots: alternativeSlots || [] },
           include: { student: true, availability: true },
