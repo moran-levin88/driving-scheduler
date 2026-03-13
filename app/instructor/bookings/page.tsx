@@ -147,6 +147,8 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [filter, setFilter] = useState('ALL')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [searchStudent, setSearchStudent] = useState('')
+  const [searchDate, setSearchDate] = useState('')
   const [loading, setLoading] = useState(true)
   const [rescheduling, setRescheduling] = useState<string | null>(null)
   const [rescheduleErrors, setRescheduleErrors] = useState<Record<string, string>>({})
@@ -205,7 +207,10 @@ export default function BookingsPage() {
     Array.isArray(b.alternativeSlots) && b.alternativeSlots.length > 0
   )
 
-  const filtered = (filter === 'ALL' ? bookings : bookings.filter(b => b.status === filter))
+  const filtered = bookings
+    .filter(b => filter === 'ALL' || b.status === filter)
+    .filter(b => !searchStudent || b.student.name.includes(searchStudent) || b.student.phone?.includes(searchStudent))
+    .filter(b => !searchDate || new Date(b.availability.startTime).toLocaleDateString('en-CA') === searchDate)
     .slice()
     .sort((a, b) => {
       const diff = new Date(a.availability.startTime).getTime() - new Date(b.availability.startTime).getTime()
@@ -254,6 +259,29 @@ export default function BookingsPage() {
           </div>
         </div>
       )}
+
+      {/* Search filters */}
+      <div className="flex gap-3 mb-4 flex-wrap">
+        <input
+          type="text"
+          placeholder="חיפוש לפי שם תלמיד או טלפון..."
+          value={searchStudent}
+          onChange={e => setSearchStudent(e.target.value)}
+          className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 w-64"
+        />
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={searchDate}
+            onChange={e => setSearchDate(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+          />
+          {searchDate && (
+            <button onClick={() => setSearchDate('')}
+              className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+          )}
+        </div>
+      </div>
 
       <div className="flex gap-2 mb-6 flex-wrap items-center">
         {['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'COMPLETED'].map(s => (
