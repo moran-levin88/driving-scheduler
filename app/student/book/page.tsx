@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { format, isSameDay, startOfWeek, addDays, addWeeks, subWeeks } from 'date-fns'
 import { he } from 'date-fns/locale'
 
-type Slot = { id: string; startTime: string; endTime: string }
+type Slot = { id: string; startTime: string; endTime: string; isBooked: boolean }
 type AltSlot = { date: string; time: string }
 
 export default function BookPage() {
@@ -31,7 +31,7 @@ export default function BookPage() {
   // Find the consecutive slot (starts exactly when selected ends)
   function getNextSlot(slot: Slot): Slot | null {
     return slots.find(s =>
-      new Date(s.startTime).getTime() === new Date(slot.endTime).getTime()
+      new Date(s.startTime).getTime() === new Date(slot.endTime).getTime() && !s.isBooked
     ) || null
   }
 
@@ -130,6 +130,15 @@ export default function BookPage() {
                   ) : daySlots.map(slot => {
                     const isSelected = selected?.id === slot.id
                     const isNext = selected && doubleLesson && getNextSlot(selected)?.id === slot.id
+                    if (slot.isBooked) {
+                      return (
+                        <div key={slot.id}
+                          className="w-full text-xs p-1.5 rounded-lg border bg-gray-100 text-gray-400 border-gray-200 text-center cursor-not-allowed">
+                          {format(new Date(slot.startTime), 'HH:mm')}
+                          <span className="block text-gray-300" style={{fontSize: '9px'}}>תפוס</span>
+                        </div>
+                      )
+                    }
                     return (
                       <button key={slot.id}
                         onClick={() => handleSelectSlot(slot)}

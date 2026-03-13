@@ -25,9 +25,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(slots)
   }
 
-  // Student: only non-booked, non-blocked future slots
+  // Student: all non-blocked future slots (including booked ones to show as taken)
   const slots = await prisma.availability.findMany({
-    where: { isBooked: false, isBlocked: false, startTime: { gte: now } },
+    where: { isBlocked: false, startTime: { gte: now } },
     orderBy: { startTime: 'asc' },
   })
   return NextResponse.json(slots)
