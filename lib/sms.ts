@@ -27,11 +27,15 @@ function toInternationalPhone(phone: string): string {
   return `+${digits}`
 }
 
-export async function sendSmsReminder(booking: BookingWithRelations) {
+export async function sendSmsReminder(booking: BookingWithRelations, manual = false) {
   const phone = booking.student.phone
   if (!phone) return
 
-  const message = `שלום ${booking.student.name}, תזכורת: יש לך שיעור נהיגה מחר ${formatDate(booking.availability.startTime)} בשעה ${formatTime(booking.availability.startTime)}. בהצלחה!`
+  const when = manual
+    ? `ביום ${formatDate(booking.availability.startTime)}`
+    : `מחר ${formatDate(booking.availability.startTime)}`
+
+  const message = `שלום ${booking.student.name}, תזכורת: יש לך שיעור נהיגה ${when} בשעה ${formatTime(booking.availability.startTime)}. בהצלחה!`
 
   await client.messages.create({
     body: message,

@@ -21,6 +21,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (!booking.student.phone) return NextResponse.json({ error: 'אין מספר טלפון לתלמיד' }, { status: 400 })
 
-  await sendSmsReminder(booking)
+  await sendSmsReminder(booking, true)
   return NextResponse.json({ ok: true })
 }
