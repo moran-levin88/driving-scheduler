@@ -68,7 +68,7 @@ export default function BookPage() {
 
     const alternativeSlots = altSlots
       .filter(a => a.date && a.time)
-      .map(a => `${a.date}T${a.time}`)
+      .map(a => new Date(`${a.date}T${a.time}`).toISOString())
 
     const res = await fetch('/api/bookings', {
       method: 'POST',
