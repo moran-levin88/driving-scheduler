@@ -84,6 +84,21 @@ export async function sendBookingRejected(booking: BookingWithRelations) {
   )
 }
 
+export async function sendBookingCancelled(booking: BookingWithRelations) {
+  await send(
+    booking.student.email,
+    'שיעור הנהיגה שלך בוטל',
+    `
+      <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>שיעור הנהיגה שלך בוטל</h2>
+        <p>שלום ${booking.student.name},</p>
+        <p>לצערנו, שיעור הנהיגה שלך ב-${formatDate(booking.availability.startTime)} בשעה ${formatTime(booking.availability.startTime)} בוטל.</p>
+        <p>אנא צרו קשר עם המורה לתיאום מועד חדש.</p>
+      </div>
+    `
+  )
+}
+
 export async function sendLessonReminder(booking: BookingWithRelations) {
   await send(
     booking.student.email,

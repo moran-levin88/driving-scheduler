@@ -15,18 +15,29 @@ export default function SchedulePage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [cancelling, setCancelling] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetch('/api/bookings')
-      .then(r => r.json())
-      .then((data: any[]) => {
-        const approved = Array.isArray(data)
-          ? data.filter(b => b.status === 'APPROVED')
-          : []
-        setBookings(approved)
-        setLoading(false)
-      })
-  }, [])
+  async function fetchBookings() {
+    const res = await fetch('/api/bookings')
+    const data = await res.json()
+    const approved = Array.isArray(data) ? data.filter((b: any) => b.status === 'APPROVED') : []
+    setBookings(approved)
+    setLoading(false)
+  }
+
+  async function cancelBooking(id: string) {
+    if (!confirm('לבטל את השיעור הזה? התלמיד יקבל הודעה במייל.')) return
+    setCancelling(id)
+    await fetch(`/api/bookings/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'CANCELLED' }),
+    })
+    setCancelling(null)
+    fetchBookings()
+  }
+
+  useEffect(() => { fetchBookings() }, [])
 
   const now = new Date()
 
@@ -139,12 +150,20 @@ export default function SchedulePage() {
                         )}
                       </div>
 
-                      {wa && (
-                        <a href={wa} target="_blank" rel="noreferrer"
-                          className="shrink-0 bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-2 rounded-lg transition whitespace-nowrap">
-                          WhatsApp
-                        </a>
-                      )}
+                      <div className="flex flex-col gap-2 shrink-0">
+                        {wa && (
+                          <a href={wa} target="_blank" rel="noreferrer"
+                            className="bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-2 rounded-lg transition whitespace-nowrap text-center">
+                            WhatsApp
+                          </a>
+                        )}
+                        <button
+                          onClick={() => cancelBooking(b.id)}
+                          disabled={cancelling === b.id}
+                          className="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-2 rounded-lg transition whitespace-nowrap disabled:opacity-50">
+                          {cancelling === b.id ? 'מבטל...' : 'בטל שיעור'}
+                        </button>
+                      </div>
                     </div>
                   )
                 })}

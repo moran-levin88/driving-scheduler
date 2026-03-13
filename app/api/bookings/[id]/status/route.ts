@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { sendBookingApproved, sendBookingRejected } from '@/lib/email'
+import { sendBookingApproved, sendBookingRejected, sendBookingCancelled } from '@/lib/email'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
@@ -13,7 +13,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const { status } = await req.json()
-  if (!['APPROVED', 'REJECTED'].includes(status)) {
+  if (!['APPROVED', 'REJECTED', 'CANCELLED'].includes(status)) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
   }
 
@@ -27,7 +27,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     },
   })
 
-  if (status === 'REJECTED') {
+  if (status === 'REJECTED' || status === 'CANCELLED') {
     await prisma.availability.update({
       where: { id: booking.availabilityId },
       data: { isBooked: false },
@@ -37,8 +37,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     if (status === 'APPROVED') {
       await sendBookingApproved(booking as any)
-    } else {
+    } else if (status === 'REJECTED') {
       await sendBookingRejected(booking as any)
+    } else if (status === 'CANCELLED') {
+      await sendBookingCancelled(booking as any)
     }
   } catch (err) {
     console.error('Email send failed:', err)
