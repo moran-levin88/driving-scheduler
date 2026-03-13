@@ -1,8 +1,14 @@
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 import { format } from 'date-fns'
 import { he } from 'date-fns/locale'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+})
 
 type BookingWithRelations = {
   id: string
@@ -19,13 +25,21 @@ function formatTime(date: Date) {
   return format(date, "HH:mm")
 }
 
+async function send(to: string, subject: string, html: string) {
+  await transporter.sendMail({
+    from: `"מורה נהיגה" <${process.env.GMAIL_USER}>`,
+    to,
+    subject,
+    html,
+  })
+}
+
 export async function sendBookingRequested(booking: BookingWithRelations) {
   const instructorEmail = process.env.INSTRUCTOR_EMAIL!
-  await resend.emails.send({
-    from: 'noreply@yourdomain.com',
-    to: instructorEmail,
-    subject: `בקשת שיעור חדשה מ-${booking.student.name}`,
-    html: `
+  await send(
+    instructorEmail,
+    `בקשת שיעור חדשה מ-${booking.student.name}`,
+    `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>בקשת שיעור נהיגה חדשה</h2>
         <p><strong>תלמיד:</strong> ${booking.student.name} (${booking.student.email})</p>
@@ -34,16 +48,15 @@ export async function sendBookingRequested(booking: BookingWithRelations) {
         ${booking.notes ? `<p><strong>הערות:</strong> ${booking.notes}</p>` : ''}
         <p>כנסו למערכת כדי לאשר או לדחות את הבקשה.</p>
       </div>
-    `,
-  })
+    `
+  )
 }
 
 export async function sendBookingApproved(booking: BookingWithRelations) {
-  await resend.emails.send({
-    from: 'noreply@yourdomain.com',
-    to: booking.student.email,
-    subject: 'שיעור הנהיגה שלך אושר!',
-    html: `
+  await send(
+    booking.student.email,
+    'שיעור הנהיגה שלך אושר!',
+    `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>שיעור הנהיגה שלך אושר ✓</h2>
         <p>שלום ${booking.student.name},</p>
@@ -52,32 +65,30 @@ export async function sendBookingApproved(booking: BookingWithRelations) {
         <p><strong>שעה:</strong> ${formatTime(booking.availability.startTime)} - ${formatTime(booking.availability.endTime)}</p>
         <p>נתראה בשיעור!</p>
       </div>
-    `,
-  })
+    `
+  )
 }
 
 export async function sendBookingRejected(booking: BookingWithRelations) {
-  await resend.emails.send({
-    from: 'noreply@yourdomain.com',
-    to: booking.student.email,
-    subject: 'בקשת השיעור שלך נדחתה',
-    html: `
+  await send(
+    booking.student.email,
+    'בקשת השיעור שלך נדחתה',
+    `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>בקשת השיעור שלך נדחתה</h2>
         <p>שלום ${booking.student.name},</p>
         <p>לצערנו, בקשת השיעור שלך ל-${formatDate(booking.availability.startTime)} נדחתה.</p>
         <p>אנא כנסו למערכת ובחרו מועד אחר.</p>
       </div>
-    `,
-  })
+    `
+  )
 }
 
 export async function sendLessonReminder(booking: BookingWithRelations) {
-  await resend.emails.send({
-    from: 'noreply@yourdomain.com',
-    to: booking.student.email,
-    subject: `תזכורת: שיעור נהיגה מחר ב-${formatTime(booking.availability.startTime)}`,
-    html: `
+  await send(
+    booking.student.email,
+    `תזכורת: שיעור נהיגה מחר ב-${formatTime(booking.availability.startTime)}`,
+    `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>תזכורת לשיעור נהיגה</h2>
         <p>שלום ${booking.student.name},</p>
@@ -86,6 +97,6 @@ export async function sendLessonReminder(booking: BookingWithRelations) {
         <p><strong>שעה:</strong> ${formatTime(booking.availability.startTime)} - ${formatTime(booking.availability.endTime)}</p>
         <p>בהצלחה!</p>
       </div>
-    `,
-  })
+    `
+  )
 }

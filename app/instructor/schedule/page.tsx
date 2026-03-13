@@ -1,0 +1,130 @@
+'use client'
+import { useState, useEffect } from 'react'
+import { format, isSameDay } from 'date-fns'
+import { he } from 'date-fns/locale'
+
+type Booking = {
+  id: string
+  pickupAddress?: string | null
+  student: { name: string; email: string; phone?: string | null }
+  availability: { startTime: string; endTime: string }
+}
+
+export default function SchedulePage() {
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/bookings?status=APPROVED')
+      .then(r => r.json())
+      .then((data: Booking[]) => {
+        const approved = Array.isArray(data)
+          ? data.filter((b: any) => b.status === 'APPROVED')
+          : []
+        approved.sort(
+          (a, b) =>
+            new Date(a.availability.startTime).getTime() -
+            new Date(b.availability.startTime).getTime()
+        )
+        setBookings(approved)
+        setLoading(false)
+      })
+  }, [])
+
+  // Group by day
+  const days: { date: Date; lessons: Booking[] }[] = []
+  for (const b of bookings) {
+    const d = new Date(b.availability.startTime)
+    const existing = days.find(g => isSameDay(g.date, d))
+    if (existing) existing.lessons.push(b)
+    else days.push({ date: d, lessons: [b] })
+  }
+
+  function whatsappLink(b: Booking) {
+    const phone = b.student.phone?.replace(/\D/g, '').replace(/^0/, '972')
+    if (!phone) return null
+    const text = encodeURIComponent(
+      `שלום ${b.student.name}, תזכורת: יש לך שיעור נהיגה ביום ${format(new Date(b.availability.startTime), "EEEE, d בMMMM", { locale: he })} בשעה ${format(new Date(b.availability.startTime), 'HH:mm')}. בהצלחה!`
+    )
+    return `https://wa.me/${phone}?text=${text}`
+  }
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">לו״ז שיעורים</h1>
+
+      {loading ? (
+        <p className="text-gray-500">טוען...</p>
+      ) : days.length === 0 ? (
+        <p className="text-gray-500">אין שיעורים קבועים</p>
+      ) : (
+        <div className="space-y-6">
+          {days.map(({ date, lessons }) => (
+            <div key={date.toISOString()}>
+              {/* Day header */}
+              <div className="flex items-center gap-3 mb-3">
+                <div className="bg-blue-600 text-white rounded-xl px-4 py-2 text-center min-w-[72px]">
+                  <div className="text-xs font-medium opacity-80">
+                    {format(date, 'EEEE', { locale: he })}
+                  </div>
+                  <div className="text-xl font-bold leading-tight">{format(date, 'd')}</div>
+                  <div className="text-xs opacity-80">{format(date, 'MMM yyyy', { locale: he })}</div>
+                </div>
+                <div className="h-px flex-1 bg-gray-200" />
+              </div>
+
+              {/* Lesson cards */}
+              <div className="space-y-3 mr-6">
+                {lessons.map(b => {
+                  const wa = whatsappLink(b)
+                  return (
+                    <div key={b.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-start gap-4">
+                      {/* Time */}
+                      <div className="text-center shrink-0 w-16">
+                        <div className="text-lg font-bold text-blue-700">
+                          {format(new Date(b.availability.startTime), 'HH:mm')}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {format(new Date(b.availability.endTime), 'HH:mm')}
+                        </div>
+                      </div>
+
+                      {/* Divider */}
+                      <div className="w-px self-stretch bg-blue-100 shrink-0" />
+
+                      {/* Details */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 text-base">{b.student.name}</p>
+                        {b.student.phone ? (
+                          <a href={`tel:${b.student.phone}`}
+                            className="text-sm text-blue-600 hover:underline block">
+                            📞 {b.student.phone}
+                          </a>
+                        ) : (
+                          <p className="text-sm text-gray-400">אין מספר טלפון</p>
+                        )}
+                        {b.pickupAddress ? (
+                          <p className="text-sm text-gray-600 mt-1">📍 {b.pickupAddress}</p>
+                        ) : (
+                          <p className="text-sm text-gray-400 mt-1">כתובת איסוף לא צוינה</p>
+                        )}
+                      </div>
+
+                      {/* WhatsApp */}
+                      {wa && (
+                        <a href={wa} target="_blank" rel="noreferrer"
+                          className="shrink-0 bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-2 rounded-lg transition whitespace-nowrap">
+                          WhatsApp
+                        </a>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}

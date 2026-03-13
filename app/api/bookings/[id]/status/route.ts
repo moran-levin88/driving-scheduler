@@ -34,10 +34,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     })
   }
 
-  if (status === 'APPROVED') {
-    sendBookingApproved(booking as any).catch(console.error)
-  } else {
-    sendBookingRejected(booking as any).catch(console.error)
+  try {
+    if (status === 'APPROVED') {
+      await sendBookingApproved(booking as any)
+    } else {
+      await sendBookingRejected(booking as any)
+    }
+  } catch (err) {
+    console.error('Email send failed:', err)
   }
 
   return NextResponse.json(booking)
