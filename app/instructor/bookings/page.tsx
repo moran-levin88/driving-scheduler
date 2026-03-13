@@ -221,45 +221,6 @@ export default function BookingsPage() {
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-6">הזמנות</h1>
 
-      {withAlts.length > 0 && (
-        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6">
-          <p className="font-semibold text-orange-800 mb-3">
-            🔄 {withAlts.length} הזמנות עם בקשת החלפת מועד
-          </p>
-          <div className="flex flex-col gap-3">
-            {withAlts.map(b => (
-              <div key={b.id} className="bg-white rounded-lg border border-orange-200 p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="font-semibold text-gray-900">{b.student.name}</span>
-                  <span className="text-gray-400 text-sm">
-                    מועד נוכחי: {format(new Date(b.availability.startTime), "d/M בשעה HH:mm", { locale: he })}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {(b.alternativeSlots as string[]).map((alt, i) => {
-                    const errKey = b.id + alt
-                    return (
-                      <div key={i} className="flex flex-col gap-1">
-                        <button
-                          onClick={() => reschedule(b.id, alt)}
-                          disabled={rescheduling === errKey}
-                          className="flex items-center gap-2 bg-blue-600 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
-                          <span className="opacity-70 text-xs">אפשרות {i + 1}:</span>
-                          <span className="font-medium">{formatAlt(alt)}</span>
-                        </button>
-                        {rescheduleErrors[errKey] && (
-                          <p className="text-xs text-red-600">⚠️ {rescheduleErrors[errKey]}</p>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Search filters */}
       <div className="flex gap-3 mb-4 flex-wrap">
         <input
