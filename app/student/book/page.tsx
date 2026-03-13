@@ -174,7 +174,7 @@ export default function BookPage() {
               disabled={!nextSlot}
               title={!nextSlot ? 'אין שיעור רצוף פנוי' : ''}
               className={`flex-1 py-2 text-sm font-medium transition ${doubleLesson ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} disabled:opacity-40 disabled:cursor-not-allowed`}>
-              שני שיעורים רצופים (80 דק׳)
+              שיעור כפול (80 דק׳)
             </button>
           </div>
 
