@@ -61,34 +61,44 @@ export default function BookPage() {
     setSubmitting(true)
     setError('')
 
-    const nextSlot = getNextSlot(selected)
-    const availabilityIds = doubleLesson && nextSlot
-      ? [selected.id, nextSlot.id]
-      : [selected.id]
+    try {
+      const nextSlot = getNextSlot(selected)
+      const availabilityIds = doubleLesson && nextSlot
+        ? [selected.id, nextSlot.id]
+        : [selected.id]
 
-    const alternativeSlots = altSlots
-      .filter(a => a.date && a.time)
-      .map(a => new Date(`${a.date}T${a.time}`).toISOString())
+      const alternativeSlots = altSlots
+        .filter(a => a.date && a.time)
+        .map(a => new Date(`${a.date}T${a.time}`).toISOString())
 
-    const res = await fetch('/api/bookings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ availabilityIds, notes, pickupAddress, alternativeSlots }),
-    })
+      const res = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ availabilityIds, notes, pickupAddress, alternativeSlots }),
+      })
 
-    if (res.ok) {
-      setSuccess(true)
-      setSelected(null)
-      setDoubleLesson(false)
-      setNotes('')
-      setPickupAddress('')
-      setAltSlots([])
-      fetchSlots()
-    } else {
-      const data = await res.json()
-      setError(data.error || 'שגיאה בקביעת השיעור')
+      if (res.ok) {
+        setSuccess(true)
+        setSelected(null)
+        setDoubleLesson(false)
+        setNotes('')
+        setPickupAddress('')
+        setAltSlots([])
+        fetchSlots()
+      } else {
+        const text = await res.text()
+        try {
+          const data = JSON.parse(text)
+          setError(data.error || 'שגיאה בקביעת השיעור')
+        } catch {
+          setError('שגיאה בקביעת השיעור')
+        }
+      }
+    } catch {
+      setError('שגיאה בקביעת השיעור')
+    } finally {
+      setSubmitting(false)
     }
-    setSubmitting(false)
   }
 
   const nextSlot = selected ? getNextSlot(selected) : null
