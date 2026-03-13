@@ -17,6 +17,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'כתובת האימייל כבר רשומה במערכת' }, { status: 409 })
   }
 
+  if (phone) {
+    const existingPhone = await prisma.user.findFirst({ where: { phone } })
+    if (existingPhone) {
+      return NextResponse.json({ error: 'מספר הטלפון כבר רשום במערכת' }, { status: 409 })
+    }
+  }
+
   const hash = await bcrypt.hash(password, 12)
   const user = await prisma.user.create({
     data: { name, email, phone, role: 'STUDENT', password: hash },

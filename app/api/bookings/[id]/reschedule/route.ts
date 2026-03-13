@@ -24,16 +24,37 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const newEnd = new Date(newStart.getTime() + 40 * 60 * 1000)
   const instructorId = (session.user as any).id
 
-  // Create new availability slot for the alternative time
-  const newSlot = await prisma.availability.create({
+  // Check if the alternative time is already taken
+  const conflict = await prisma.availability.findFirst({
+    where: {
+      instructorId,
+      startTime: newStart,
+      isBooked: true,
+      id: { not: booking.availabilityId },
+    },
+  })
+  if (conflict) {
+    return NextResponse.json({ error: 'השעה הזו כבר תפוסה — לא ניתן להזיז לשעה זו' }, { status: 409 })
+  }
+
+  // Check if an existing free slot exists at that time — use it instead of creating new
+  const existingFreeSlot = await prisma.availability.findFirst({
+    where: { instructorId, startTime: newStart, isBooked: false },
+  })
+
+  const targetSlot = existingFreeSlot ?? await prisma.availability.create({
     data: { instructorId, startTime: newStart, endTime: newEnd, isBooked: true },
   })
 
-  // Move booking to new slot and free the old one
+  if (existingFreeSlot) {
+    await prisma.availability.update({ where: { id: existingFreeSlot.id }, data: { isBooked: true } })
+  }
+
+  // Move booking to new slot, keep APPROVED status, free the old slot
   await prisma.$transaction([
     prisma.booking.update({
       where: { id },
-      data: { availabilityId: newSlot.id, status: 'PENDING' },
+      data: { availabilityId: targetSlot.id, status: 'APPROVED' },
     }),
     prisma.availability.update({
       where: { id: booking.availabilityId },

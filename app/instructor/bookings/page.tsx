@@ -31,12 +31,14 @@ function formatAlt(iso: string) {
 function BookingCard({
   b,
   rescheduling,
+  rescheduleErrors,
   onReschedule,
   onStatus,
   onRemind,
 }: {
   b: Booking
   rescheduling: string | null
+  rescheduleErrors: Record<string, string>
   onReschedule: (bookingId: string, alt: string) => void
   onStatus: (id: string, status: string) => void
   onRemind: (id: string) => void
@@ -63,7 +65,6 @@ function BookingCard({
             {b.student.email}{b.student.phone ? ` | ${b.student.phone}` : ''}
           </p>
 
-          {/* Current slot */}
           <div className="bg-gray-50 rounded-lg px-3 py-2 mb-2 inline-block">
             <p className="text-xs text-gray-500 mb-0.5">מועד נוכחי</p>
             <p className="text-gray-800 font-medium text-sm">
@@ -80,25 +81,33 @@ function BookingCard({
             <p className="text-sm text-gray-500 mb-1">💬 {b.notes}</p>
           )}
 
-          {/* Alternative slots — prominent cards */}
           {hasAlts && (
             <div className="mt-3">
               <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide mb-2">מועדים חלופיים שהתלמיד הציע</p>
               <div className="flex flex-col gap-2">
-                {(b.alternativeSlots as string[]).map((alt, i) => (
-                  <div key={i} className="flex items-center justify-between gap-3 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
-                    <div>
-                      <span className="text-xs text-orange-500 font-medium">אפשרות {i + 1}</span>
-                      <p className="text-sm font-semibold text-gray-800">{formatAlt(alt)}</p>
+                {(b.alternativeSlots as string[]).map((alt, i) => {
+                  const errKey = b.id + alt
+                  const err = rescheduleErrors[errKey]
+                  return (
+                    <div key={i} className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between gap-3 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                        <div>
+                          <span className="text-xs text-orange-500 font-medium">אפשרות {i + 1}</span>
+                          <p className="text-sm font-semibold text-gray-800">{formatAlt(alt)}</p>
+                        </div>
+                        <button
+                          onClick={() => onReschedule(b.id, alt)}
+                          disabled={rescheduling === errKey}
+                          className="bg-blue-600 text-white text-sm px-4 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition whitespace-nowrap font-medium">
+                          {rescheduling === errKey ? 'מעביר...' : 'הזז לשעה זו'}
+                        </button>
+                      </div>
+                      {err && (
+                        <p className="text-xs text-red-600 px-1">⚠️ {err}</p>
+                      )}
                     </div>
-                    <button
-                      onClick={() => onReschedule(b.id, alt)}
-                      disabled={rescheduling === b.id + alt}
-                      className="bg-blue-600 text-white text-sm px-4 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition whitespace-nowrap font-medium">
-                      {rescheduling === b.id + alt ? 'מעביר...' : 'הזז לשעה זו'}
-                    </button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
@@ -137,8 +146,10 @@ function BookingCard({
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [filter, setFilter] = useState('ALL')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [loading, setLoading] = useState(true)
   const [rescheduling, setRescheduling] = useState<string | null>(null)
+  const [rescheduleErrors, setRescheduleErrors] = useState<Record<string, string>>({})
 
   async function fetchBookings() {
     const res = await fetch('/api/bookings')
@@ -150,14 +161,23 @@ export default function BookingsPage() {
   useEffect(() => { fetchBookings() }, [])
 
   async function reschedule(bookingId: string, alternativeDateTime: string) {
-    setRescheduling(bookingId + alternativeDateTime)
-    await fetch(`/api/bookings/${bookingId}/reschedule`, {
+    const key = bookingId + alternativeDateTime
+    setRescheduling(key)
+    setRescheduleErrors(prev => { const n = { ...prev }; delete n[key]; return n })
+
+    const res = await fetch(`/api/bookings/${bookingId}/reschedule`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ alternativeDateTime }),
     })
+
     setRescheduling(null)
-    fetchBookings()
+    if (!res.ok) {
+      const data = await res.json()
+      setRescheduleErrors(prev => ({ ...prev, [key]: data.error || 'שגיאה בהזזת השיעור' }))
+    } else {
+      fetchBookings()
+    }
   }
 
   async function updateStatus(id: string, status: string) {
@@ -182,13 +202,17 @@ export default function BookingsPage() {
     Array.isArray(b.alternativeSlots) && b.alternativeSlots.length > 0
   )
 
-  const filtered = filter === 'ALL' ? bookings : bookings.filter(b => b.status === filter)
+  const filtered = (filter === 'ALL' ? bookings : bookings.filter(b => b.status === filter))
+    .slice()
+    .sort((a, b) => {
+      const diff = new Date(a.availability.startTime).getTime() - new Date(b.availability.startTime).getTime()
+      return sortDir === 'asc' ? diff : -diff
+    })
 
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-6">הזמנות</h1>
 
-      {/* Reschedule requests banner */}
       {withAlts.length > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6">
           <p className="font-semibold text-orange-800 mb-3">
@@ -204,16 +228,23 @@ export default function BookingsPage() {
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {(b.alternativeSlots as string[]).map((alt, i) => (
-                    <button
-                      key={i}
-                      onClick={() => reschedule(b.id, alt)}
-                      disabled={rescheduling === b.id + alt}
-                      className="flex items-center gap-2 bg-blue-600 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
-                      <span className="opacity-70 text-xs">אפשרות {i + 1}:</span>
-                      <span className="font-medium">{formatAlt(alt)}</span>
-                    </button>
-                  ))}
+                  {(b.alternativeSlots as string[]).map((alt, i) => {
+                    const errKey = b.id + alt
+                    return (
+                      <div key={i} className="flex flex-col gap-1">
+                        <button
+                          onClick={() => reschedule(b.id, alt)}
+                          disabled={rescheduling === errKey}
+                          className="flex items-center gap-2 bg-blue-600 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
+                          <span className="opacity-70 text-xs">אפשרות {i + 1}:</span>
+                          <span className="font-medium">{formatAlt(alt)}</span>
+                        </button>
+                        {rescheduleErrors[errKey] && (
+                          <p className="text-xs text-red-600">⚠️ {rescheduleErrors[errKey]}</p>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             ))}
@@ -221,13 +252,23 @@ export default function BookingsPage() {
         </div>
       )}
 
-      <div className="flex gap-2 mb-6 flex-wrap">
+      <div className="flex gap-2 mb-6 flex-wrap items-center">
         {['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'COMPLETED'].map(s => (
           <button key={s} onClick={() => setFilter(s)}
             className={`px-4 py-2 rounded-lg text-sm transition ${filter === s ? 'bg-blue-600 text-white' : 'bg-white border hover:bg-gray-50'}`}>
             {s === 'ALL' ? 'הכל' : STATUS_LABELS[s]}
           </button>
         ))}
+        <div className="mr-auto flex gap-1">
+          <button onClick={() => setSortDir('asc')}
+            className={`px-3 py-2 rounded-lg text-sm border transition ${sortDir === 'asc' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50'}`}>
+            תאריך ▲
+          </button>
+          <button onClick={() => setSortDir('desc')}
+            className={`px-3 py-2 rounded-lg text-sm border transition ${sortDir === 'desc' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50'}`}>
+            תאריך ▼
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -241,6 +282,7 @@ export default function BookingsPage() {
               key={b.id}
               b={b}
               rescheduling={rescheduling}
+              rescheduleErrors={rescheduleErrors}
               onReschedule={reschedule}
               onStatus={updateStatus}
               onRemind={sendReminder}

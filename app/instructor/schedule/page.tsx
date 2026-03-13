@@ -14,27 +14,33 @@ type Booking = {
 export default function SchedulePage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => {
-    fetch('/api/bookings?status=APPROVED')
+    fetch('/api/bookings')
       .then(r => r.json())
-      .then((data: Booking[]) => {
+      .then((data: any[]) => {
         const approved = Array.isArray(data)
-          ? data.filter((b: any) => b.status === 'APPROVED')
+          ? data.filter(b => b.status === 'APPROVED')
           : []
-        approved.sort(
-          (a, b) =>
-            new Date(a.availability.startTime).getTime() -
-            new Date(b.availability.startTime).getTime()
-        )
         setBookings(approved)
         setLoading(false)
       })
   }, [])
 
+  const now = new Date()
+
+  // Only show days that have at least one lesson that hasn't ended yet
+  const sorted = bookings
+    .filter(b => new Date(b.availability.endTime) > now)
+    .sort((a, b) => {
+      const diff = new Date(a.availability.startTime).getTime() - new Date(b.availability.startTime).getTime()
+      return sortDir === 'asc' ? diff : -diff
+    })
+
   // Group by day
   const days: { date: Date; lessons: Booking[] }[] = []
-  for (const b of bookings) {
+  for (const b of sorted) {
     const d = new Date(b.availability.startTime)
     const existing = days.find(g => isSameDay(g.date, d))
     if (existing) existing.lessons.push(b)
@@ -52,7 +58,19 @@ export default function SchedulePage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">לו״ז שיעורים</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">לו״ז שיעורים</h1>
+        <div className="flex gap-1">
+          <button onClick={() => setSortDir('asc')}
+            className={`px-3 py-2 rounded-lg text-sm border transition ${sortDir === 'asc' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50'}`}>
+            תאריך ▲
+          </button>
+          <button onClick={() => setSortDir('desc')}
+            className={`px-3 py-2 rounded-lg text-sm border transition ${sortDir === 'desc' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50'}`}>
+            תאריך ▼
+          </button>
+        </div>
+      </div>
 
       {loading ? (
         <p className="text-gray-500">טוען...</p>
@@ -62,7 +80,6 @@ export default function SchedulePage() {
         <div className="space-y-6">
           {days.map(({ date, lessons }) => (
             <div key={date.toISOString()}>
-              {/* Day header */}
               <div className="flex items-center gap-3 mb-3">
                 <div className="bg-blue-600 text-white rounded-xl px-4 py-2 text-center min-w-[72px]">
                   <div className="text-xs font-medium opacity-80">
@@ -74,13 +91,11 @@ export default function SchedulePage() {
                 <div className="h-px flex-1 bg-gray-200" />
               </div>
 
-              {/* Lesson cards */}
               <div className="space-y-3 mr-6">
                 {lessons.map(b => {
                   const wa = whatsappLink(b)
                   return (
                     <div key={b.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex items-start gap-4">
-                      {/* Time */}
                       <div className="text-center shrink-0 w-16">
                         <div className="text-lg font-bold text-blue-700">
                           {format(new Date(b.availability.startTime), 'HH:mm')}
@@ -90,10 +105,8 @@ export default function SchedulePage() {
                         </div>
                       </div>
 
-                      {/* Divider */}
                       <div className="w-px self-stretch bg-blue-100 shrink-0" />
 
-                      {/* Details */}
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-gray-900 text-base">{b.student.name}</p>
                         {b.student.phone ? (
@@ -126,7 +139,6 @@ export default function SchedulePage() {
                         )}
                       </div>
 
-                      {/* WhatsApp */}
                       {wa && (
                         <a href={wa} target="_blank" rel="noreferrer"
                           className="shrink-0 bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-2 rounded-lg transition whitespace-nowrap">
