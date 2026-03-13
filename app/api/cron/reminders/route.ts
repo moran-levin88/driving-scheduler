@@ -3,7 +3,6 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendLessonReminder } from '@/lib/email'
-import { sendSmsReminder } from '@/lib/sms'
 
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
@@ -31,7 +30,6 @@ export async function POST(req: NextRequest) {
   for (const booking of bookings) {
     try {
       await sendLessonReminder(booking)
-      await sendSmsReminder(booking)
       await prisma.booking.update({
         where: { id: booking.id },
         data: { reminderSent: true },
