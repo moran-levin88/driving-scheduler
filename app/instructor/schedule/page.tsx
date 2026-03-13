@@ -6,6 +6,7 @@ import { he } from 'date-fns/locale'
 type Booking = {
   id: string
   pickupAddress?: string | null
+  alternativeSlots?: string[] | null
   student: { name: string; email: string; phone?: string | null }
   availability: { startTime: string; endTime: string }
 }
@@ -107,6 +108,21 @@ export default function SchedulePage() {
                           <p className="text-sm text-gray-600 mt-1">📍 {b.pickupAddress}</p>
                         ) : (
                           <p className="text-sm text-gray-400 mt-1">כתובת איסוף לא צוינה</p>
+                        )}
+                        {Array.isArray(b.alternativeSlots) && b.alternativeSlots.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-orange-100">
+                            <p className="text-xs font-semibold text-orange-600 mb-1">🔄 מועדים חלופיים:</p>
+                            {b.alternativeSlots.map((alt, i) => {
+                              try {
+                                const d = new Date(alt)
+                                return (
+                                  <p key={i} className="text-xs text-orange-700">
+                                    {i + 1}. {format(d, "EEEE d/M", { locale: he })} בשעה {format(d, 'HH:mm')}
+                                  </p>
+                                )
+                              } catch { return null }
+                            })}
+                          </div>
                         )}
                       </div>
 
