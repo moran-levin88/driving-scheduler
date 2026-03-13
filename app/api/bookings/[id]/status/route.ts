@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendBookingApproved, sendBookingRejected, sendBookingCancelled } from '@/lib/email'
+import { createCalendarEvent, deleteCalendarEvent } from '@/lib/calendar'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
@@ -32,6 +33,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       where: { id: booking.availabilityId },
       data: { isBooked: false },
     })
+  }
+
+  if (status === 'APPROVED') {
+    const eventId = await createCalendarEvent(booking as any)
+    if (eventId) {
+      await prisma.booking.update({ where: { id }, data: { calendarEventId: eventId } })
+    }
+  } else if (status === 'CANCELLED' && (booking as any).calendarEventId) {
+    await deleteCalendarEvent((booking as any).calendarEventId)
   }
 
   try {

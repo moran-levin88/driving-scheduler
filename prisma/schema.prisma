@@ -86,8 +86,9 @@ model Booking {
   status           BookingStatus @default(PENDING)
   notes            String?
   pickupAddress    String?
-  alternativeSlots Json?
-  reminderSent     Boolean       @default(false)
+  alternativeSlots  Json?
+  reminderSent      Boolean       @default(false)
+  calendarEventId   String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 }
