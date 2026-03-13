@@ -59,7 +59,7 @@ export async function sendBookingApproved(booking: BookingWithRelations) {
     `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>שיעור הנהיגה שלך אושר ✓</h2>
-        <p>שלום ${booking.student.name},</p>
+        <p>שלום ${booking.student.name.trim()},</p>
         <p>שיעור הנהיגה שלך אושר!</p>
         <p><strong>תאריך:</strong> ${formatDate(booking.availability.startTime)}</p>
         <p><strong>שעה:</strong> ${formatTime(booking.availability.startTime)} - ${formatTime(booking.availability.endTime)}</p>
@@ -76,7 +76,7 @@ export async function sendBookingRejected(booking: BookingWithRelations) {
     `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>בקשת השיעור שלך נדחתה</h2>
-        <p>שלום ${booking.student.name},</p>
+        <p>שלום ${booking.student.name.trim()},</p>
         <p>לצערנו, בקשת השיעור שלך ל-${formatDate(booking.availability.startTime)} נדחתה.</p>
         <p>אנא כנסו למערכת ובחרו מועד אחר.</p>
       </div>
@@ -91,7 +91,7 @@ export async function sendBookingCancelled(booking: BookingWithRelations) {
     `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>שיעור הנהיגה שלך בוטל</h2>
-        <p>שלום ${booking.student.name},</p>
+        <p>שלום ${booking.student.name.trim()},</p>
         <p>לצערנו, שיעור הנהיגה שלך ב-${formatDate(booking.availability.startTime)} בשעה ${formatTime(booking.availability.startTime)} בוטל.</p>
         <p>אנא צרו קשר עם המורה לתיאום מועד חדש.</p>
       </div>
@@ -106,7 +106,7 @@ export async function sendLessonReminder(booking: BookingWithRelations) {
     `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>תזכורת לשיעור נהיגה</h2>
-        <p>שלום ${booking.student.name},</p>
+        <p>שלום ${booking.student.name.trim()},</p>
         <p>תזכורת: יש לך שיעור נהיגה מחר!</p>
         <p><strong>תאריך:</strong> ${formatDate(booking.availability.startTime)}</p>
         <p><strong>שעה:</strong> ${formatTime(booking.availability.startTime)} - ${formatTime(booking.availability.endTime)}</p>
