@@ -165,10 +165,13 @@ export default function BookingsPage() {
     setRescheduling(key)
     setRescheduleErrors(prev => { const n = { ...prev }; delete n[key]; return n })
 
+    // Convert through browser Date to ensure correct UTC (handles both old and new storage formats)
+    const utcDateTime = new Date(alternativeDateTime).toISOString()
+
     const res = await fetch(`/api/bookings/${bookingId}/reschedule`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ alternativeDateTime }),
+      body: JSON.stringify({ alternativeDateTime: utcDateTime }),
     })
 
     setRescheduling(null)
