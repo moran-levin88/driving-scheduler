@@ -27,7 +27,7 @@ function formatTime(date: Date) {
 
 async function send(to: string, subject: string, html: string) {
   await transporter.sendMail({
-    from: `"מורה נהיגה" <${process.env.GMAIL_USER}>`,
+    from: `"אלכס לוין" <${process.env.GMAIL_USER}>`,
     to,
     subject,
     html,
