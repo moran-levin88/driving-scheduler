@@ -1,11 +1,5 @@
-import twilio from 'twilio'
 import { format } from 'date-fns'
 import { he } from 'date-fns/locale'
-
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-)
 
 type BookingWithRelations = {
   student: { name: string; phone?: string | null }
@@ -31,15 +25,33 @@ export async function sendSmsReminder(booking: BookingWithRelations, manual = fa
   const phone = booking.student.phone
   if (!phone) return
 
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
+  if (!phoneNumberId || !accessToken) return
+
   const when = manual
     ? `ביום ${formatDate(booking.availability.startTime)}`
     : `מחר ${formatDate(booking.availability.startTime)}`
 
   const message = `שלום ${booking.student.name}, תזכורת: יש לך שיעור נהיגה ${when} בשעה ${formatTime(booking.availability.startTime)}. בהצלחה!`
 
-  await client.messages.create({
-    body: message,
-    from: process.env.TWILIO_PHONE_NUMBER,
-    to: toInternationalPhone(phone),
+  const res = await fetch(`https://graph.facebook.com/v22.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: toInternationalPhone(phone),
+      type: 'text',
+      text: { body: message },
+    }),
   })
+
+  if (!res.ok) {
+    const err = await res.json()
+    console.error('WhatsApp send failed:', err)
+    throw new Error(err?.error?.message || 'WhatsApp send failed')
+  }
 }
