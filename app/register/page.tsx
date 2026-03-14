@@ -5,14 +5,23 @@ import Link from 'next/link'
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' })
+  const [confirm, setConfirm] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setLoading(true)
     setError('')
+
+    if (form.password !== confirm) {
+      setError('הסיסמאות אינן תואמות')
+      return
+    }
+
+    setLoading(true)
 
     const res = await fetch('/api/register', {
       method: 'POST',
@@ -52,8 +61,27 @@ export default function RegisterPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">סיסמה</label>
-            <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} required minLength={6}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <div className="relative">
+              <input type={showPassword ? 'text' : 'password'} value={form.password}
+                onChange={e => setForm({...form, password: e.target.value})} required minLength={6}
+                className="w-full border rounded-lg px-3 py-2 pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <button type="button" onClick={() => setShowPassword(v => !v)}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">אימות סיסמה</label>
+            <div className="relative">
+              <input type={showConfirm ? 'text' : 'password'} value={confirm}
+                onChange={e => setConfirm(e.target.value)} required minLength={6}
+                className="w-full border rounded-lg px-3 py-2 pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <button type="button" onClick={() => setShowConfirm(v => !v)}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showConfirm ? '🙈' : '👁️'}
+              </button>
+            </div>
           </div>
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <button type="submit" disabled={loading}
