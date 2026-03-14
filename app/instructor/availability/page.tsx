@@ -10,7 +10,7 @@ type Slot = {
   isBooked: boolean
   isBlocked: boolean
   blockNote?: string | null
-  booking?: { student: { name: string } } | null
+  booking?: { student: { name: string }; status: string } | null
 }
 
 function minuteDiff(startTime: string, endTime: string) {
@@ -115,9 +115,16 @@ export default function AvailabilityPage() {
       {/* Weekly grid */}
       <div className="grid grid-cols-6 gap-3">
         {days.map(day => {
-          const daySlots = slots
+          const allDaySlots = slots
             .filter(s => isSameDay(new Date(s.startTime), day))
             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+          const blocks = allDaySlots.filter(s => s.isBlocked)
+          const daySlots = allDaySlots.filter(s => {
+            if (s.isBlocked) return true
+            const start = new Date(s.startTime).getTime()
+            const end = new Date(s.endTime).getTime()
+            return !blocks.some(b => start >= new Date(b.startTime).getTime() && end <= new Date(b.endTime).getTime())
+          })
           const isPast = day < new Date(new Date().setHours(0, 0, 0, 0))
 
           return (
@@ -148,7 +155,7 @@ export default function AvailabilityPage() {
                       {isBlock && (
                         <div className="text-red-600 font-medium truncate">{slot.blockNote || 'חסום'}</div>
                       )}
-                      {slot.booking && (
+                      {slot.booking && slot.booking.status !== 'CANCELLED' && slot.booking.status !== 'REJECTED' && (
                         <div className="text-orange-600 font-medium truncate">{slot.booking.student.name}</div>
                       )}
                     </div>
