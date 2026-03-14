@@ -24,7 +24,7 @@ export async function createCalendarEvent(booking: BookingInfo): Promise<string 
     const event = await calendar.events.insert({
       calendarId: CALENDAR_ID,
       requestBody: {
-        summary: `שיעור נהיגה — ${booking.student.name}`,
+        summary: booking.student.name,
         description: [
           `תלמיד: ${booking.student.name}`,
           booking.student.phone ? `טלפון: ${booking.student.phone}` : '',

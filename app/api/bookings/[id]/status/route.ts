@@ -35,7 +35,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     })
   }
 
-  if (status === 'APPROVED') {
+  if (status === 'APPROVED' && !(booking as any).calendarEventId) {
     const eventId = await createCalendarEvent(booking as any)
     if (eventId) {
       await prisma.booking.update({ where: { id }, data: { calendarEventId: eventId } })
