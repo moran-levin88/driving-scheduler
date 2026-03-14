@@ -70,9 +70,10 @@ model Availability {
   startTime    DateTime
   endTime      DateTime
   isBooked     Boolean  @default(false)
-  isBlocked    Boolean  @default(false)
-  blockNote    String?
-  createdAt    DateTime @default(now())
+  isBlocked       Boolean  @default(false)
+  blockNote       String?
+  calendarEventId String?
+  createdAt       DateTime @default(now())
 
   booking Booking?
 }

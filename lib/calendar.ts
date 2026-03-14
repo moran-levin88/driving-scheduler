@@ -41,6 +41,25 @@ export async function createCalendarEvent(booking: BookingInfo): Promise<string 
   }
 }
 
+export async function createBlockedCalendarEvent(startTime: Date, endTime: Date, note?: string | null): Promise<string | null> {
+  if (!process.env.GOOGLE_CLIENT_ID) return null
+  try {
+    const calendar = getCalendar()
+    const event = await calendar.events.insert({
+      calendarId: CALENDAR_ID,
+      requestBody: {
+        summary: note || 'חסום',
+        start: { dateTime: startTime.toISOString(), timeZone: 'Asia/Jerusalem' },
+        end: { dateTime: endTime.toISOString(), timeZone: 'Asia/Jerusalem' },
+      },
+    })
+    return event.data.id ?? null
+  } catch (err) {
+    console.error('Calendar block create failed:', err)
+    return null
+  }
+}
+
 export async function deleteCalendarEvent(eventId: string): Promise<void> {
   if (!process.env.GOOGLE_CLIENT_ID) return
   try {

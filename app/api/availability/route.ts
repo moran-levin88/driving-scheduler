@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { createBlockedCalendarEvent } from '@/lib/calendar'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -46,8 +47,9 @@ export async function POST(req: NextRequest) {
 
   // If blocking: create one block covering the entire range
   if (isBlocked) {
+    const eventId = await createBlockedCalendarEvent(start, end, blockNote)
     await prisma.availability.create({
-      data: { instructorId, startTime: start, endTime: end, isBlocked: true, blockNote: blockNote || null },
+      data: { instructorId, startTime: start, endTime: end, isBlocked: true, blockNote: blockNote || null, calendarEventId: eventId },
     })
     return NextResponse.json({ created: 1, blocked: true }, { status: 201 })
   }

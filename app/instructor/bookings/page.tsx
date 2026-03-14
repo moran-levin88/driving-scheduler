@@ -145,7 +145,7 @@ function BookingCard({
 
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
-  const [filter, setFilter] = useState('ALL')
+  const [filter, setFilter] = useState('PENDING')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [searchStudent, setSearchStudent] = useState('')
   const [searchDate, setSearchDate] = useState('')
