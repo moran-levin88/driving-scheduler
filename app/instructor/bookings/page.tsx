@@ -188,11 +188,16 @@ export default function BookingsPage() {
   }
 
   async function sendReminder(id: string) {
-    const res = await fetch(`/api/bookings/${id}/remind`, { method: 'POST' })
-    if (res.ok) alert('התזכורת נשלחה בהצלחה!')
-    else {
-      const data = await res.json()
-      alert(data.error || 'שגיאה בשליחת התזכורת')
+    try {
+      const res = await fetch(`/api/bookings/${id}/remind`, { method: 'POST' })
+      if (res.ok) {
+        alert('התזכורת נשלחה בהצלחה! ✅')
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert('שגיאה: ' + (data.error || `סטטוס ${res.status}`))
+      }
+    } catch (err) {
+      alert('שגיאת רשת: ' + (err instanceof Error ? err.message : String(err)))
     }
   }
 
