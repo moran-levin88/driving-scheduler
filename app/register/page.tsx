@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [showTooltip, setShowTooltip] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -78,12 +79,14 @@ export default function RegisterPage() {
           <div>
             <div className="flex items-center gap-1 mb-1">
               <label className="block text-sm font-medium text-gray-700">סיסמה</label>
-              <div className="relative group">
-                <span className="text-gray-400 cursor-help text-sm">ⓘ</span>
-                <div className="absolute right-0 top-6 z-10 hidden group-hover:block bg-gray-800 text-white text-xs rounded-lg p-3 w-56 shadow-lg leading-relaxed">
-                  הסיסמה חייבת להכיל לפחות 6 תווים.<br />
-                  זוהי הסיסמה הקבועה שלך למערכת — שמור/י אותה.
-                </div>
+              <div className="relative">
+                <button type="button" onClick={() => setShowTooltip(v => !v)} className="text-gray-400 text-sm">ⓘ</button>
+                {showTooltip && (
+                  <div className="absolute right-0 top-6 z-10 bg-gray-800 text-white text-xs rounded-lg p-3 w-56 shadow-lg leading-relaxed">
+                    הסיסמה חייבת להכיל לפחות 6 תווים.<br />
+                    זוהי הסיסמה הקבועה שלך למערכת — שמור/י אותה.
+                  </div>
+                )}
               </div>
             </div>
             <div className="relative">
