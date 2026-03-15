@@ -18,11 +18,14 @@ type BookingWithRelations = {
 }
 
 function formatDate(date: Date) {
-  return format(date, "EEEE, d בMMMM yyyy", { locale: he })
+  const israelDate = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }))
+  return format(israelDate, "EEEE, d בMMMM yyyy", { locale: he })
 }
 
 function formatTime(date: Date) {
-  return format(date, "HH:mm")
+  return new Intl.DateTimeFormat('he-IL', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem',
+  }).format(date)
 }
 
 async function send(to: string, subject: string, html: string) {

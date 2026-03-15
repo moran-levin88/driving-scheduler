@@ -1,9 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { format, isSameDay, startOfWeek, addDays, addWeeks, subWeeks } from 'date-fns'
+import { format, isSameDay, startOfWeek, addDays, addWeeks, subWeeks, isBefore, startOfDay } from 'date-fns'
 import { he } from 'date-fns/locale'
 
-type Slot = { id: string; startTime: string; endTime: string; isBooked: boolean }
+type Slot = { id: string; startTime: string; endTime: string; isBooked: boolean; myBookingStatus?: string | null }
 type AltSlot = { date: string; time: string }
 
 export default function BookPage() {
@@ -55,6 +55,15 @@ export default function BookPage() {
   function removeAltSlot(i: number) {
     setAltSlots(altSlots.filter((_, idx) => idx !== i))
   }
+
+  function getAvailableTimesForDate(dateStr: string): Slot[] {
+    if (!dateStr) return []
+    return slots
+      .filter(s => !s.isBooked && isSameDay(new Date(s.startTime), new Date(dateStr + 'T12:00:00')))
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+  }
+
+  const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 })
 
   async function submitBooking() {
     if (!selected) return
@@ -114,7 +123,10 @@ export default function BookPage() {
       )}
 
       <div className="flex items-center gap-4 mb-4">
-        <button onClick={() => setWeekStart(subWeeks(weekStart, 1))} className="p-2 hover:bg-gray-100 rounded text-xl">&rarr;</button>
+        <button
+          onClick={() => setWeekStart(subWeeks(weekStart, 1))}
+          disabled={weekStart <= currentWeekStart}
+          className="p-2 hover:bg-gray-100 rounded text-xl disabled:opacity-30 disabled:cursor-not-allowed">&rarr;</button>
         <span className="font-medium">
           {format(weekStart, 'd MMM', { locale: he })} - {format(addDays(weekStart, 5), 'd MMM yyyy', { locale: he })}
         </span>
@@ -130,9 +142,9 @@ export default function BookPage() {
             const isPast = day < new Date(new Date().setHours(0, 0, 0, 0))
             return (
               <div key={day.toISOString()}>
-                <div className="text-center mb-2">
-                  <div className="text-xs text-gray-500">{format(day, 'EEEE', { locale: he })}</div>
-                  <div className="font-bold">{format(day, 'd')}</div>
+                <div className="text-center mb-2 h-10 flex flex-col justify-center">
+                  <div className="text-xs text-gray-500 leading-tight">{format(day, 'EEEE', { locale: he })}</div>
+                  <div className="font-bold leading-tight">{format(day, 'd')}</div>
                 </div>
                 <div className="space-y-1">
                   {isPast ? null : daySlots.length === 0 ? (
@@ -140,12 +152,31 @@ export default function BookPage() {
                   ) : daySlots.map(slot => {
                     const isSelected = selected?.id === slot.id
                     const isNext = selected && doubleLesson && getNextSlot(selected)?.id === slot.id
-                    if (slot.isBooked) {
+                    const myStatus = slot.myBookingStatus
+                    if (slot.isBooked && !myStatus) {
                       return (
                         <div key={slot.id}
                           className="w-full text-xs p-1.5 rounded-lg border bg-gray-100 text-gray-400 border-gray-200 text-center cursor-not-allowed">
                           {format(new Date(slot.startTime), 'HH:mm')}
                           <span className="block text-gray-300" style={{fontSize: '9px'}}>תפוס</span>
+                        </div>
+                      )
+                    }
+                    if (myStatus === 'APPROVED') {
+                      return (
+                        <div key={slot.id}
+                          className="w-full text-xs p-1.5 rounded-lg border bg-green-100 text-green-700 border-green-300 text-center cursor-default">
+                          {format(new Date(slot.startTime), 'HH:mm')}
+                          <span className="block" style={{fontSize: '9px'}}>אושר ✓</span>
+                        </div>
+                      )
+                    }
+                    if (myStatus === 'PENDING') {
+                      return (
+                        <div key={slot.id}
+                          className="w-full text-xs p-1.5 rounded-lg border bg-orange-100 text-orange-700 border-orange-300 text-center cursor-default">
+                          {format(new Date(slot.startTime), 'HH:mm')}
+                          <span className="block" style={{fontSize: '9px'}}>ממתין</span>
                         </div>
                       )
                     }
@@ -234,19 +265,33 @@ export default function BookPage() {
               <br />
               <strong>מלא/י עד 3 מועדים שמתאימים לך</strong>
             </p>
-            {altSlots.map((alt, i) => (
-              <div key={i} className="flex gap-2 mb-2 items-center">
-                <span className="text-sm font-medium text-orange-700 w-16 shrink-0">אפשרות {i + 1}</span>
-                <input type="date" value={alt.date}
-                  onChange={e => updateAltSlot(i, 'date', e.target.value)}
-                  min={format(new Date(), 'yyyy-MM-dd')}
-                  className="flex-1 border border-orange-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-400 bg-white" />
-                <input type="time" value={alt.time}
-                  onChange={e => updateAltSlot(i, 'time', e.target.value)}
-                  className="w-24 border border-orange-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-400 bg-white" />
-                <button onClick={() => removeAltSlot(i)} className="text-red-400 hover:text-red-600 text-lg">&times;</button>
-              </div>
-            ))}
+            {altSlots.map((alt, i) => {
+              const availTimes = getAvailableTimesForDate(alt.date)
+              return (
+                <div key={i} className="flex gap-2 mb-2 items-center">
+                  <span className="text-sm font-medium text-orange-700 w-16 shrink-0">אפשרות {i + 1}</span>
+                  <input type="date" value={alt.date}
+                    onChange={e => updateAltSlot(i, 'date', e.target.value)}
+                    min={format(new Date(), 'yyyy-MM-dd')}
+                    className="flex-1 border border-orange-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-400 bg-white" />
+                  <select value={alt.time}
+                    onChange={e => updateAltSlot(i, 'time', e.target.value)}
+                    disabled={!alt.date}
+                    className="w-24 border border-orange-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-400 bg-white disabled:opacity-50">
+                    <option value="">שעה</option>
+                    {availTimes.length === 0 && alt.date
+                      ? <option disabled>אין שעות</option>
+                      : availTimes.map(s => (
+                          <option key={s.id} value={format(new Date(s.startTime), 'HH:mm')}>
+                            {format(new Date(s.startTime), 'HH:mm')}
+                          </option>
+                        ))
+                    }
+                  </select>
+                  <button onClick={() => removeAltSlot(i)} className="text-red-400 hover:text-red-600 text-lg">&times;</button>
+                </div>
+              )
+            })}
             {altSlots.length < 3 && (
               <button type="button" onClick={addAltSlot}
                 className="mt-1 w-full border-2 border-dashed border-orange-300 text-orange-600 font-medium py-2 rounded-lg hover:bg-orange-100 transition text-sm">

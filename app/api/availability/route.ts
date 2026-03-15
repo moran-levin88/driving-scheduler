@@ -26,12 +26,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(slots)
   }
 
-  // Student: all non-blocked future slots (including booked ones to show as taken)
+  // Student: all non-blocked future slots, with own booking status
+  const studentId = (session.user as any).id
   const slots = await prisma.availability.findMany({
     where: { isBlocked: false, startTime: { gte: now } },
+    include: { booking: { select: { status: true, studentId: true } } },
     orderBy: { startTime: 'asc' },
   })
-  return NextResponse.json(slots)
+  return NextResponse.json(slots.map(s => ({
+    id: s.id,
+    startTime: s.startTime,
+    endTime: s.endTime,
+    isBooked: s.isBooked,
+    myBookingStatus: s.booking?.studentId === studentId ? s.booking.status : null,
+  })))
 }
 
 export async function POST(req: NextRequest) {
