@@ -1,6 +1,5 @@
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 export default function RegisterPage() {
@@ -10,7 +9,7 @@ export default function RegisterPage() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
+  const [success, setSuccess] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -36,7 +35,24 @@ export default function RegisterPage() {
       return
     }
 
-    router.push('/login?registered=1')
+    setSuccess(true)
+  }
+
+  if (success) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-blue-50" dir="rtl">
+        <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md text-center">
+          <div className="text-6xl mb-4">🎉</div>
+          <h2 className="text-2xl font-bold text-blue-900 mb-2">ברוך הבא, {form.name}!</h2>
+          <p className="text-gray-600 mb-2">ההרשמה הושלמה בהצלחה.</p>
+          <p className="text-gray-500 text-sm mb-6">כעת תוכל/י להתחבר עם האימייל והסיסמה שבחרת ולקבוע שיעורים.</p>
+          <Link href="/login"
+            className="block w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-medium text-center">
+            כניסה למערכת
+          </Link>
+        </div>
+      </main>
+    )
   }
 
   return (
@@ -60,7 +76,16 @@ export default function RegisterPage() {
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">סיסמה</label>
+            <div className="flex items-center gap-1 mb-1">
+              <label className="block text-sm font-medium text-gray-700">סיסמה</label>
+              <div className="relative group">
+                <span className="text-gray-400 cursor-help text-sm">ⓘ</span>
+                <div className="absolute right-0 top-6 z-10 hidden group-hover:block bg-gray-800 text-white text-xs rounded-lg p-3 w-56 shadow-lg leading-relaxed">
+                  הסיסמה חייבת להכיל לפחות 6 תווים.<br />
+                  זוהי הסיסמה הקבועה שלך למערכת — שמור/י אותה.
+                </div>
+              </div>
+            </div>
             <div className="relative">
               <input type={showPassword ? 'text' : 'password'} value={form.password}
                 onChange={e => setForm({...form, password: e.target.value})} required minLength={6}
@@ -90,7 +115,7 @@ export default function RegisterPage() {
           </button>
         </form>
         <p className="mt-4 text-center text-sm text-gray-600">
-          כבר רשום? <Link href="/login" className="text-blue-600 hover:underline">כניסה</Link>
+          כבר נרשמת? <Link href="/login" className="text-blue-600 hover:underline">כניסה</Link>
         </p>
       </div>
     </main>

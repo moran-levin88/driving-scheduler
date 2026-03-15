@@ -40,14 +40,13 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-blue-50" dir="rtl">
-      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
-        <div className="flex justify-center mb-4">
-          <Image src="/instructor.png" alt="Alex" width={80} height={80} className="rounded-full object-cover" />
+      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md relative">
+        <div className="absolute top-4 left-4">
+          <Image src="/instructor.png" alt="Alex" width={48} height={48} className="rounded-full object-cover shadow-sm" />
         </div>
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-blue-900">שיעורי נהיגה</h1>
-          <p className="text-lg text-gray-700 mt-1" style={{ fontFamily: "'Suez One', serif" }}>עם אלכס לוין</p>
-          <p className="text-sm text-gray-500 mt-1">קובעים שיעור נהיגה בקליק</p>
+        <div className="text-center mb-6 pt-2">
+          <h1 className="text-xl font-bold text-blue-900">כניסה למערכת קביעת שיעורי נהיגה</h1>
+          <p className="text-sm text-gray-500 mt-1" style={{ fontFamily: "'Suez One', serif" }}>עם אלכס לוין</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -60,15 +59,21 @@ export default function LoginPage() {
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
+          <div className="text-left">
+            <Link href="/forgot-password" className="text-xs text-gray-400 hover:text-blue-600 hover:underline">
+              שכחתי סיסמה
+            </Link>
+          </div>
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <button type="submit" disabled={loading}
             className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
             {loading ? 'מתחבר...' : 'כניסה'}
           </button>
         </form>
-        <div className="mt-4 text-center">
-          <Link href="/register" className="text-blue-600 hover:underline text-sm font-medium">
-            הרשמה כתלמיד
+        <div className="mt-4 text-center text-sm text-gray-600">
+          עוד לא נרשמת?{' '}
+          <Link href="/register" className="text-blue-600 hover:underline font-medium">
+            כאן נרשמים
           </Link>
         </div>
       </div>
