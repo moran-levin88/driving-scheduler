@@ -21,7 +21,7 @@ function toInternationalPhone(phone: string): string {
   return `+${digits}`
 }
 
-export async function sendSmsReminder(booking: BookingWithRelations, manual = false) {
+export async function sendSmsReminder(booking: BookingWithRelations) {
   const phone = booking.student.phone
   if (!phone) return
 
@@ -29,11 +29,8 @@ export async function sendSmsReminder(booking: BookingWithRelations, manual = fa
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
   if (!phoneNumberId || !accessToken) return
 
-  const when = manual
-    ? `ביום ${formatDate(booking.availability.startTime)}`
-    : `מחר ${formatDate(booking.availability.startTime)}`
-
-  const message = `שלום ${booking.student.name}, תזכורת: יש לך שיעור נהיגה ${when} בשעה ${formatTime(booking.availability.startTime)}. בהצלחה!`
+  const dateStr = formatDate(booking.availability.startTime)
+  const timeStr = formatTime(booking.availability.startTime)
 
   const res = await fetch(`https://graph.facebook.com/v22.0/${phoneNumberId}/messages`, {
     method: 'POST',
@@ -44,8 +41,19 @@ export async function sendSmsReminder(booking: BookingWithRelations, manual = fa
     body: JSON.stringify({
       messaging_product: 'whatsapp',
       to: toInternationalPhone(phone),
-      type: 'text',
-      text: { body: message },
+      type: 'template',
+      template: {
+        name: 'lesson_reminder',
+        language: { code: 'he' },
+        components: [{
+          type: 'body',
+          parameters: [
+            { type: 'text', text: booking.student.name },
+            { type: 'text', text: dateStr },
+            { type: 'text', text: timeStr },
+          ],
+        }],
+      },
     }),
   })
 

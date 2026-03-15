@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { format } from 'date-fns'
 import { he } from 'date-fns/locale'
 
@@ -18,6 +19,8 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default function StudentDashboard() {
+  const { data: session } = useSession()
+  const studentName = (session?.user as any)?.name || ''
   const [bookings, setBookings] = useState<Booking[]>([])
   const [cancelling, setCancelling] = useState<string | null>(null)
   const [error, setError] = useState<Record<string, string>>({})
@@ -59,14 +62,15 @@ export default function StudentDashboard() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">השיעורים שלי</h1>
+      <h1 className="text-3xl font-bold text-gray-900 mb-1">השיעורים שלי</h1>
+      {studentName && <p className="text-gray-500 mb-8">שלום, {studentName}</p>}
 
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-4 text-gray-800">שיעורים קרובים</h2>
         {upcoming.length === 0 ? (
           <div className="bg-white rounded-xl shadow p-6 text-center text-gray-500">
             אין שיעורים מתוכננים.{' '}
-            <a href="/student/book" className="text-blue-600 hover:underline">קבע שיעור עכשיו</a>
+            <a href="/student/book" className="text-blue-600 hover:underline">זה הזמן לקבוע שיעור</a>
           </div>
         ) : (
           <div className="space-y-3">
@@ -89,8 +93,8 @@ export default function StudentDashboard() {
                       <button
                         onClick={() => cancelBooking(b.id)}
                         disabled={cancelling === b.id}
-                        className="text-sm text-red-500 border border-red-300 px-3 py-1 rounded-lg hover:bg-red-50 disabled:opacity-50 transition">
-                        {cancelling === b.id ? 'מבטל...' : 'בטל שיעור'}
+                        className="text-xs text-red-400 hover:text-red-600 hover:underline disabled:opacity-50 transition">
+                        {cancelling === b.id ? 'מבטל...' : 'ביטול שיעור'}
                       </button>
                     ) : (
                       <span className="text-xs text-gray-400">לא ניתן לבטל<br/>פחות מ-24 שעות</span>

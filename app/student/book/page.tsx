@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { format, isSameDay, startOfWeek, addDays, addWeeks, subWeeks, isBefore, startOfDay } from 'date-fns'
 import { he } from 'date-fns/locale'
 
@@ -17,6 +17,7 @@ export default function BookPage() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
+  const confirmRef = useRef<HTMLDivElement>(null)
 
   async function fetchSlots() {
     const res = await fetch('/api/availability')
@@ -40,6 +41,7 @@ export default function BookPage() {
     setDoubleLesson(false)
     setSuccess(false)
     setError('')
+    setTimeout(() => confirmRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
 
   function addAltSlot() {
@@ -200,7 +202,7 @@ export default function BookPage() {
       </div>
 
       {selected && (
-        <div className="bg-white rounded-xl shadow p-6 max-w-lg">
+        <div ref={confirmRef} className="bg-white rounded-xl shadow p-6 max-w-lg">
           <h2 className="text-xl font-semibold mb-4">אישור קביעת שיעור</h2>
 
           {/* Single / double toggle */}
@@ -295,7 +297,7 @@ export default function BookPage() {
             {altSlots.length < 3 && (
               <button type="button" onClick={addAltSlot}
                 className="mt-1 w-full border-2 border-dashed border-orange-300 text-orange-600 font-medium py-2 rounded-lg hover:bg-orange-100 transition text-sm">
-                + הוסף מועד חלופי
+                הוספת מועד חלופי
               </button>
             )}
           </div>
@@ -304,7 +306,7 @@ export default function BookPage() {
           <div className="flex gap-3">
             <button onClick={submitBooking} disabled={submitting}
               className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
-              {submitting ? 'שולח...' : 'קבע שיעור'}
+              {submitting ? 'שולח...' : 'קביעת שיעור'}
             </button>
             <button onClick={() => setSelected(null)}
               className="flex-1 border py-2 rounded-lg hover:bg-gray-50 transition">
