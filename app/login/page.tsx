@@ -3,6 +3,7 @@ import { signIn } from 'next-auth/react'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -40,7 +41,14 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-blue-50" dir="rtl">
       <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold text-blue-900 mb-6">כניסה למערכת</h1>
+        <div className="flex justify-center mb-4">
+          <Image src="/instructor.png" alt="Alex" width={80} height={80} className="rounded-full object-cover" />
+        </div>
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold text-blue-900">שיעורי נהיגה</h1>
+          <p className="text-lg font-semibold text-gray-700 mt-1">אלכס לוין</p>
+          <p className="text-sm text-gray-500 mt-1">קובעים שיעור נהיגה בקליק</p>
+        </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
@@ -58,9 +66,12 @@ export default function LoginPage() {
             {loading ? 'מתחבר...' : 'כניסה'}
           </button>
         </form>
-        <p className="mt-4 text-center text-sm text-gray-600">
-          עדיין לא רשום? <Link href="/register" className="text-blue-600 hover:underline">הרשמה כתלמיד</Link>
-        </p>
+        <div className="mt-4">
+          <Link href="/register"
+            className="block w-full text-center border-2 border-blue-600 text-blue-600 py-2 rounded-lg hover:bg-blue-50 transition text-sm font-medium">
+            הרשמה כתלמיד
+          </Link>
+        </div>
       </div>
     </main>
   )
