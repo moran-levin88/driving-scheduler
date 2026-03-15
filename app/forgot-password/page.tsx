@@ -6,11 +6,8 @@ export default function ForgotPasswordPage() {
       <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md text-center">
         <div className="text-4xl mb-4">🔑</div>
         <h1 className="text-xl font-bold text-blue-900 mb-2">שכחת סיסמה?</h1>
-        <p className="text-gray-600 mb-2">
-          כדי לאפס את הסיסמה, צור/י קשר עם המורה אלכס לוין:
-        </p>
-        <p className="text-blue-700 font-medium mb-6">
-          ניתן לפנות בוואטסאפ או בשיחת טלפון
+        <p className="text-gray-600 mb-6">
+          כדי לאפס את הסיסמה, צור/י קשר עם המורה אלכס לוין.
         </p>
         <Link href="/login"
           className="block w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-medium">
