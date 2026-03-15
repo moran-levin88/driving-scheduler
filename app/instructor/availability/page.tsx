@@ -130,7 +130,7 @@ export default function AvailabilityPage() {
           return (
             <div key={day.toISOString()} className={`bg-white rounded-xl shadow p-3 ${isPast ? 'opacity-50' : ''}`}>
               <div className="text-center mb-3 pb-2 border-b">
-                <div className="text-xs text-gray-500 font-medium">{format(day, 'EEEE', { locale: he })}</div>
+                <div className="text-xs text-gray-500 font-medium">{format(day, 'EEEE', { locale: he }).replace('יום ', '')}</div>
                 <div className="text-xl font-bold text-gray-800">{format(day, 'd')}</div>
                 <div className="text-xs text-gray-400">{format(day, 'MMM', { locale: he })}</div>
               </div>

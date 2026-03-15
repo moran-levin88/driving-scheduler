@@ -143,7 +143,7 @@ export default function BookPage() {
             return (
               <div key={day.toISOString()}>
                 <div className="text-center mb-2 h-10 flex flex-col justify-center">
-                  <div className="text-xs text-gray-500 leading-tight">{format(day, 'EEEE', { locale: he })}</div>
+                  <div className="text-xs text-gray-500 leading-tight">{format(day, 'EEEE', { locale: he }).replace('יום ', '')}</div>
                   <div className="font-bold leading-tight">{format(day, 'd')}</div>
                 </div>
                 <div className="space-y-1">
