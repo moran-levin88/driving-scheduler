@@ -40,13 +40,13 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-blue-50" dir="rtl">
-      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md relative">
-        <div className="absolute top-4 left-4">
-          <Image src="/instructor.png" alt="Alex" width={48} height={48} className="rounded-full object-cover shadow-sm" />
-        </div>
-        <div className="text-center mb-6 pt-2">
-          <h1 className="text-xl font-bold text-blue-900">כניסה למערכת קביעת שיעורי נהיגה</h1>
-          <p className="text-sm text-gray-500 mt-1" style={{ fontFamily: "'Suez One', serif" }}>עם אלכס לוין</p>
+      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
+        <div className="flex items-center gap-3 mb-6">
+          <Image src="/instructor.png" alt="Alex" width={52} height={52} className="rounded-full object-cover shadow-sm shrink-0" />
+          <div>
+            <h1 className="text-lg font-bold text-blue-900 leading-tight">כניסה למערכת קביעת שיעורי נהיגה</h1>
+            <p className="text-sm text-gray-500 mt-0.5" style={{ fontFamily: "'Suez One', serif" }}>עם אלכס לוין</p>
+          </div>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
