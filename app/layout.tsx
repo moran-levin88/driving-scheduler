@@ -1,13 +1,12 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Varela_Round } from 'next/font/google'
 import './globals.css'
 import Providers from '@/components/Providers'
 
-const inter = Inter({ subsets: ['latin'] })
-
+const varelaRound = Varela_Round({ subsets: ['hebrew', 'latin'], weight: '400' })
 
 export const metadata: Metadata = {
-  title: 'מערכת שיעורי נהיגה',
+  title: 'שיעורי נהיגה עם אלכס לוין',
   description: 'קביעת שיעורי נהיגה',
 }
 
@@ -15,9 +14,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="he" dir="rtl">
       <head>
-        <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Suez+One&display=swap" rel="stylesheet" />
       </head>
-      <body className={inter.className}>
+      <body className={varelaRound.className}>
         <Providers>
           {children}
         </Providers>

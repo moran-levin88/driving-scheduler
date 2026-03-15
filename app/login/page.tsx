@@ -46,7 +46,7 @@ export default function LoginPage() {
         </div>
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-blue-900">שיעורי נהיגה</h1>
-          <p className="text-lg font-semibold text-gray-700 mt-1">אלכס לוין</p>
+          <p className="text-lg text-gray-700 mt-1" style={{ fontFamily: "'Suez One', serif" }}>עם אלכס לוין</p>
           <p className="text-sm text-gray-500 mt-1">קובעים שיעור נהיגה בקליק</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -66,9 +66,8 @@ export default function LoginPage() {
             {loading ? 'מתחבר...' : 'כניסה'}
           </button>
         </form>
-        <div className="mt-4">
-          <Link href="/register"
-            className="block w-full text-center border-2 border-blue-600 text-blue-600 py-2 rounded-lg hover:bg-blue-50 transition text-sm font-medium">
+        <div className="mt-4 text-center">
+          <Link href="/register" className="text-blue-600 hover:underline text-sm font-medium">
             הרשמה כתלמיד
           </Link>
         </div>
