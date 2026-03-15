@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!booking.student.phone) return NextResponse.json({ error: 'אין מספר טלפון לתלמיד' }, { status: 400 })
 
   try {
-    await sendSmsReminder(booking, true)
+    await sendSmsReminder(booking)
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'שגיאה בשליחת WhatsApp' }, { status: 500 })
   }
