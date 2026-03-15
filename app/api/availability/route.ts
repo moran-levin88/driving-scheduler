@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     startTime: s.startTime,
     endTime: s.endTime,
     isBooked: s.isBooked,
-    myBookingStatus: s.booking?.studentId === studentId ? s.booking.status : null,
+    myBookingStatus: s.booking?.studentId === studentId ? s.booking?.status ?? null : null,
   })))
 }
 
