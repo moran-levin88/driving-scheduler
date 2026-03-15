@@ -19,7 +19,6 @@ export default function StudentNav({ name }: { name: string }) {
           </Link>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-blue-200 text-sm">שלום, {name}</span>
           <button onClick={() => signOut({ callbackUrl: '/login' })} className="text-blue-200 hover:text-white transition text-sm">
             התנתקות
           </button>
