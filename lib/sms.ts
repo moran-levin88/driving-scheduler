@@ -44,7 +44,7 @@ export async function sendSmsReminder(booking: BookingWithRelations) {
       type: 'template',
       template: {
         name: 'lesson_reminder',
-        language: { code: 'he' },
+        language: { code: 'iw' },
         components: [{
           type: 'body',
           parameters: [
