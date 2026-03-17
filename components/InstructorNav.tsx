@@ -10,6 +10,7 @@ export default function InstructorNav() {
     { href: '/instructor/availability', label: 'ניהול זמינות' },
     { href: '/instructor/schedule', label: 'לו״ז שיעורים' },
     { href: '/instructor/bookings', label: 'הזמנות' },
+    { href: '/instructor/book', label: 'קביעת שיעור' },
     { href: '/instructor/students', label: 'תלמידים' },
   ]
 
