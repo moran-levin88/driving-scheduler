@@ -18,11 +18,12 @@ export default function InstructorBookPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('/api/students').then(r => r.json()).then(setStudents)
-    fetch('/api/availability').then(r => r.json()).then((data: any[]) => {
+    fetch('/api/students').then(r => r.json()).then(d => { if (Array.isArray(d)) setStudents(d) })
+    fetch('/api/availability').then(r => r.json()).then((data: any) => {
+      if (!Array.isArray(data)) return
       const free = data
-        .filter(s => !s.isBooked && !s.isBlocked && new Date(s.startTime) > new Date())
-        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+        .filter((s: any) => !s.isBooked && !s.isBlocked && new Date(s.startTime) > new Date())
+        .sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
       setSlots(free)
     })
   }, [])
@@ -51,10 +52,11 @@ export default function InstructorBookPage() {
       setPickupAddress('')
       setNotes('')
       // Refresh free slots
-      fetch('/api/availability').then(r => r.json()).then((data: any[]) => {
+      fetch('/api/availability').then(r => r.json()).then((data: any) => {
+        if (!Array.isArray(data)) return
         const free = data
-          .filter(s => !s.isBooked && !s.isBlocked && new Date(s.startTime) > new Date())
-          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+          .filter((s: any) => !s.isBooked && !s.isBlocked && new Date(s.startTime) > new Date())
+          .sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
         setSlots(free)
       })
     }
