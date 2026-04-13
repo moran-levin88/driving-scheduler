@@ -169,8 +169,8 @@ export default function AvailabilityPage() {
 
       {/* Modal */}
       {creating && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md" dir="rtl">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto" dir="rtl">
 
             {/* Mode toggle */}
             <div className="flex rounded-lg border overflow-hidden mb-4">

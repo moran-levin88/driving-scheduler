@@ -15,18 +15,16 @@ export default function InstructorNav() {
   ]
 
   return (
-    <nav className="bg-blue-700 text-white px-6 py-4">
-      <div className="container mx-auto flex items-center justify-between">
-        <div className="flex gap-6">
-          {links.map(l => (
-            <Link key={l.href} href={l.href}
-              className={`hover:text-blue-200 transition ${pathname === l.href ? 'font-bold border-b-2 border-white' : ''}`}>
-              {l.label}
-            </Link>
-          ))}
-        </div>
+    <nav className="bg-blue-700 text-white px-4 py-3">
+      <div className="flex items-center gap-4 overflow-x-auto whitespace-nowrap [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none' }} dir="rtl">
+        {links.map(l => (
+          <Link key={l.href} href={l.href}
+            className={`flex-shrink-0 hover:text-blue-200 transition text-sm ${pathname === l.href ? 'font-bold border-b-2 border-white' : ''}`}>
+            {l.label}
+          </Link>
+        ))}
         <button onClick={() => signOut({ callbackUrl: '/login' })}
-          className="text-blue-200 hover:text-white transition text-sm">
+          className="flex-shrink-0 text-blue-200 hover:text-white transition text-sm mr-auto">
           התנתקות
         </button>
       </div>
