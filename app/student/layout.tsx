@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import StudentNav from '@/components/StudentNav'
+import StudentLayoutWrapper from '@/components/StudentLayoutWrapper'
 
 export default async function StudentLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -10,9 +11,9 @@ export default async function StudentLayout({ children }: { children: React.Reac
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-gray-50">
+    <StudentLayoutWrapper>
       <StudentNav name={(session.user as any).name || ''} />
       <main className="container mx-auto px-4 py-8">{children}</main>
-    </div>
+    </StudentLayoutWrapper>
   )
 }

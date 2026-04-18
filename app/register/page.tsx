@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' })
@@ -11,13 +12,14 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
+  const { t, lang, setLang, dir } = useLanguage()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
 
     if (form.password !== confirm) {
-      setError('הסיסמאות אינן תואמות')
+      setError(t('passwordsNoMatch'))
       return
     }
 
@@ -31,7 +33,7 @@ export default function RegisterPage() {
 
     if (!res.ok) {
       const data = await res.json()
-      setError(data.error || 'שגיאה בהרשמה')
+      setError(data.error || t('registerError'))
       setLoading(false)
       return
     }
@@ -41,15 +43,15 @@ export default function RegisterPage() {
 
   if (success) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-blue-50" dir="rtl">
+      <main className="min-h-screen flex items-center justify-center bg-blue-50" dir={dir}>
         <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md text-center">
           <div className="text-6xl mb-4">🎉</div>
-          <h2 className="text-2xl font-bold text-blue-900 mb-2">ברוך הבא, {form.name}!</h2>
-          <p className="text-gray-600 mb-2">ההרשמה הושלמה בהצלחה.</p>
-          <p className="text-gray-500 text-sm mb-6">כעת תוכל/י להתחבר עם האימייל והסיסמה שבחרת ולקבוע שיעורים.</p>
+          <h2 className="text-2xl font-bold text-blue-900 mb-2">{t('welcome')}, {form.name}!</h2>
+          <p className="text-gray-600 mb-2">{t('registrationSuccess')}</p>
+          <p className="text-gray-500 text-sm mb-6">{t('registrationSuccessMsg')}</p>
           <Link href="/login"
             className="block w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-medium text-center">
-            כניסה למערכת
+            {t('loginToSystem')}
           </Link>
         </div>
       </main>
@@ -57,34 +59,48 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-blue-50" dir="rtl">
+    <main className="min-h-screen flex items-center justify-center bg-blue-50" dir={dir}>
       <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold text-blue-900 mb-6">הרשמה לתלמידים</h1>
+        {/* Language toggle */}
+        <div className="flex justify-end mb-4">
+          <div className="flex items-center gap-0 border border-gray-200 rounded-lg overflow-hidden text-sm">
+            <button onClick={() => setLang('he')}
+              className={`px-3 py-1.5 transition ${lang === 'he' ? 'bg-blue-600 text-white font-bold' : 'text-gray-500 hover:bg-gray-50'}`}>
+              עברית
+            </button>
+            <button onClick={() => setLang('ru')}
+              className={`px-3 py-1.5 transition ${lang === 'ru' ? 'bg-blue-600 text-white font-bold' : 'text-gray-500 hover:bg-gray-50'}`}>
+              Русский
+            </button>
+          </div>
+        </div>
+
+        <h1 className="text-2xl font-bold text-blue-900 mb-6">{t('registerTitle')}</h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">שם מלא</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('fullName')}</label>
             <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('email')}</label>
             <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} required
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('phone')}</label>
             <input type="tel" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})}
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
             <div className="flex items-center gap-1 mb-1">
-              <label className="block text-sm font-medium text-gray-700">סיסמה</label>
+              <label className="block text-sm font-medium text-gray-700">{t('password')}</label>
               <div className="relative">
                 <button type="button" onClick={() => setShowTooltip(v => !v)} className="text-gray-400 text-sm">ⓘ</button>
                 {showTooltip && (
                   <div className="absolute right-0 top-6 z-10 bg-gray-800 text-white text-xs rounded-lg p-3 w-56 shadow-lg leading-relaxed">
-                    הסיסמה חייבת להכיל לפחות 6 תווים.<br />
-                    זוהי הסיסמה הקבועה שלך למערכת — שמור/י אותה.
+                    {t('passwordHint1')}<br />
+                    {t('passwordHint2')}
                   </div>
                 )}
               </div>
@@ -100,7 +116,7 @@ export default function RegisterPage() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">אימות סיסמה</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('confirmPassword')}</label>
             <div className="relative">
               <input type={showConfirm ? 'text' : 'password'} value={confirm}
                 onChange={e => setConfirm(e.target.value)} required minLength={6}
@@ -114,11 +130,12 @@ export default function RegisterPage() {
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <button type="submit" disabled={loading}
             className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
-            {loading ? 'נרשם...' : 'הרשמה'}
+            {loading ? t('registering') : t('register')}
           </button>
         </form>
         <p className="mt-4 text-center text-sm text-gray-600">
-          כבר נרשמת? <Link href="/login" className="text-blue-600 hover:underline">כניסה</Link>
+          {t('alreadyRegistered')}{' '}
+          <Link href="/login" className="text-blue-600 hover:underline">{t('login')}</Link>
         </p>
       </div>
     </main>
