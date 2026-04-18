@@ -1,8 +1,14 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import nodemailer from 'nodemailer'
 
 export async function GET() {
+  const session = await getServerSession(authOptions)
+  if (!session || (session.user as any).role !== 'INSTRUCTOR') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
   const user = process.env.GMAIL_USER
   const pass = process.env.GMAIL_APP_PASSWORD
 

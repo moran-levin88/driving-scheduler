@@ -12,6 +12,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Name, email and password required' }, { status: 400 })
   }
 
+  if (password.length < 6) {
+    return NextResponse.json({ error: 'הסיסמה חייבת להכיל לפחות 6 תווים' }, { status: 400 })
+  }
+
   const existing = await prisma.user.findUnique({ where: { email } })
   if (existing) {
     return NextResponse.json({ error: 'כתובת האימייל כבר רשומה במערכת' }, { status: 409 })
