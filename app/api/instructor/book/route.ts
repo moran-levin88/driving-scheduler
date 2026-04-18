@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendBookingApproved } from '@/lib/email'
+import { createCalendarEvent } from '@/lib/calendar'
 import { Prisma } from '@prisma/client'
 
 export async function POST(req: NextRequest) {
@@ -64,6 +65,13 @@ export async function POST(req: NextRequest) {
     })
 
     sendBookingApproved(firstBooking as any).catch(console.error)
+
+    createCalendarEvent(firstBooking as any).then(async (eventId) => {
+      if (eventId) {
+        await prisma.booking.update({ where: { id: firstBooking.id }, data: { calendarEventId: eventId } })
+      }
+    }).catch(console.error)
+
     return NextResponse.json(firstBooking, { status: 201 })
   } catch (err: any) {
     if (err.message === 'SLOT_UNAVAILABLE') {
