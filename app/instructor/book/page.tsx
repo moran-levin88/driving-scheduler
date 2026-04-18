@@ -17,7 +17,14 @@ export default function InstructorBookPage() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
+  // New student form state
+  const [showNewStudent, setShowNewStudent] = useState(false)
+  const [newStudent, setNewStudent] = useState({ name: '', phone: '', email: '' })
+  const [creatingStudent, setCreatingStudent] = useState(false)
+  const [newStudentError, setNewStudentError] = useState('')
+  const [createdCredentials, setCreatedCredentials] = useState<{ name: string; email: string; tempPassword: string | null } | null>(null)
+
+  function fetchData() {
     fetch('/api/students').then(r => r.json()).then(d => { if (Array.isArray(d)) setStudents(d) })
     fetch('/api/availability').then(r => r.json()).then((data: any) => {
       if (!Array.isArray(data)) return
@@ -26,7 +33,38 @@ export default function InstructorBookPage() {
         .sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
       setSlots(free)
     })
-  }, [])
+  }
+
+  useEffect(() => { fetchData() }, [])
+
+  async function handleCreateStudent(e: React.FormEvent) {
+    e.preventDefault()
+    setCreatingStudent(true)
+    setNewStudentError('')
+
+    const res = await fetch('/api/students', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newStudent),
+    })
+    const data = await res.json()
+    setCreatingStudent(false)
+
+    if (!res.ok) {
+      setNewStudentError(data.error || 'שגיאה ביצירת התלמיד')
+      return
+    }
+
+    // Add to list and auto-select
+    setStudents(prev => [...prev, { id: data.id, name: data.name, email: data.email, phone: data.phone }].sort((a, b) => a.name.localeCompare(b.name, 'he')))
+    setStudentId(data.id)
+    setShowNewStudent(false)
+    setNewStudent({ name: '', phone: '', email: '' })
+
+    if (data.tempPassword) {
+      setCreatedCredentials({ name: data.name, email: data.email, tempPassword: data.tempPassword })
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -51,14 +89,8 @@ export default function InstructorBookPage() {
       setAvailabilityId('')
       setPickupAddress('')
       setNotes('')
-      // Refresh free slots
-      fetch('/api/availability').then(r => r.json()).then((data: any) => {
-        if (!Array.isArray(data)) return
-        const free = data
-          .filter((s: any) => !s.isBooked && !s.isBlocked && new Date(s.startTime) > new Date())
-          .sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
-        setSlots(free)
-      })
+      setCreatedCredentials(null)
+      fetchData()
     }
   }
 
@@ -79,20 +111,83 @@ export default function InstructorBookPage() {
         </div>
       )}
 
+      {/* Credentials banner - shown after creating a student with email */}
+      {createdCredentials && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-900 rounded-xl px-5 py-4 mb-6 text-sm space-y-1">
+          <p className="font-bold">✓ התלמיד {createdCredentials.name} נוסף למערכת</p>
+          {createdCredentials.tempPassword && (
+            <>
+              <p>שלח/י לתלמיד את פרטי הכניסה הבאים:</p>
+              <p>📧 אימייל: <span className="font-mono font-bold">{createdCredentials.email}</span></p>
+              <p>🔑 סיסמה זמנית: <span className="font-mono font-bold">{createdCredentials.tempPassword}</span></p>
+              <p className="text-blue-600 text-xs mt-1">התלמיד יוכל להתחבר עם פרטים אלו ולשנות סיסמה מהגדרות.</p>
+            </>
+          )}
+          {!createdCredentials.tempPassword && (
+            <p className="text-blue-700">התלמיד יוכל להירשם למערכת בעצמו כשיקבל את הקישור.</p>
+          )}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow p-6 space-y-5">
+
+        {/* Student selection */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">תלמיד</label>
-          <select
-            value={studentId}
-            onChange={e => setStudentId(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          >
-            <option value="">— בחר תלמיד —</option>
-            {students.map(s => (
-              <option key={s.id} value={s.id}>{s.name}{s.phone ? ` (${s.phone})` : ''}</option>
-            ))}
-          </select>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium text-gray-700">תלמיד</label>
+            <button
+              type="button"
+              onClick={() => { setShowNewStudent(v => !v); setNewStudentError('') }}
+              className="text-sm text-blue-600 hover:underline">
+              {showNewStudent ? 'ביטול' : '+ תלמיד חדש'}
+            </button>
+          </div>
+
+          {showNewStudent ? (
+            <div className="border border-blue-200 rounded-xl p-4 bg-blue-50 space-y-3">
+              <p className="text-sm font-medium text-blue-800">הוספת תלמיד חדש למערכת</p>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-0.5">שם מלא <span className="text-red-500">*</span></label>
+                <input type="text" value={newStudent.name}
+                  onChange={e => setNewStudent(p => ({ ...p, name: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" required />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-0.5">טלפון</label>
+                <input type="tel" value={newStudent.phone}
+                  onChange={e => setNewStudent(p => ({ ...p, phone: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-0.5">
+                  אימייל <span className="text-gray-400 font-normal">(אם ידוע — ישמש לכניסה למערכת)</span>
+                </label>
+                <input type="email" value={newStudent.email}
+                  onChange={e => setNewStudent(p => ({ ...p, email: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+              </div>
+              {newStudentError && <p className="text-red-500 text-xs">{newStudentError}</p>}
+              <button
+                type="button"
+                onClick={handleCreateStudent}
+                disabled={creatingStudent || !newStudent.name.trim()}
+                className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 transition">
+                {creatingStudent ? 'מוסיף...' : 'הוסף תלמיד'}
+              </button>
+            </div>
+          ) : (
+            <select
+              value={studentId}
+              onChange={e => setStudentId(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">— בחר תלמיד —</option>
+              {students.map(s => (
+                <option key={s.id} value={s.id}>{s.name}{s.phone ? ` (${s.phone})` : ''}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div>
@@ -139,7 +234,7 @@ export default function InstructorBookPage() {
 
         <button
           type="submit"
-          disabled={loading || slots.length === 0}
+          disabled={loading || slots.length === 0 || showNewStudent}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition disabled:opacity-50"
         >
           {loading ? 'קובע שיעור...' : 'קבע שיעור'}
