@@ -123,7 +123,7 @@ export default function InstructorBookPage() {
     const res = await fetch('/api/instructor/book', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId, availabilityIds: ids, pickupAddress, notes }),
+      body: JSON.stringify({ studentId, availabilityIds: ids, halfLesson: lessonType === 'oneAndHalf', pickupAddress, notes }),
     })
     setLoading(false)
     if (!res.ok) {

@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { studentId, availabilityIds, pickupAddress, notes } = await req.json()
+  const { studentId, availabilityIds, halfLesson, pickupAddress, notes } = await req.json()
 
   if (!studentId || !availabilityIds?.length) {
     return NextResponse.json({ error: 'חסרים פרטים' }, { status: 400 })
@@ -21,13 +21,30 @@ export async function POST(req: NextRequest) {
 
   try {
     const firstBooking = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const slots = await tx.availability.findMany({ where: { id: { in: availabilityIds } } })
+      const slots = await tx.availability.findMany({
+        where: { id: { in: availabilityIds } },
+        orderBy: { startTime: 'asc' },
+      })
       if (slots.length !== availabilityIds.length || slots.some(s => s.isBooked || s.isBlocked)) {
         throw new Error('SLOT_UNAVAILABLE')
       }
 
       let first: any = null
-      for (const availabilityId of availabilityIds) {
+      for (let i = 0; i < availabilityIds.length; i++) {
+        const availabilityId = availabilityIds[i]
+        const slot = slots.find(s => s.id === availabilityId)!
+
+        // For half-lesson (60 min): truncate the second slot to 20 min
+        if (halfLesson && i === 1) {
+          const truncatedEnd = new Date(slot.startTime.getTime() + 20 * 60 * 1000)
+          await tx.availability.update({
+            where: { id: availabilityId },
+            data: { endTime: truncatedEnd, isBooked: true },
+          })
+        } else {
+          await tx.availability.update({ where: { id: availabilityId }, data: { isBooked: true } })
+        }
+
         await tx.booking.deleteMany({
           where: { availabilityId, status: { in: ['CANCELLED', 'REJECTED'] } },
         })
@@ -41,7 +58,6 @@ export async function POST(req: NextRequest) {
           },
           include: { student: true, availability: true },
         })
-        await tx.availability.update({ where: { id: availabilityId }, data: { isBooked: true } })
         if (!first) first = created
       }
       return first
