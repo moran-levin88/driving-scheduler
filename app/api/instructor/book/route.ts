@@ -13,38 +13,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { studentId, availabilityId, pickupAddress, notes } = await req.json()
+  const { studentId, availabilityIds, pickupAddress, notes } = await req.json()
 
-  if (!studentId || !availabilityId) {
+  if (!studentId || !availabilityIds?.length) {
     return NextResponse.json({ error: 'חסרים פרטים' }, { status: 400 })
   }
 
   try {
-    const booking = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const slot = await tx.availability.findUnique({ where: { id: availabilityId } })
-      if (!slot || slot.isBooked || slot.isBlocked) throw new Error('SLOT_UNAVAILABLE')
+    const firstBooking = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const slots = await tx.availability.findMany({ where: { id: { in: availabilityIds } } })
+      if (slots.length !== availabilityIds.length || slots.some(s => s.isBooked || s.isBlocked)) {
+        throw new Error('SLOT_UNAVAILABLE')
+      }
 
-      await tx.booking.deleteMany({
-        where: { availabilityId, status: { in: ['CANCELLED', 'REJECTED'] } },
-      })
-
-      const created = await tx.booking.create({
-        data: {
-          studentId,
-          availabilityId,
-          pickupAddress: pickupAddress || null,
-          notes: notes || null,
-          status: 'APPROVED',
-        },
-        include: { student: true, availability: true },
-      })
-
-      await tx.availability.update({ where: { id: availabilityId }, data: { isBooked: true } })
-      return created
+      let first: any = null
+      for (const availabilityId of availabilityIds) {
+        await tx.booking.deleteMany({
+          where: { availabilityId, status: { in: ['CANCELLED', 'REJECTED'] } },
+        })
+        const created = await tx.booking.create({
+          data: {
+            studentId,
+            availabilityId,
+            pickupAddress: pickupAddress || null,
+            notes: notes || null,
+            status: 'APPROVED',
+          },
+          include: { student: true, availability: true },
+        })
+        await tx.availability.update({ where: { id: availabilityId }, data: { isBooked: true } })
+        if (!first) first = created
+      }
+      return first
     })
 
-    sendBookingApproved(booking as any).catch(console.error)
-    return NextResponse.json(booking, { status: 201 })
+    sendBookingApproved(firstBooking as any).catch(console.error)
+    return NextResponse.json(firstBooking, { status: 201 })
   } catch (err: any) {
     if (err.message === 'SLOT_UNAVAILABLE') {
       return NextResponse.json({ error: 'השעה כבר לא פנויה' }, { status: 409 })
