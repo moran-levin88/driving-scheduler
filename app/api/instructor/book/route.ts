@@ -14,14 +14,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { studentId, availabilityIds, halfLesson, pickupAddress, notes } = await req.json()
+  const { studentId, availabilityIds, pickupAddress, notes } = await req.json()
 
   if (!studentId || !availabilityIds?.length) {
     return NextResponse.json({ error: 'חסרים פרטים' }, { status: 400 })
   }
 
   try {
-    const firstBooking = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const { firstBooking, lastSlotEndTime } = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const slots = await tx.availability.findMany({
         where: { id: { in: availabilityIds } },
         orderBy: { startTime: 'asc' },
@@ -30,22 +30,11 @@ export async function POST(req: NextRequest) {
         throw new Error('SLOT_UNAVAILABLE')
       }
 
+      const lastSlotEndTime = slots[slots.length - 1].endTime
+
       let first: any = null
-      for (let i = 0; i < availabilityIds.length; i++) {
-        const availabilityId = availabilityIds[i]
-        const slot = slots.find(s => s.id === availabilityId)!
-
-        // For half-lesson (60 min): truncate the second slot to 20 min
-        if (halfLesson && i === 1) {
-          const truncatedEnd = new Date(slot.startTime.getTime() + 20 * 60 * 1000)
-          await tx.availability.update({
-            where: { id: availabilityId },
-            data: { endTime: truncatedEnd, isBooked: true },
-          })
-        } else {
-          await tx.availability.update({ where: { id: availabilityId }, data: { isBooked: true } })
-        }
-
+      for (const availabilityId of availabilityIds) {
+        await tx.availability.update({ where: { id: availabilityId }, data: { isBooked: true } })
         await tx.booking.deleteMany({
           where: { availabilityId, status: { in: ['CANCELLED', 'REJECTED'] } },
         })
@@ -61,16 +50,22 @@ export async function POST(req: NextRequest) {
         })
         if (!first) first = created
       }
-      return first
+      return { firstBooking: first, lastSlotEndTime }
     })
 
     sendBookingApproved(firstBooking as any).catch(console.error)
 
-    createCalendarEvent(firstBooking as any).then(async (eventId) => {
-      if (eventId) {
-        await prisma.booking.update({ where: { id: firstBooking.id }, data: { calendarEventId: eventId } })
-      }
-    }).catch(console.error)
+    const eventId = await createCalendarEvent({
+      student: firstBooking.student,
+      availability: {
+        startTime: firstBooking.availability.startTime,
+        endTime: lastSlotEndTime,
+      },
+      pickupAddress: firstBooking.pickupAddress,
+    })
+    if (eventId) {
+      await prisma.booking.update({ where: { id: firstBooking.id }, data: { calendarEventId: eventId } })
+    }
 
     return NextResponse.json(firstBooking, { status: 201 })
   } catch (err: any) {

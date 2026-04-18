@@ -32,10 +32,19 @@ export default function BookPage() {
 
   const days = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i))
 
-  function getNextSlot(slot: Slot): Slot | null {
-    return slots.find(s =>
-      new Date(s.startTime).getTime() === new Date(slot.endTime).getTime() && !s.isBooked
-    ) || null
+  // Find up to `count` consecutive free slots starting from slot
+  function getSlotChain(slot: Slot, count: number): Slot[] {
+    const result: Slot[] = [slot]
+    let current = slot
+    while (result.length < count) {
+      const next = slots.find(s =>
+        new Date(s.startTime).getTime() === new Date(current.endTime).getTime() && !s.isBooked
+      )
+      if (!next) break
+      result.push(next)
+      current = next
+    }
+    return result
   }
 
   function handleSelectSlot(slot: Slot) {
@@ -69,16 +78,28 @@ export default function BookPage() {
 
   const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 })
 
+  // Compute chains for the selected slot
+  const singleChain = selected ? getSlotChain(selected, 2) : []
+  const doubleChain = selected ? getSlotChain(selected, 4) : []
+  const canSingle = singleChain.length >= 2
+  const canDouble = doubleChain.length >= 4
+  const activeChain = doubleLesson ? doubleChain : singleChain
+
   async function submitBooking() {
     if (!selected) return
     setSubmitting(true)
     setError('')
 
     try {
-      const nextSlot = getNextSlot(selected)
-      const availabilityIds = doubleLesson && nextSlot
-        ? [selected.id, nextSlot.id]
-        : [selected.id]
+      const chain = doubleLesson ? doubleChain : singleChain
+      const slotsNeeded = doubleLesson ? 4 : 2
+      if (chain.length < slotsNeeded) {
+        setError(t('noConsecutive'))
+        setSubmitting(false)
+        return
+      }
+
+      const availabilityIds = chain.map(s => s.id)
 
       const alternativeSlots = altSlots
         .filter(a => a.date && a.time)
@@ -113,8 +134,6 @@ export default function BookPage() {
       setSubmitting(false)
     }
   }
-
-  const nextSlot = selected ? getNextSlot(selected) : null
 
   // Day names: for Hebrew use short Hebrew day names, for Russian use abbreviated
   function getDayName(day: Date): string {
@@ -163,7 +182,7 @@ export default function BookPage() {
                     <p className="text-xs text-gray-300 text-center">{t('noSlots')}</p>
                   ) : daySlots.map(slot => {
                     const isSelected = selected?.id === slot.id
-                    const isNext = selected && doubleLesson && getNextSlot(selected)?.id === slot.id
+                    const isNext = selected && activeChain.some(s => s.id === slot.id && s.id !== selected.id)
                     const myStatus = slot.myBookingStatus
                     if (slot.isBooked && !myStatus) {
                       return (
@@ -223,29 +242,33 @@ export default function BookPage() {
             </button>
             <button type="button"
               onClick={() => setDoubleLesson(true)}
-              disabled={!nextSlot}
-              title={!nextSlot ? t('noConsecutive') : ''}
+              disabled={!canDouble}
+              title={!canDouble ? t('noConsecutive') : ''}
               className={`flex-1 py-2 text-sm font-medium transition ${doubleLesson ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} disabled:opacity-40 disabled:cursor-not-allowed`}>
               {t('doubleLesson')}
             </button>
           </div>
 
-          <div className="bg-blue-50 rounded-lg p-3 mb-4">
-            <p className="text-gray-700 text-sm">
-              <strong>{t('date')}</strong> {format(new Date(selected.startTime), t('dateFormat'), { locale })}
-            </p>
-            <p className="text-gray-700 text-sm mt-1">
-              <strong>{t('time')}</strong>{' '}
-              {format(new Date(selected.startTime), 'HH:mm')}
-              {' - '}
-              {doubleLesson && nextSlot
-                ? format(new Date(nextSlot.endTime), 'HH:mm')
-                : format(new Date(selected.endTime), 'HH:mm')}
-              {doubleLesson && nextSlot && (
-                <span className="text-blue-600 font-medium"> {t('eightyMin')}</span>
-              )}
-            </p>
-          </div>
+          {!canSingle && (
+            <p className="text-red-500 text-sm mb-3">{t('noConsecutive')}</p>
+          )}
+
+          {canSingle && (
+            <div className="bg-blue-50 rounded-lg p-3 mb-4">
+              <p className="text-gray-700 text-sm">
+                <strong>{t('date')}</strong> {format(new Date(selected.startTime), t('dateFormat'), { locale })}
+              </p>
+              <p className="text-gray-700 text-sm mt-1">
+                <strong>{t('time')}</strong>{' '}
+                {format(new Date(selected.startTime), 'HH:mm')}
+                {' - '}
+                {format(new Date(activeChain[activeChain.length - 1]?.endTime ?? selected.endTime), 'HH:mm')}
+                {doubleLesson && canDouble && (
+                  <span className="text-blue-600 font-medium"> {t('eightyMin')}</span>
+                )}
+              </p>
+            </div>
+          )}
 
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1">
@@ -310,7 +333,7 @@ export default function BookPage() {
 
           {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
           <div className="flex gap-3">
-            <button onClick={submitBooking} disabled={submitting}
+            <button onClick={submitBooking} disabled={submitting || !canSingle}
               className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
               {submitting ? t('submitting') : t('bookLesson')}
             </button>

@@ -71,8 +71,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ created: 1, blocked: true }, { status: 201 })
   }
 
-  // Otherwise: split into 40-minute lesson slots
-  const SLOT_MINUTES = 40
+  // Otherwise: split into 20-minute base slots (2=lesson, 3=half, 4=double)
+  const SLOT_MINUTES = 20
   const slots = []
   const cursor = new Date(start)
   while (cursor < end) {
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (slots.length === 0) {
-    return NextResponse.json({ error: 'הטווח קצר מדי — נדרש לפחות 40 דקות' }, { status: 400 })
+    return NextResponse.json({ error: 'הטווח קצר מדי — נדרש לפחות 20 דקות' }, { status: 400 })
   }
 
   // Skip slots that already exist at the same startTime

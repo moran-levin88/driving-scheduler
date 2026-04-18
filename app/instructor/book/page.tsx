@@ -8,9 +8,9 @@ type Slot = { id: string; startTime: string; endTime: string }
 
 type LessonType = 'single' | 'oneAndHalf' | 'double'
 const LESSON_OPTIONS: { value: LessonType; label: string; slots: number }[] = [
-  { value: 'single',      label: 'שיעור (40 דק׳)',       slots: 1 },
-  { value: 'oneAndHalf',  label: 'שיעור וחצי (שעה)',     slots: 2 },
-  { value: 'double',      label: 'שיעור כפול (80 דק׳)',  slots: 2 },
+  { value: 'single',      label: 'שיעור (40 דק׳)',       slots: 2 },
+  { value: 'oneAndHalf',  label: 'שיעור וחצי (שעה)',     slots: 3 },
+  { value: 'double',      label: 'שיעור כפול (80 דק׳)',  slots: 4 },
 ]
 
 export default function InstructorBookPage() {
@@ -45,37 +45,42 @@ export default function InstructorBookPage() {
 
   useEffect(() => { fetchData() }, [])
 
-  // Find next consecutive slot
-  function getNextSlot(id: string): Slot | null {
-    const current = slots.find(s => s.id === id)
-    if (!current) return null
-    return slots.find(s =>
-      new Date(s.startTime).getTime() === new Date(current.endTime).getTime()
-    ) || null
+  // Find n consecutive free slots starting from startId
+  function getConsecutiveSlots(startId: string, count: number): Slot[] {
+    const result: Slot[] = []
+    let currentId = startId
+    for (let i = 0; i < count; i++) {
+      const slot = slots.find(s => s.id === currentId)
+      if (!slot) break
+      result.push(slot)
+      if (i < count - 1) {
+        const next = slots.find(s =>
+          new Date(s.startTime).getTime() === new Date(slot.endTime).getTime()
+        )
+        if (!next) break
+        currentId = next.id
+      }
+    }
+    return result
   }
 
-  const selectedSlot = slots.find(s => s.id === availabilityId) || null
-  const nextSlot = availabilityId ? getNextSlot(availabilityId) : null
-  const needsTwo = lessonType === 'oneAndHalf' || lessonType === 'double'
-  const missingNext = needsTwo && availabilityId && !nextSlot
+  const neededSlots = LESSON_OPTIONS.find(o => o.value === lessonType)!.slots
+  const selectedChain = availabilityId ? getConsecutiveSlots(availabilityId, neededSlots) : []
+  const missingNext = availabilityId.length > 0 && selectedChain.length < neededSlots
 
   function getAvailabilityIds(): string[] {
-    if (!availabilityId) return []
-    if (needsTwo && nextSlot) return [availabilityId, nextSlot.id]
-    return [availabilityId]
+    return selectedChain.map(s => s.id)
   }
 
   function formatSlot(slot: Slot) {
     const start = new Date(slot.startTime)
-    const end = new Date(slot.endTime)
-    return `${format(start, "EEEE, d בMMMM yyyy", { locale: he })} | ${format(start, 'HH:mm')}–${format(end, 'HH:mm')}`
+    return `${format(start, "EEEE, d בMMMM yyyy", { locale: he })} | ${format(start, 'HH:mm')}`
   }
 
   function formatSelectedRange() {
-    if (!selectedSlot) return ''
-    const start = new Date(selectedSlot.startTime)
-    const endSlot = needsTwo && nextSlot ? nextSlot : selectedSlot
-    const end = new Date(endSlot.endTime)
+    if (!selectedChain.length) return ''
+    const start = new Date(selectedChain[0].startTime)
+    const end = new Date(selectedChain[selectedChain.length - 1].endTime)
     return `${format(start, "EEEE, d בMMMM yyyy", { locale: he })} | ${format(start, 'HH:mm')}–${format(end, 'HH:mm')}`
   }
 
@@ -114,8 +119,8 @@ export default function InstructorBookPage() {
       setError('יש לבחור תלמיד ושעה')
       return
     }
-    if (needsTwo && !nextSlot) {
-      setError('אין שיעור רצוף פנוי לאחר השעה שנבחרה')
+    if (missingNext) {
+      setError('אין מספיק שיעורים רצופים פנויים לאחר השעה שנבחרה')
       return
     }
     setLoading(true)
@@ -123,7 +128,7 @@ export default function InstructorBookPage() {
     const res = await fetch('/api/instructor/book', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId, availabilityIds: ids, halfLesson: lessonType === 'oneAndHalf', pickupAddress, notes }),
+      body: JSON.stringify({ studentId, availabilityIds: ids, pickupAddress, notes }),
     })
     setLoading(false)
     if (!res.ok) {
@@ -250,13 +255,11 @@ export default function InstructorBookPage() {
               ))}
             </select>
           )}
-          {availabilityId && selectedSlot && (
+          {availabilityId && (
             <p className={`text-xs mt-1 ${missingNext ? 'text-red-500' : 'text-gray-500'}`}>
-              {needsTwo
-                ? missingNext
-                  ? '⚠ אין שיעור רצוף פנוי לאחר שעה זו'
-                  : `✓ ${formatSelectedRange()}`
-                : `✓ ${formatSelectedRange()}`
+              {missingNext
+                ? '⚠ אין מספיק שיעורים רצופים פנויים לאחר שעה זו'
+                : selectedChain.length > 0 ? `✓ ${formatSelectedRange()}` : ''
               }
             </p>
           )}
