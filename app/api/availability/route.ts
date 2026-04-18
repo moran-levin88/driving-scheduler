@@ -33,7 +33,16 @@ export async function GET(req: NextRequest) {
     include: { booking: { select: { status: true, studentId: true } } },
     orderBy: { startTime: 'asc' },
   })
-  return NextResponse.json(slots.map(s => ({
+
+  // Deduplicate by startTime — keep booked/mine first, then any free slot
+  const seen = new Map<string, typeof slots[0]>()
+  for (const s of slots) {
+    const key = s.startTime.toISOString()
+    const existing = seen.get(key)
+    if (!existing || s.isBooked) seen.set(key, s)
+  }
+
+  return NextResponse.json([...seen.values()].map(s => ({
     id: s.id,
     startTime: s.startTime,
     endTime: s.endTime,
@@ -77,6 +86,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'הטווח קצר מדי — נדרש לפחות 40 דקות' }, { status: 400 })
   }
 
-  await prisma.availability.createMany({ data: slots })
-  return NextResponse.json({ created: slots.length }, { status: 201 })
+  // Skip slots that already exist at the same startTime
+  const existingTimes = await prisma.availability.findMany({
+    where: { startTime: { in: slots.map(s => s.startTime) } },
+    select: { startTime: true },
+  })
+  const existingSet = new Set(existingTimes.map(s => s.startTime.toISOString()))
+  const newSlots = slots.filter(s => !existingSet.has(s.startTime.toISOString()))
+
+  if (newSlots.length > 0) {
+    await prisma.availability.createMany({ data: newSlots })
+  }
+  return NextResponse.json({ created: newSlots.length, skipped: slots.length - newSlots.length }, { status: 201 })
 }
