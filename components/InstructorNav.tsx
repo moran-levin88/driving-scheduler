@@ -23,6 +23,10 @@ export default function InstructorNav() {
             {l.label}
           </Link>
         ))}
+        <button onClick={() => window.location.reload()}
+          className="flex-shrink-0 text-blue-200 hover:text-white transition text-sm" title="רענן">
+          ↻
+        </button>
         <button onClick={() => signOut({ callbackUrl: '/login' })}
           className="flex-shrink-0 text-blue-200 hover:text-white transition text-sm mr-auto">
           התנתקות
