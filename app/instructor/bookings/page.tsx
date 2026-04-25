@@ -10,8 +10,58 @@ type Booking = {
   notes?: string | null
   pickupAddress?: string | null
   alternativeSlots?: string[] | null
+  calendarEventId?: string | null
   student: { name: string; email: string; phone?: string | null }
   availability: { startTime: string; endTime: string }
+}
+
+// A lesson group = one or more consecutive bookings from the same student
+type LessonGroup = {
+  ids: string[]
+  firstId: string
+  status: string
+  student: { name: string; email: string; phone?: string | null }
+  startTime: string
+  endTime: string
+  pickupAddress?: string | null
+  notes?: string | null
+  alternativeSlots?: string[] | null
+  createdAt: string
+}
+
+function groupBookings(bookings: Booking[]): LessonGroup[] {
+  const sorted = [...bookings].sort((a, b) =>
+    new Date(a.availability.startTime).getTime() - new Date(b.availability.startTime).getTime()
+  )
+  const groups: LessonGroup[] = []
+  for (const b of sorted) {
+    const last = groups[groups.length - 1]
+    if (
+      last &&
+      last.status === b.status &&
+      last.student.email === b.student.email &&
+      (last.pickupAddress ?? null) === (b.pickupAddress ?? null) &&
+      (last.notes ?? null) === (b.notes ?? null) &&
+      new Date(last.endTime).getTime() === new Date(b.availability.startTime).getTime()
+    ) {
+      last.ids.push(b.id)
+      last.endTime = b.availability.endTime
+    } else {
+      groups.push({
+        ids: [b.id],
+        firstId: b.id,
+        status: b.status,
+        student: b.student,
+        startTime: b.availability.startTime,
+        endTime: b.availability.endTime,
+        pickupAddress: b.pickupAddress ?? null,
+        notes: b.notes ?? null,
+        alternativeSlots: b.alternativeSlots,
+        createdAt: b.createdAt,
+      })
+    }
+  }
+  return groups
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -23,36 +73,45 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 function formatAlt(iso: string) {
-  try {
-    return format(new Date(iso), "EEEE, d/M בשעה HH:mm", { locale: he })
-  } catch { return iso }
+  try { return format(new Date(iso), "EEEE, d/M בשעה HH:mm", { locale: he }) }
+  catch { return iso }
 }
 
-function BookingCard({
-  b,
+function durationLabel(startTime: string, endTime: string): string {
+  const mins = (new Date(endTime).getTime() - new Date(startTime).getTime()) / 60000
+  if (mins <= 20) return ''
+  if (mins <= 40) return '40 דק׳'
+  if (mins <= 60) return 'שעה'
+  if (mins <= 80) return '80 דק׳'
+  return `${mins} דק׳`
+}
+
+function LessonGroupCard({
+  g,
   rescheduling,
   rescheduleErrors,
   onReschedule,
-  onStatus,
+  onGroupStatus,
   onRemind,
 }: {
-  b: Booking
+  g: LessonGroup
   rescheduling: string | null
   rescheduleErrors: Record<string, string>
   onReschedule: (bookingId: string, alt: string) => void
-  onStatus: (id: string, status: string) => void
+  onGroupStatus: (ids: string[], status: string) => void
   onRemind: (id: string) => void
 }) {
-  const hasAlts = Array.isArray(b.alternativeSlots) && b.alternativeSlots.length > 0
+  const hasAlts = Array.isArray(g.alternativeSlots) && g.alternativeSlots.length > 0
+  const dur = durationLabel(g.startTime, g.endTime)
 
   return (
     <div className={`bg-white rounded-xl shadow p-5 ${hasAlts ? 'border-r-4 border-orange-400' : ''}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
-          <div className="flex items-center gap-3 mb-1">
-            <span className="font-semibold text-lg">{b.student.name}</span>
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[b.status]}`}>
-              {STATUS_LABELS[b.status]}
+          <div className="flex items-center gap-3 mb-1 flex-wrap">
+            <span className="font-semibold text-lg">{g.student.name}</span>
+            <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[g.status]}`}>
+              {STATUS_LABELS[g.status]}
             </span>
             {hasAlts && (
               <span className="text-xs px-2 py-1 rounded-full font-medium bg-orange-100 text-orange-800">
@@ -62,31 +121,32 @@ function BookingCard({
           </div>
 
           <p className="text-gray-500 text-sm mb-2">
-            {b.student.email}{b.student.phone ? ` | ${b.student.phone}` : ''}
+            {g.student.email}{g.student.phone ? ` | ${g.student.phone}` : ''}
           </p>
 
           <div className="bg-gray-50 rounded-lg px-3 py-2 mb-2 inline-block">
-            <p className="text-xs text-gray-500 mb-0.5">מועד נוכחי</p>
+            <p className="text-xs text-gray-500 mb-0.5">מועד השיעור</p>
             <p className="text-gray-800 font-medium text-sm">
-              {format(new Date(b.availability.startTime), "EEEE, d בMMMM", { locale: he })}
+              {format(new Date(g.startTime), "EEEE, d בMMMM", { locale: he })}
               {' | '}
-              {format(new Date(b.availability.startTime), 'HH:mm')}–{format(new Date(b.availability.endTime), 'HH:mm')}
+              {format(new Date(g.startTime), 'HH:mm')}–{format(new Date(g.endTime), 'HH:mm')}
+              {dur && <span className="text-gray-400 font-normal mr-1 text-xs">({dur})</span>}
             </p>
           </div>
 
-          {b.pickupAddress && (
-            <p className="text-sm text-gray-600 mb-1">📍 {b.pickupAddress}</p>
+          {g.pickupAddress && (
+            <p className="text-sm text-gray-600 mb-1">📍 {g.pickupAddress}</p>
           )}
-          {b.notes && (
-            <p className="text-sm text-gray-500 mb-1">💬 {b.notes}</p>
+          {g.notes && (
+            <p className="text-sm text-gray-500 mb-1">💬 {g.notes}</p>
           )}
 
           {hasAlts && (
             <div className="mt-3">
               <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide mb-2">מועדים חלופיים שהתלמיד הציע</p>
               <div className="flex flex-col gap-2">
-                {(b.alternativeSlots as string[]).map((alt, i) => {
-                  const errKey = b.id + alt
+                {(g.alternativeSlots as string[]).map((alt, i) => {
+                  const errKey = g.firstId + alt
                   const err = rescheduleErrors[errKey]
                   return (
                     <div key={i} className="flex flex-col gap-1">
@@ -96,15 +156,13 @@ function BookingCard({
                           <p className="text-sm font-semibold text-gray-800">{formatAlt(alt)}</p>
                         </div>
                         <button
-                          onClick={() => onReschedule(b.id, alt)}
+                          onClick={() => onReschedule(g.firstId, alt)}
                           disabled={rescheduling === errKey}
                           className="bg-blue-600 text-white text-sm px-4 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition whitespace-nowrap font-medium">
                           {rescheduling === errKey ? 'מעביר...' : 'הזז לשעה זו'}
                         </button>
                       </div>
-                      {err && (
-                        <p className="text-xs text-red-600 px-1">⚠️ {err}</p>
-                      )}
+                      {err && <p className="text-xs text-red-600 px-1">⚠️ {err}</p>}
                     </div>
                   )
                 })}
@@ -114,18 +172,18 @@ function BookingCard({
         </div>
 
         <div className="flex flex-col gap-2 shrink-0">
-          {b.status === 'PENDING' && (<>
-            <button onClick={() => onStatus(b.id, 'APPROVED')}
+          {g.status === 'PENDING' && (<>
+            <button onClick={() => onGroupStatus(g.ids, 'APPROVED')}
               className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm transition">
               אשר
             </button>
-            <button onClick={() => onStatus(b.id, 'REJECTED')}
+            <button onClick={() => onGroupStatus(g.ids, 'REJECTED')}
               className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 text-sm transition">
               דחה
             </button>
           </>)}
-          {b.status === 'APPROVED' && b.student.phone && (
-            <button onClick={() => onRemind(b.id)}
+          {g.status === 'APPROVED' && g.student.phone && (
+            <button onClick={() => onRemind(g.firstId)}
               className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm transition">
               📲 שלח תזכורת WhatsApp
             </button>
@@ -159,16 +217,12 @@ export default function BookingsPage() {
     const key = bookingId + alternativeDateTime
     setRescheduling(key)
     setRescheduleErrors(prev => { const n = { ...prev }; delete n[key]; return n })
-
-    // Convert through browser Date to ensure correct UTC (handles both old and new storage formats)
     const utcDateTime = new Date(alternativeDateTime).toISOString()
-
     const res = await fetch(`/api/bookings/${bookingId}/reschedule`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ alternativeDateTime: utcDateTime }),
     })
-
     setRescheduling(null)
     if (!res.ok) {
       const data = await res.json()
@@ -178,11 +232,11 @@ export default function BookingsPage() {
     }
   }
 
-  async function updateStatus(id: string, status: string) {
-    await fetch(`/api/bookings/${id}/status`, {
+  async function updateGroupStatus(ids: string[], status: string) {
+    await fetch('/api/bookings/group/status', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ ids, status }),
     })
     fetchBookings()
   }
@@ -201,17 +255,15 @@ export default function BookingsPage() {
     }
   }
 
-  const withAlts = bookings.filter(b =>
-    Array.isArray(b.alternativeSlots) && b.alternativeSlots.length > 0
-  )
+  const allGroups = groupBookings(bookings)
 
-  const filtered = bookings
-    .filter(b => filter === 'ALL' || b.status === filter)
-    .filter(b => !searchStudent || b.student.name.includes(searchStudent) || b.student.phone?.includes(searchStudent))
-    .filter(b => !searchDate || new Date(b.availability.startTime).toLocaleDateString('en-CA') === searchDate)
+  const filtered = allGroups
+    .filter(g => filter === 'ALL' || g.status === filter)
+    .filter(g => !searchStudent || g.student.name.includes(searchStudent) || g.student.phone?.includes(searchStudent))
+    .filter(g => !searchDate || new Date(g.startTime).toLocaleDateString('en-CA') === searchDate)
     .slice()
     .sort((a, b) => {
-      const diff = new Date(a.availability.startTime).getTime() - new Date(b.availability.startTime).getTime()
+      const diff = new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
       return sortDir === 'asc' ? diff : -diff
     })
 
@@ -219,7 +271,6 @@ export default function BookingsPage() {
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-6">הזמנות</h1>
 
-      {/* Search filters */}
       <div className="flex gap-3 mb-4 flex-wrap">
         <input
           type="text"
@@ -267,14 +318,14 @@ export default function BookingsPage() {
         <p className="text-gray-500">אין הזמנות</p>
       ) : (
         <div className="space-y-4">
-          {filtered.map(b => (
-            <BookingCard
-              key={b.id}
-              b={b}
+          {filtered.map(g => (
+            <LessonGroupCard
+              key={g.firstId}
+              g={g}
               rescheduling={rescheduling}
               rescheduleErrors={rescheduleErrors}
               onReschedule={reschedule}
-              onStatus={updateStatus}
+              onGroupStatus={updateGroupStatus}
               onRemind={sendReminder}
             />
           ))}
