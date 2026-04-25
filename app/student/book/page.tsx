@@ -6,12 +6,15 @@ import { useLanguage } from '@/contexts/LanguageContext'
 
 type Slot = { id: string; startTime: string; endTime: string; isBooked: boolean; myBookingStatus?: string | null }
 type AltSlot = { date: string; time: string }
+type LessonType = 'single' | 'half' | 'double'
+
+const LESSON_SLOTS: Record<LessonType, number> = { single: 2, half: 3, double: 4 }
 
 export default function BookPage() {
   const [slots, setSlots] = useState<Slot[]>([])
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }))
   const [selected, setSelected] = useState<Slot | null>(null)
-  const [doubleLesson, setDoubleLesson] = useState(false)
+  const [lessonType, setLessonType] = useState<LessonType>('single')
   const [notes, setNotes] = useState('')
   const [pickupAddress, setPickupAddress] = useState('')
   const [altSlots, setAltSlots] = useState<AltSlot[]>([])
@@ -32,6 +35,10 @@ export default function BookPage() {
 
   const days = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i))
 
+  function isOccupied(slot: Slot): boolean {
+    return slot.isBooked || (!!slot.myBookingStatus && slot.myBookingStatus !== 'CANCELLED' && slot.myBookingStatus !== 'REJECTED')
+  }
+
   // Find up to `count` consecutive free slots starting from slot
   function getSlotChain(slot: Slot, count: number): Slot[] {
     const result: Slot[] = [slot]
@@ -47,9 +54,43 @@ export default function BookPage() {
     return result
   }
 
+  // Returns true if booking this chain would leave a 20 or 40-min gap next to a booked lesson
+  function wouldLeaveGap(chain: Slot[]): boolean {
+    if (!chain.length) return false
+    const SLOT_MS = 20 * 60 * 1000
+
+    const lessonEndMs = new Date(chain[chain.length - 1].endTime).getTime()
+    // Walk forward from lesson end
+    let freeAfter = 0
+    let t = lessonEndMs
+    while (freeAfter <= 2) {
+      const next = slots.find(s => new Date(s.startTime).getTime() === t)
+      if (!next) break
+      if (isOccupied(next)) return freeAfter === 1 || freeAfter === 2
+      freeAfter++
+      if (freeAfter > 2) break
+      t += SLOT_MS
+    }
+
+    const lessonStartMs = new Date(chain[0].startTime).getTime()
+    // Walk backward from lesson start
+    let freeBefore = 0
+    t = lessonStartMs
+    while (freeBefore <= 2) {
+      const prev = slots.find(s => new Date(s.endTime).getTime() === t)
+      if (!prev) break
+      if (isOccupied(prev)) return freeBefore === 1 || freeBefore === 2
+      freeBefore++
+      if (freeBefore > 2) break
+      t -= SLOT_MS
+    }
+
+    return false
+  }
+
   function handleSelectSlot(slot: Slot) {
     setSelected(slot)
-    setDoubleLesson(false)
+    setLessonType('single')
     setSuccess(false)
     setError('')
     setTimeout(() => confirmRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
@@ -78,12 +119,19 @@ export default function BookPage() {
 
   const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 })
 
-  // Compute chains for the selected slot
-  const singleChain = selected ? getSlotChain(selected, 2) : []
-  const doubleChain = selected ? getSlotChain(selected, 4) : []
-  const canSingle = singleChain.length >= 2
-  const canDouble = doubleChain.length >= 4
-  const activeChain = doubleLesson ? doubleChain : singleChain
+  // Compute chains for each lesson type from the selected slot
+  const chains: Record<LessonType, Slot[]> = {
+    single: selected ? getSlotChain(selected, 2) : [],
+    half:   selected ? getSlotChain(selected, 3) : [],
+    double: selected ? getSlotChain(selected, 4) : [],
+  }
+  const activeChain = selected ? chains[lessonType] : []
+  const canBook: Record<LessonType, boolean> = {
+    single: chains.single.length >= 2,
+    half:   chains.half.length >= 3,
+    double: chains.double.length >= 4,
+  }
+  const hasGap = selected && canBook[lessonType] ? wouldLeaveGap(activeChain) : false
 
   async function submitBooking() {
     if (!selected) return
@@ -91,16 +139,19 @@ export default function BookPage() {
     setError('')
 
     try {
-      const chain = doubleLesson ? doubleChain : singleChain
-      const slotsNeeded = doubleLesson ? 4 : 2
-      if (chain.length < slotsNeeded) {
+      const chain = activeChain
+      if (chain.length < LESSON_SLOTS[lessonType]) {
         setError(t('noConsecutive'))
+        setSubmitting(false)
+        return
+      }
+      if (wouldLeaveGap(chain)) {
+        setError(t('gapError'))
         setSubmitting(false)
         return
       }
 
       const availabilityIds = chain.map(s => s.id)
-
       const alternativeSlots = altSlots
         .filter(a => a.date && a.time)
         .map(a => new Date(`${a.date}T${a.time}`).toISOString())
@@ -114,7 +165,7 @@ export default function BookPage() {
       if (res.ok) {
         setSuccess(true)
         setSelected(null)
-        setDoubleLesson(false)
+        setLessonType('single')
         setNotes('')
         setPickupAddress('')
         setAltSlots([])
@@ -135,13 +186,16 @@ export default function BookPage() {
     }
   }
 
-  // Day names: for Hebrew use short Hebrew day names, for Russian use abbreviated
   function getDayName(day: Date): string {
-    if (lang === 'ru') {
-      return format(day, 'EEE', { locale: ru })
-    }
+    if (lang === 'ru') return format(day, 'EEE', { locale: ru })
     return format(day, 'EEEE', { locale: he }).replace('יום ', '')
   }
+
+  const lessonOptions: { type: LessonType; label: string; durationKey: 'sixtyMin' | 'eightyMin' | null }[] = [
+    { type: 'single', label: t('singleLesson'), durationKey: null },
+    { type: 'half',   label: t('halfLesson'),   durationKey: 'sixtyMin' },
+    { type: 'double', label: t('doubleLesson'),  durationKey: 'eightyMin' },
+  ]
 
   return (
     <div>
@@ -234,26 +288,30 @@ export default function BookPage() {
         <div ref={confirmRef} className="bg-white rounded-xl shadow p-6 max-w-lg">
           <h2 className="text-xl font-semibold mb-4">{t('confirmTitle')}</h2>
 
+          {/* Lesson type selector */}
           <div className="flex rounded-lg border overflow-hidden mb-4">
-            <button type="button"
-              onClick={() => setDoubleLesson(false)}
-              className={`flex-1 py-2 text-sm font-medium transition ${!doubleLesson ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-              {t('singleLesson')}
-            </button>
-            <button type="button"
-              onClick={() => setDoubleLesson(true)}
-              disabled={!canDouble}
-              title={!canDouble ? t('noConsecutive') : ''}
-              className={`flex-1 py-2 text-sm font-medium transition ${doubleLesson ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} disabled:opacity-40 disabled:cursor-not-allowed`}>
-              {t('doubleLesson')}
-            </button>
+            {lessonOptions.map(opt => (
+              <button key={opt.type} type="button"
+                onClick={() => setLessonType(opt.type)}
+                disabled={!canBook[opt.type]}
+                title={!canBook[opt.type] ? t('noConsecutive') : ''}
+                className={`flex-1 py-2 text-xs font-medium transition ${
+                  lessonType === opt.type ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+                } disabled:opacity-40 disabled:cursor-not-allowed`}>
+                {opt.label}
+              </button>
+            ))}
           </div>
 
-          {!canSingle && (
+          {!canBook[lessonType] && (
             <p className="text-red-500 text-sm mb-3">{t('noConsecutive')}</p>
           )}
 
-          {canSingle && (
+          {hasGap && (
+            <p className="text-red-500 text-sm mb-3">{t('gapError')}</p>
+          )}
+
+          {canBook[lessonType] && !hasGap && (
             <div className="bg-blue-50 rounded-lg p-3 mb-4">
               <p className="text-gray-700 text-sm">
                 <strong>{t('date')}</strong> {format(new Date(selected.startTime), t('dateFormat'), { locale })}
@@ -263,8 +321,8 @@ export default function BookPage() {
                 {format(new Date(selected.startTime), 'HH:mm')}
                 {' - '}
                 {format(new Date(activeChain[activeChain.length - 1]?.endTime ?? selected.endTime), 'HH:mm')}
-                {doubleLesson && canDouble && (
-                  <span className="text-blue-600 font-medium"> {t('eightyMin')}</span>
+                {lessonType !== 'single' && (
+                  <span className="text-blue-600 font-medium"> {t(lessonOptions.find(o => o.type === lessonType)!.durationKey!)}</span>
                 )}
               </p>
             </div>
@@ -333,7 +391,7 @@ export default function BookPage() {
 
           {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
           <div className="flex gap-3">
-            <button onClick={submitBooking} disabled={submitting || !canSingle}
+            <button onClick={submitBooking} disabled={submitting || !canBook[lessonType] || !!hasGap}
               className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
               {submitting ? t('submitting') : t('bookLesson')}
             </button>
