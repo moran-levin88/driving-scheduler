@@ -12,21 +12,57 @@ export default async function InstructorDashboard() {
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000)
 
-  const [pendingCount, todayLessons, totalStudents] = await Promise.all([
-    prisma.booking.count({ where: { status: 'PENDING' } }),
+  const [pendingBookings, todayBookings, totalStudents] = await Promise.all([
+    prisma.booking.findMany({
+      where: { status: 'PENDING' },
+      select: { studentId: true, pickupAddress: true, notes: true, availability: { select: { startTime: true, endTime: true } } },
+      orderBy: { availability: { startTime: 'asc' } },
+    }),
     prisma.booking.findMany({
       where: {
         status: 'APPROVED',
         availability: { startTime: { gte: todayStart, lt: todayEnd } },
       },
-      include: {
-        student: { select: { name: true } },
-        availability: true,
-      },
+      include: { student: { select: { name: true } }, availability: true },
       orderBy: { availability: { startTime: 'asc' } },
     }),
     prisma.user.count({ where: { role: 'STUDENT' } }),
   ])
+
+  // Group consecutive bookings from the same student into lesson groups
+  type BookingRow = typeof pendingBookings[0]
+  function countGroups(rows: BookingRow[]) {
+    let count = 0
+    let lastStudentId = '', lastEndMs = 0, lastPickup = '', lastNotes = ''
+    for (const b of rows) {
+      const startMs = b.availability.startTime.getTime()
+      if (lastStudentId === b.studentId && lastEndMs === startMs && lastPickup === (b.pickupAddress ?? '') && lastNotes === (b.notes ?? '')) {
+        lastEndMs = b.availability.endTime.getTime()
+      } else {
+        count++
+        lastStudentId = b.studentId; lastEndMs = b.availability.endTime.getTime()
+        lastPickup = b.pickupAddress ?? ''; lastNotes = b.notes ?? ''
+      }
+    }
+    return count
+  }
+
+  type TodayRow = typeof todayBookings[0]
+  function groupToday(rows: TodayRow[]) {
+    const groups: { name: string; startTime: Date; endTime: Date }[] = []
+    for (const b of rows) {
+      const last = groups[groups.length - 1]
+      if (last && last.name === b.student.name && last.endTime.getTime() === b.availability.startTime.getTime()) {
+        last.endTime = b.availability.endTime
+      } else {
+        groups.push({ name: b.student.name, startTime: b.availability.startTime, endTime: b.availability.endTime })
+      }
+    }
+    return groups
+  }
+
+  const pendingCount = countGroups(pendingBookings)
+  const todayLessons = groupToday(todayBookings)
 
   const instructorName = (session?.user as any)?.name || 'מורה'
 
@@ -88,11 +124,11 @@ export default async function InstructorDashboard() {
           <p className="text-gray-500">אין שיעורים מתוכננים להיום</p>
         ) : (
           <div className="space-y-3">
-            {todayLessons.map(b => (
-              <div key={b.id} className="flex items-center justify-between border-b pb-3">
-                <span className="font-medium">{b.student.name}</span>
+            {todayLessons.map((g, i) => (
+              <div key={i} className="flex items-center justify-between border-b pb-3">
+                <span className="font-medium">{g.name}</span>
                 <span className="text-gray-600">
-                  {format(b.availability.startTime, 'HH:mm')} - {format(b.availability.endTime, 'HH:mm')}
+                  {format(g.startTime, 'HH:mm')} - {format(g.endTime, 'HH:mm')}
                 </span>
               </div>
             ))}
