@@ -59,29 +59,29 @@ export default function BookPage() {
     if (!chain.length) return false
     const SLOT_MS = 20 * 60 * 1000
 
+    // A gap is forbidden if it is between 1 and 3 slots (20–60 min).
+    // 0 slots (back-to-back) is fine; 4+ slots (≥80 min) is fine.
     const lessonEndMs = new Date(chain[chain.length - 1].endTime).getTime()
-    // Walk forward from lesson end
     let freeAfter = 0
     let t = lessonEndMs
-    while (freeAfter <= 2) {
+    while (freeAfter <= 3) {
       const next = slots.find(s => new Date(s.startTime).getTime() === t)
       if (!next) break
-      if (isOccupied(next)) return freeAfter === 1 || freeAfter === 2
+      if (isOccupied(next)) return freeAfter >= 1 && freeAfter <= 3
       freeAfter++
-      if (freeAfter > 2) break
+      if (freeAfter > 3) break
       t += SLOT_MS
     }
 
     const lessonStartMs = new Date(chain[0].startTime).getTime()
-    // Walk backward from lesson start
     let freeBefore = 0
     t = lessonStartMs
-    while (freeBefore <= 2) {
+    while (freeBefore <= 3) {
       const prev = slots.find(s => new Date(s.endTime).getTime() === t)
       if (!prev) break
-      if (isOccupied(prev)) return freeBefore === 1 || freeBefore === 2
+      if (isOccupied(prev)) return freeBefore >= 1 && freeBefore <= 3
       freeBefore++
-      if (freeBefore > 2) break
+      if (freeBefore > 3) break
       t -= SLOT_MS
     }
 
