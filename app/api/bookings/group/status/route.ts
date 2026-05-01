@@ -46,31 +46,33 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (status === 'APPROVED' && !(firstBooking as any).calendarEventId) {
-    const eventId = await createCalendarEvent({
-      student: firstBooking.student,
-      availability: {
-        startTime: firstBooking.availability.startTime,
-        endTime: lastBooking.availability.endTime,
-      },
-      pickupAddress: firstBooking.pickupAddress,
-    })
-    if (eventId) {
-      await prisma.booking.update({ where: { id: firstBooking.id }, data: { calendarEventId: eventId } })
+    try {
+      const eventId = await createCalendarEvent({
+        student: firstBooking.student,
+        availability: {
+          startTime: firstBooking.availability.startTime,
+          endTime: lastBooking.availability.endTime,
+        },
+        pickupAddress: firstBooking.pickupAddress,
+      })
+      if (eventId) {
+        await prisma.booking.update({ where: { id: firstBooking.id }, data: { calendarEventId: eventId } })
+      } else {
+        console.error('createCalendarEvent returned null for booking group', ids)
+      }
+    } catch (err) {
+      console.error('Calendar event creation failed for booking group', ids, err)
     }
   }
 
-  // Send one email for the whole lesson with correct start→end time
+  // Fire-and-forget email so the function returns before email latency hits Vercel timeout
   const bookingForEmail = {
     ...firstBooking,
     availability: { ...firstBooking.availability, endTime: lastBooking.availability.endTime },
   }
-  try {
-    if (status === 'APPROVED') await sendBookingApproved(bookingForEmail as any)
-    else if (status === 'REJECTED') await sendBookingRejected(bookingForEmail as any)
-    else if (status === 'CANCELLED') await sendBookingCancelled(bookingForEmail as any)
-  } catch (err) {
-    console.error('Email send failed:', err)
-  }
+  if (status === 'APPROVED') sendBookingApproved(bookingForEmail as any).catch(err => console.error('Email failed:', err))
+  else if (status === 'REJECTED') sendBookingRejected(bookingForEmail as any).catch(err => console.error('Email failed:', err))
+  else if (status === 'CANCELLED') sendBookingCancelled(bookingForEmail as any).catch(err => console.error('Email failed:', err))
 
   return NextResponse.json({ ok: true })
 }

@@ -19,42 +19,82 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const { id } = await params
-  const booking = await prisma.booking.update({
+  const booking = await prisma.booking.findUnique({
     where: { id },
-    data: { status },
-    include: {
-      student: true,
-      availability: true,
-    },
+    include: { student: true, availability: true },
+  })
+  if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Find all consecutive sibling bookings (same student, status, pickupAddress, notes)
+  // so the whole lesson is processed and the calendar event covers the full duration
+  const siblings = await prisma.booking.findMany({
+    where: { studentId: booking.studentId, status: booking.status },
+    include: { student: true, availability: true },
+    orderBy: { availability: { startTime: 'asc' } },
   })
 
+  // Extract the consecutive chain that contains this booking
+  let chain: typeof siblings = []
+  let current: typeof siblings = []
+  for (const b of siblings) {
+    const last = current[current.length - 1]
+    if (
+      last &&
+      (last.pickupAddress ?? null) === (b.pickupAddress ?? null) &&
+      (last.notes ?? null) === (b.notes ?? null) &&
+      new Date(last.availability.endTime).getTime() === new Date(b.availability.startTime).getTime()
+    ) {
+      current.push(b)
+    } else {
+      current = [b]
+    }
+    if (b.id === id) chain = [...current]
+  }
+  if (!chain.length) chain = [booking as any]
+
+  const ids = chain.map(b => b.id)
+  const first = chain[0]
+  const last = chain[chain.length - 1]
+
+  await prisma.booking.updateMany({ where: { id: { in: ids } }, data: { status } })
+
   if (status === 'REJECTED' || status === 'CANCELLED') {
-    await prisma.availability.update({
-      where: { id: booking.availabilityId },
+    await prisma.availability.updateMany({
+      where: { id: { in: chain.map(b => b.availabilityId) } },
       data: { isBooked: false },
     })
-  }
-
-  if (status === 'APPROVED' && !(booking as any).calendarEventId) {
-    const eventId = await createCalendarEvent(booking as any)
-    if (eventId) {
-      await prisma.booking.update({ where: { id }, data: { calendarEventId: eventId } })
+    if (status === 'CANCELLED' && (first as any).calendarEventId) {
+      await deleteCalendarEvent((first as any).calendarEventId)
     }
-  } else if (status === 'CANCELLED' && (booking as any).calendarEventId) {
-    await deleteCalendarEvent((booking as any).calendarEventId)
   }
 
-  try {
-    if (status === 'APPROVED') {
-      await sendBookingApproved(booking as any)
-    } else if (status === 'REJECTED') {
-      await sendBookingRejected(booking as any)
-    } else if (status === 'CANCELLED') {
-      await sendBookingCancelled(booking as any)
+  if (status === 'APPROVED' && !(first as any).calendarEventId) {
+    try {
+      const eventId = await createCalendarEvent({
+        student: first.student,
+        availability: {
+          startTime: first.availability.startTime,
+          endTime: last.availability.endTime,
+        },
+        pickupAddress: first.pickupAddress,
+      })
+      if (eventId) {
+        await prisma.booking.update({ where: { id: first.id }, data: { calendarEventId: eventId } })
+      } else {
+        console.error('createCalendarEvent returned null for booking', id)
+      }
+    } catch (err) {
+      console.error('Calendar event creation failed for booking', id, err)
     }
-  } catch (err) {
-    console.error('Email send failed:', err)
   }
 
-  return NextResponse.json(booking)
+  const bookingForEmail = {
+    ...first,
+    availability: { ...first.availability, endTime: last.availability.endTime },
+  }
+  if (status === 'APPROVED') sendBookingApproved(bookingForEmail as any).catch(err => console.error('Email failed:', err))
+  else if (status === 'REJECTED') sendBookingRejected(bookingForEmail as any).catch(err => console.error('Email failed:', err))
+  else if (status === 'CANCELLED') sendBookingCancelled(bookingForEmail as any).catch(err => console.error('Email failed:', err))
+
+  return NextResponse.json({ ok: true })
 }
