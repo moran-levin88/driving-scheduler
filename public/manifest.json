@@ -1,6 +1,6 @@
 {
-  "name": "שיעורי נהיגה עם אלכס לוין",
-  "short_name": "אלכס לוין",
+  "name": "שיעורי נהיגה",
+  "short_name": "שיעורי נהיגה",
   "description": "קביעת שיעורי נהיגה",
   "start_url": "/",
   "display": "standalone",
