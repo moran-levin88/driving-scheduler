@@ -8,7 +8,6 @@ export default function InstructorNav() {
   const links = [
     { href: '/instructor/dashboard', label: 'לוח בקרה' },
     { href: '/instructor/availability', label: 'ניהול זמינות' },
-    { href: '/instructor/schedule', label: 'לו״ז שיעורים' },
     { href: '/instructor/calendar', label: 'קלנדר' },
     { href: '/instructor/bookings', label: 'הזמנות' },
     { href: '/instructor/book', label: 'קביעת שיעור' },
