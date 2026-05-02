@@ -17,6 +17,13 @@ type Lesson = {
   pickupAddress: string | null
 }
 
+type Block = {
+  id: string
+  startTime: Date
+  endTime: Date
+  blockNote: string | null
+}
+
 type Booking = {
   id: string
   status: string
@@ -65,26 +72,27 @@ function getHeight(start: Date, end: Date): number {
   return Math.max(20, (end.getTime() - start.getTime()) / 1000 / 60 / 60 * HOUR_HEIGHT)
 }
 
-const COLORS = [
-  'bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-teal-500',
-  'bg-sky-500', 'bg-cyan-500', 'bg-emerald-500', 'bg-purple-500',
-]
-const colorMap = new Map<string, string>()
-let colorIdx = 0
-function lessonColor(name: string) {
-  if (!colorMap.has(name)) { colorMap.set(name, COLORS[colorIdx % COLORS.length]); colorIdx++ }
-  return colorMap.get(name)!
-}
 
 export default function CalendarPage() {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }))
   const [lessons, setLessons] = useState<Lesson[]>([])
+  const [blocks, setBlocks] = useState<Block[]>([])
   const [tooltip, setTooltip] = useState<Lesson | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetch('/api/bookings').then(r => r.json()).then(data => {
       if (Array.isArray(data)) setLessons(groupToLessons(data))
+    })
+    fetch('/api/availability').then(r => r.json()).then((data: any[]) => {
+      if (Array.isArray(data)) {
+        setBlocks(data.filter(s => s.isBlocked).map(s => ({
+          id: s.id,
+          startTime: new Date(s.startTime),
+          endTime: new Date(s.endTime),
+          blockNote: s.blockNote ?? null,
+        })))
+      }
     })
   }, [])
 
@@ -151,6 +159,7 @@ export default function CalendarPage() {
             {/* Day columns */}
             {days.map(day => {
               const dayLessons = lessons.filter(l => isSameDay(l.startTime, day))
+              const dayBlocks = blocks.filter(b => isSameDay(b.startTime, day))
               return (
                 <div key={day.toISOString()} className="flex-1 relative border-l last:border-l-0 min-w-0">
                   {/* Hour grid lines */}
@@ -167,16 +176,33 @@ export default function CalendarPage() {
                     </div>
                   )}
 
-                  {/* Lessons */}
+                  {/* Blocked slots — red */}
+                  {dayBlocks.map(block => {
+                    const top = getTop(block.startTime)
+                    const height = getHeight(block.startTime, block.endTime)
+                    return (
+                      <div key={block.id}
+                        style={{ position: 'absolute', top: `${top}px`, height: `${height}px`, left: '2px', right: '2px', zIndex: 4 }}
+                        className="bg-red-500 text-white rounded-lg px-1.5 py-1 overflow-hidden select-none opacity-80">
+                        <p className="text-xs font-semibold leading-tight truncate">{block.blockNote || 'חסום'}</p>
+                        {height >= 36 && (
+                          <p className="text-xs opacity-90 leading-tight">
+                            {format(block.startTime, 'HH:mm')}–{format(block.endTime, 'HH:mm')}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {/* Lessons — green */}
                   {dayLessons.map(lesson => {
                     const top = getTop(lesson.startTime)
                     const height = getHeight(lesson.startTime, lesson.endTime)
-                    const color = lessonColor(lesson.studentName)
                     return (
                       <div key={lesson.key}
                         style={{ position: 'absolute', top: `${top}px`, height: `${height}px`, left: '2px', right: '2px', zIndex: 5 }}
                         onClick={() => setTooltip(tooltip?.key === lesson.key ? null : lesson)}
-                        className={`${color} text-white rounded-lg px-1.5 py-1 cursor-pointer overflow-hidden select-none hover:opacity-90 transition`}>
+                        className="bg-green-500 text-white rounded-lg px-1.5 py-1 cursor-pointer overflow-hidden select-none hover:bg-green-600 transition">
                         <p className="text-xs font-semibold leading-tight truncate">{lesson.studentName}</p>
                         {height >= 36 && (
                           <p className="text-xs opacity-90 leading-tight">
@@ -200,7 +226,7 @@ export default function CalendarPage() {
       {tooltip && (
         <div className="fixed inset-0 bg-black/30 flex items-end sm:items-center justify-center z-50 p-4" onClick={() => setTooltip(null)}>
           <div className="bg-white rounded-xl p-5 w-full max-w-sm shadow-xl" dir="rtl" onClick={e => e.stopPropagation()}>
-            <div className={`w-3 h-3 rounded-full ${lessonColor(tooltip.studentName)} inline-block ml-2`} />
+            <div className="w-3 h-3 rounded-full bg-green-500 inline-block ml-2" />
             <span className="font-bold text-lg">{tooltip.studentName}</span>
             <p className="text-gray-500 text-sm mt-1">
               {format(tooltip.startTime, "EEEE, d בMMMM yyyy", { locale: he })}
