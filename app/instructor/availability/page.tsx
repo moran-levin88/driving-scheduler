@@ -74,6 +74,7 @@ export default function AvailabilityPage() {
   const [shiftGroups, setShiftGroups] = useState<LessonGroup[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [shiftMinutes, setShiftMinutes] = useState<20 | 40>(20)
+  const [shiftDirection, setShiftDirection] = useState<'earlier' | 'later'>('earlier')
   const [shifting, setShifting] = useState(false)
   const [shiftResult, setShiftResult] = useState('')
 
@@ -121,7 +122,7 @@ export default function AvailabilityPage() {
     const res = await fetch('/api/bookings/shift', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookingIds, minutes: shiftMinutes }),
+      body: JSON.stringify({ bookingIds, minutes: shiftMinutes, direction: shiftDirection }),
     })
     const data = await res.json()
     setShifting(false)
@@ -274,13 +275,25 @@ export default function AvailabilityPage() {
             <h2 className="text-lg font-bold mb-1">הזזת שיעורים</h2>
             <p className="text-sm text-gray-500 mb-4">בחר שיעורים וכמות הדקות להזזה אחורה (מוקדם יותר)</p>
 
+            {/* Direction toggle */}
+            <div className="flex rounded-lg border overflow-hidden mb-2">
+              <button type="button" onClick={() => setShiftDirection('earlier')}
+                className={`flex-1 py-2 text-sm font-medium transition ${shiftDirection === 'earlier' ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                ← מוקדם יותר
+              </button>
+              <button type="button" onClick={() => setShiftDirection('later')}
+                className={`flex-1 py-2 text-sm font-medium transition ${shiftDirection === 'later' ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                מאוחר יותר ←
+              </button>
+            </div>
+
             {/* Minutes toggle */}
             <div className="flex rounded-lg border overflow-hidden mb-4">
               {([20, 40] as const).map(m => (
                 <button key={m} type="button"
                   onClick={() => setShiftMinutes(m)}
                   className={`flex-1 py-2 text-sm font-medium transition ${shiftMinutes === m ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-                  {m} דקות קדימה
+                  {m} דקות
                 </button>
               ))}
             </div>

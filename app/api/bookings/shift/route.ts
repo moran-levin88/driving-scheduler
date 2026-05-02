@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { bookingIds, minutes } = await req.json()
+  const { bookingIds, minutes, direction } = await req.json()
   if (!Array.isArray(bookingIds) || bookingIds.length === 0) {
     return NextResponse.json({ error: 'bookingIds required' }, { status: 400 })
   }
@@ -21,7 +21,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'minutes must be 20 or 40' }, { status: 400 })
   }
 
-  const shiftMs = minutes * 60 * 1000
+  // earlier = subtract, later = add
+  const shiftMs = minutes * 60 * 1000 * (direction === 'later' ? 1 : -1)
 
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
@@ -66,14 +67,14 @@ export async function POST(req: NextRequest) {
       await prisma.availability.update({
         where: { id: b.availabilityId },
         data: {
-          startTime: new Date(new Date(b.availability.startTime).getTime() - shiftMs),
-          endTime: new Date(new Date(b.availability.endTime).getTime() - shiftMs),
+          startTime: new Date(new Date(b.availability.startTime).getTime() + shiftMs),
+          endTime: new Date(new Date(b.availability.endTime).getTime() + shiftMs),
         },
       })
     }
 
-    const newStart = new Date(oldStart.getTime() - shiftMs)
-    const newEnd = new Date(oldEnd.getTime() - shiftMs)
+    const newStart = new Date(oldStart.getTime() + shiftMs)
+    const newEnd = new Date(oldEnd.getTime() + shiftMs)
 
     // Update Google Calendar event
     if (first.calendarEventId) {
