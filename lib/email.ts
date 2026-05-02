@@ -102,6 +102,27 @@ export async function sendBookingCancelled(booking: BookingWithRelations) {
   )
 }
 
+export async function sendBookingShifted(
+  booking: BookingWithRelations,
+  oldStartTime: Date,
+  oldEndTime: Date,
+) {
+  await send(
+    booking.student.email,
+    'שינוי מועד שיעור הנהיגה שלך',
+    `
+      <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>שינוי מועד שיעור הנהיגה שלך</h2>
+        <p>שלום ${booking.student.name.trim()},</p>
+        <p>שיעור הנהיגה שלך הוזז למועד חדש:</p>
+        <p><strong>מועד ישן:</strong> ${formatDate(oldStartTime)}, ${formatTime(oldStartTime)}–${formatTime(oldEndTime)}</p>
+        <p><strong>מועד חדש:</strong> ${formatDate(booking.availability.startTime)}, ${formatTime(booking.availability.startTime)}–${formatTime(booking.availability.endTime)}</p>
+        <p>נתראה בשיעור!</p>
+      </div>
+    `
+  )
+}
+
 export async function sendLessonReminder(booking: BookingWithRelations) {
   await send(
     booking.student.email,

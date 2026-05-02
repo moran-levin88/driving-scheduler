@@ -60,6 +60,23 @@ export async function createBlockedCalendarEvent(startTime: Date, endTime: Date,
   }
 }
 
+export async function updateCalendarEvent(eventId: string, startTime: Date, endTime: Date): Promise<void> {
+  if (!process.env.GOOGLE_CLIENT_ID) return
+  try {
+    const calendar = getCalendar()
+    await calendar.events.patch({
+      calendarId: CALENDAR_ID,
+      eventId,
+      requestBody: {
+        start: { dateTime: startTime.toISOString(), timeZone: 'Asia/Jerusalem' },
+        end: { dateTime: endTime.toISOString(), timeZone: 'Asia/Jerusalem' },
+      },
+    })
+  } catch (err) {
+    console.error('Calendar update failed:', err)
+  }
+}
+
 export async function deleteCalendarEvent(eventId: string): Promise<void> {
   if (!process.env.GOOGLE_CLIENT_ID) return
   try {
