@@ -53,7 +53,8 @@ export async function POST(req: NextRequest) {
       return { firstBooking: first, lastSlotEndTime }
     })
 
-    sendBookingApproved(firstBooking as any).catch(console.error)
+    const approvalEmail = { ...firstBooking, availability: { ...firstBooking.availability, endTime: lastSlotEndTime } }
+    sendBookingApproved(approvalEmail as any).catch(console.error)
 
     const eventId = await createCalendarEvent({
       student: firstBooking.student,

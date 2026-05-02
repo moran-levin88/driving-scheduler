@@ -76,7 +76,11 @@ export async function POST(req: NextRequest) {
       return created
     })
 
-    sendBookingRequested(bookings[0] as any).catch(console.error)
+    const requestEmail = {
+      ...bookings[0],
+      availability: { ...bookings[0].availability, endTime: bookings[bookings.length - 1].availability.endTime },
+    }
+    sendBookingRequested(requestEmail as any).catch(console.error)
     return NextResponse.json(bookings, { status: 201 })
   } catch (err: any) {
     if (err.message === 'SLOT_UNAVAILABLE') {

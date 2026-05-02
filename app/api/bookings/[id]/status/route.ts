@@ -33,8 +33,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     orderBy: { availability: { startTime: 'asc' } },
   })
 
-  // Extract the consecutive chain that contains this booking
-  let chain: typeof siblings = []
+  // Build all consecutive chains, then find the one containing this booking
+  const allChains: (typeof siblings)[] = []
   let current: typeof siblings = []
   for (const b of siblings) {
     const last = current[current.length - 1]
@@ -46,11 +46,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     ) {
       current.push(b)
     } else {
+      if (current.length) allChains.push(current)
       current = [b]
     }
-    if (b.id === id) chain = [...current]
   }
-  if (!chain.length) chain = [booking as any]
+  if (current.length) allChains.push(current)
+  const chain = allChains.find(c => c.some(b => b.id === id)) ?? [booking as any]
 
   const ids = chain.map(b => b.id)
   const first = chain[0]
