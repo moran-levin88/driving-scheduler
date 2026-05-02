@@ -10,55 +10,92 @@ type Slot = {
   isBooked: boolean
   isBlocked: boolean
   blockNote?: string | null
-  booking?: { student: { name: string }; status: string } | null
-}
-
-type Booking = {
-  id: string
-  status: string
-  studentId: string
-  pickupAddress?: string | null
-  notes?: string | null
-  student: { name: string }
-  availability: { startTime: string; endTime: string }
+  booking?: {
+    id: string
+    status: string
+    pickupAddress?: string | null
+    student: { name: string; email: string; phone?: string | null }
+  } | null
 }
 
 type LessonGroup = {
-  ids: string[]
+  ids: string[]        // booking IDs
+  slotIds: string[]    // availability IDs
   studentName: string
   startTime: string
   endTime: string
 }
 
-function groupUpcomingBookings(bookings: Booking[]): LessonGroup[] {
+type LessonModal = {
+  group: LessonGroup
+  shiftDir: 'earlier' | 'later'
+  shiftMin: 20 | 40
+  shifting: boolean
+  cancelling: boolean
+  result: string
+}
+
+function groupUpcomingBookings(slots: Slot[]): LessonGroup[] {
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
   tomorrow.setHours(0, 0, 0, 0)
 
-  const sorted = bookings
-    .filter(b => b.status === 'APPROVED' && new Date(b.availability.startTime) >= tomorrow)
-    .sort((a, b) => new Date(a.availability.startTime).getTime() - new Date(b.availability.startTime).getTime())
+  const booked = slots
+    .filter(s => s.isBooked && s.booking && ['PENDING', 'APPROVED'].includes(s.booking.status) && new Date(s.startTime) >= tomorrow)
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
 
   const groups: LessonGroup[] = []
-  for (const b of sorted) {
+  for (const s of booked) {
     const last = groups[groups.length - 1]
     if (
       last &&
-      last.studentName === b.student.name &&
-      new Date(last.endTime).getTime() === new Date(b.availability.startTime).getTime()
+      last.studentName === s.booking!.student.name &&
+      new Date(last.endTime).getTime() === new Date(s.startTime).getTime()
     ) {
-      last.ids.push(b.id)
-      last.endTime = b.availability.endTime
+      last.ids.push(s.booking!.id)
+      last.slotIds.push(s.id)
+      last.endTime = s.endTime
     } else {
       groups.push({
-        ids: [b.id],
-        studentName: b.student.name,
-        startTime: b.availability.startTime,
-        endTime: b.availability.endTime,
+        ids: [s.booking!.id],
+        slotIds: [s.id],
+        studentName: s.booking!.student.name,
+        startTime: s.startTime,
+        endTime: s.endTime,
       })
     }
   }
   return groups
+}
+
+function findLessonGroup(slot: Slot, allSlots: Slot[]): LessonGroup | null {
+  if (!slot.isBooked || !slot.booking) return null
+  const studentName = slot.booking.student.name
+
+  const booked = allSlots
+    .filter(s => s.isBooked && s.booking?.student.name === studentName)
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+
+  let current: Slot[] = []
+  let found: Slot[] = []
+  for (const s of booked) {
+    const last = current[current.length - 1]
+    if (last && new Date(last.endTime).getTime() === new Date(s.startTime).getTime()) {
+      current.push(s)
+    } else {
+      current = [s]
+    }
+    if (current.some(x => x.id === slot.id)) found = [...current]
+  }
+
+  if (!found.length) found = [slot]
+  return {
+    ids: found.map(s => s.booking!.id),
+    slotIds: found.map(s => s.id),
+    studentName,
+    startTime: found[0].startTime,
+    endTime: found[found.length - 1].endTime,
+  }
 }
 
 export default function AvailabilityPage() {
@@ -69,7 +106,10 @@ export default function AvailabilityPage() {
   const [form, setForm] = useState({ date: '', startTime: '09:00', endTime: '17:00', blockNote: '' })
   const [error, setError] = useState('')
 
-  // Shift state
+  // Lesson action modal
+  const [modal, setModal] = useState<LessonModal | null>(null)
+
+  // Bulk shift modal
   const [shiftOpen, setShiftOpen] = useState(false)
   const [shiftGroups, setShiftGroups] = useState<LessonGroup[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -86,38 +126,77 @@ export default function AvailabilityPage() {
 
   useEffect(() => { fetchSlots() }, [])
 
-  async function openShift() {
+  function openLessonModal(slot: Slot) {
+    const group = findLessonGroup(slot, slots)
+    if (!group) return
+    setModal({ group, shiftDir: 'earlier', shiftMin: 20, shifting: false, cancelling: false, result: '' })
+  }
+
+  async function handleModalShift() {
+    if (!modal) return
+    setModal(m => m ? { ...m, shifting: true, result: '' } : m)
+    const res = await fetch('/api/bookings/shift', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bookingIds: modal.group.ids, minutes: modal.shiftMin, direction: modal.shiftDir }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setModal(null)
+      fetchSlots()
+    } else {
+      setModal(m => m ? { ...m, shifting: false, result: `שגיאה: ${data.error}` } : m)
+    }
+  }
+
+  async function handleModalCancel() {
+    if (!modal) return
+    if (!confirm(`לבטל את שיעור ${modal.group.studentName}? התלמיד יקבל הודעה במייל.`)) return
+    setModal(m => m ? { ...m, cancelling: true, result: '' } : m)
+    const res = await fetch('/api/bookings/group/status', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: modal.group.ids, status: 'CANCELLED' }),
+    })
+    if (res.ok) {
+      setModal(null)
+      fetchSlots()
+    } else {
+      const data = await res.json()
+      setModal(m => m ? { ...m, cancelling: false, result: `שגיאה: ${data.error}` } : m)
+    }
+  }
+
+  function whatsappLink(slot: Slot) {
+    const phone = slot.booking?.student.phone?.replace(/\D/g, '').replace(/^0/, '972')
+    if (!phone) return null
+    const group = findLessonGroup(slot, slots)
+    if (!group) return null
+    const text = encodeURIComponent(
+      `שלום ${slot.booking!.student.name}, תזכורת: יש לך שיעור נהיגה ביום ${format(new Date(group.startTime), "EEEE, d בMMMM", { locale: he })} בשעה ${format(new Date(group.startTime), 'HH:mm')}. בהצלחה!`
+    )
+    return `https://wa.me/${phone}?text=${text}`
+  }
+
+  async function openBulkShift() {
     setShiftResult('')
     setSelectedIds(new Set())
-    const res = await fetch('/api/bookings')
-    const data = await res.json()
-    setShiftGroups(groupUpcomingBookings(data))
+    await fetchSlots()
+    setShiftGroups(groupUpcomingBookings(slots))
     setShiftOpen(true)
   }
 
-  function toggleGroup(firstId: string) {
+  function toggleGroup(key: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
-      if (next.has(firstId)) next.delete(firstId)
-      else next.add(firstId)
+      if (next.has(key)) next.delete(key); else next.add(key)
       return next
     })
   }
 
-  function toggleAll() {
-    if (selectedIds.size === shiftGroups.length) {
-      setSelectedIds(new Set())
-    } else {
-      setSelectedIds(new Set(shiftGroups.map(g => g.ids[0])))
-    }
-  }
-
-  async function handleShift() {
-    const bookingIds = shiftGroups
-      .filter(g => selectedIds.has(g.ids[0]))
-      .flatMap(g => g.ids)
+  async function handleBulkShift() {
+    const bookingIds = shiftGroups.filter(g => selectedIds.has(g.ids[0])).flatMap(g => g.ids)
     if (!bookingIds.length) return
-
     setShifting(true)
     const res = await fetch('/api/bookings/shift', {
       method: 'POST',
@@ -126,14 +205,11 @@ export default function AvailabilityPage() {
     })
     const data = await res.json()
     setShifting(false)
-
     if (res.ok) {
-      setShiftResult(`✓ ${data.shifted} שיעורים הוזזו בהצלחה — נשלחו מיילים לתלמידים`)
+      setShiftResult(`✓ ${data.shifted} שיעורים הוזזו בהצלחה`)
       setSelectedIds(new Set())
       fetchSlots()
-      // Refresh groups
-      const r2 = await fetch('/api/bookings')
-      setShiftGroups(groupUpcomingBookings(await r2.json()))
+      setShiftGroups(groupUpcomingBookings(slots))
     } else {
       setShiftResult(`שגיאה: ${data.error}`)
     }
@@ -155,25 +231,17 @@ export default function AvailabilityPage() {
     const startTime = new Date(`${form.date}T${form.startTime}:00`)
     const endTime = new Date(`${form.date}T${form.endTime}:00`)
     if (endTime <= startTime) { setError('שעת הסיום חייבת להיות אחרי שעת ההתחלה'); return }
-
     const res = await fetch('/api/availability', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        startTime: startTime.toISOString(),
-        endTime: endTime.toISOString(),
-        isBlocked: mode === 'block',
-        blockNote: form.blockNote || null,
-      }),
+      body: JSON.stringify({ startTime: startTime.toISOString(), endTime: endTime.toISOString(), isBlocked: mode === 'block', blockNote: form.blockNote || null }),
     })
     let data: any = {}
     try { const text = await res.text(); if (text) data = JSON.parse(text) } catch {}
-
     if (res.ok) {
       setCreating(false)
       setForm({ date: '', startTime: '09:00', endTime: '17:00', blockNote: '' })
       fetchSlots()
-      if (mode === 'lesson' && data.created > 1) alert(`נוצרו ${data.created} שיעורים של 40 דקות`)
     } else {
       setError(data.error || `שגיאה (${res.status})`)
     }
@@ -184,14 +252,27 @@ export default function AvailabilityPage() {
     fetchSlots()
   }
 
+  // Determine which slots to show per day (hide free slots covered by a block)
+  function getDaySlots(day: Date) {
+    const all = slots.filter(s => isSameDay(new Date(s.startTime), day))
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+    const blocks = all.filter(s => s.isBlocked)
+    return all.filter(s => {
+      if (s.isBlocked) return true
+      const start = new Date(s.startTime).getTime()
+      const end = new Date(s.endTime).getTime()
+      return !blocks.some(b => start >= new Date(b.startTime).getTime() && end <= new Date(b.endTime).getTime())
+    })
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-gray-900">ניהול זמינות</h1>
         <div className="flex gap-2">
-          <button onClick={openShift}
+          <button onClick={openBulkShift}
             className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition text-sm">
-            ↔ הזז שיעורים
+            ↔ הזז מספר שיעורים
           </button>
           <button onClick={() => { setCreating(true); setMode('lesson') }}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
@@ -203,34 +284,22 @@ export default function AvailabilityPage() {
       {/* Legend */}
       <div className="flex gap-4 mb-4 text-xs">
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-200 inline-block"></span> פנוי</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-200 inline-block"></span> מוזמן</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-200 inline-block"></span> מוזמן (לחץ לפעולות)</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-200 inline-block"></span> חסום</span>
       </div>
 
       {/* Week navigation */}
       <div className="flex items-center gap-4 mb-4">
         <button onClick={() => setWeekStart(subWeeks(weekStart, 1))} className="p-2 hover:bg-gray-100 rounded">&rarr;</button>
-        <span className="font-medium">
-          {format(weekStart, 'd MMM', { locale: he })} - {format(addDays(weekStart, 5), 'd MMM yyyy', { locale: he })}
-        </span>
+        <span className="font-medium">{format(weekStart, 'd MMM', { locale: he })} - {format(addDays(weekStart, 5), 'd MMM yyyy', { locale: he })}</span>
         <button onClick={() => setWeekStart(addWeeks(weekStart, 1))} className="p-2 hover:bg-gray-100 rounded">&larr;</button>
       </div>
 
       {/* Weekly grid */}
       <div className="grid grid-cols-6 gap-3">
         {days.map(day => {
-          const allDaySlots = slots
-            .filter(s => isSameDay(new Date(s.startTime), day))
-            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
-          const blocks = allDaySlots.filter(s => s.isBlocked)
-          const daySlots = allDaySlots.filter(s => {
-            if (s.isBlocked) return true
-            const start = new Date(s.startTime).getTime()
-            const end = new Date(s.endTime).getTime()
-            return !blocks.some(b => start >= new Date(b.startTime).getTime() && end <= new Date(b.endTime).getTime())
-          })
+          const daySlots = getDaySlots(day)
           const isPast = day < new Date(new Date().setHours(0, 0, 0, 0))
-
           return (
             <div key={day.toISOString()} className={`bg-white rounded-xl shadow p-3 ${isPast ? 'opacity-50' : ''}`}>
               <div className="text-center mb-3 pb-2 border-b">
@@ -243,22 +312,24 @@ export default function AvailabilityPage() {
                   <p className="text-xs text-gray-300 text-center py-2">אין</p>
                 ) : daySlots.map(slot => {
                   const isBlock = slot.isBlocked
+                  const isBooked = slot.isBooked && slot.booking && !['CANCELLED', 'REJECTED'].includes(slot.booking.status)
                   return (
                     <div key={slot.id}
-                      className={`text-xs p-1.5 rounded-lg ${isBlock ? 'bg-red-100 text-red-800' : slot.isBooked ? 'bg-orange-100 text-orange-800' : 'bg-blue-50 text-blue-800'}`}>
+                      onClick={isBooked && !isPast ? () => openLessonModal(slot) : undefined}
+                      className={`text-xs p-1.5 rounded-lg transition ${
+                        isBlock ? 'bg-red-100 text-red-800' :
+                        isBooked ? 'bg-orange-100 text-orange-800 cursor-pointer hover:bg-orange-200 active:bg-orange-300' :
+                        'bg-blue-50 text-blue-800'
+                      }`}>
                       <div className="flex justify-between items-center">
-                        <span className="font-medium">
-                          {format(new Date(slot.startTime), 'HH:mm')}
-                          {isBlock ? `-${format(new Date(slot.endTime), 'HH:mm')}` : ''}
-                        </span>
-                        {!slot.isBooked && (
-                          <button onClick={() => deleteSlot(slot.id)} className="text-red-400 hover:text-red-600 font-bold">&times;</button>
+                        <span className="font-medium">{format(new Date(slot.startTime), 'HH:mm')}{isBlock ? `–${format(new Date(slot.endTime), 'HH:mm')}` : ''}</span>
+                        {!slot.isBooked && !isBlock && (
+                          <button onClick={e => { e.stopPropagation(); deleteSlot(slot.id) }}
+                            className="text-red-400 hover:text-red-600 font-bold">&times;</button>
                         )}
                       </div>
                       {isBlock && <div className="text-red-600 font-medium truncate">{slot.blockNote || 'חסום'}</div>}
-                      {slot.booking && slot.booking.status !== 'CANCELLED' && slot.booking.status !== 'REJECTED' && (
-                        <div className="text-orange-600 font-medium truncate">{slot.booking.student.name}</div>
-                      )}
+                      {isBooked && <div className="text-orange-700 font-medium truncate">{slot.booking!.student.name}</div>}
                     </div>
                   )
                 })}
@@ -268,87 +339,132 @@ export default function AvailabilityPage() {
         })}
       </div>
 
-      {/* Shift modal */}
-      {shiftOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
-            <h2 className="text-lg font-bold mb-1">הזזת שיעורים</h2>
-            <p className="text-sm text-gray-500 mb-4">בחר שיעורים וכמות הדקות להזזה אחורה (מוקדם יותר)</p>
+      {/* Lesson action modal */}
+      {modal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" onClick={() => setModal(null)}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm" dir="rtl" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="mb-4">
+              <p className="font-bold text-lg">{modal.group.studentName}</p>
+              <p className="text-gray-500 text-sm">
+                {format(new Date(modal.group.startTime), "EEEE, d בMMMM", { locale: he })}
+                {' | '}
+                {format(new Date(modal.group.startTime), 'HH:mm')}–{format(new Date(modal.group.endTime), 'HH:mm')}
+              </p>
+            </div>
 
-            {/* Direction toggle */}
-            <div className="flex rounded-lg border overflow-hidden mb-2">
-              <button type="button" onClick={() => setShiftDirection('earlier')}
-                className={`flex-1 py-2 text-sm font-medium transition ${shiftDirection === 'earlier' ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-                ← מוקדם יותר
-              </button>
-              <button type="button" onClick={() => setShiftDirection('later')}
-                className={`flex-1 py-2 text-sm font-medium transition ${shiftDirection === 'later' ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-                מאוחר יותר ←
+            {/* Shift section */}
+            <div className="bg-orange-50 rounded-xl p-4 mb-3">
+              <p className="text-sm font-semibold text-orange-800 mb-2">הזזת שיעור</p>
+              <div className="flex rounded-lg border overflow-hidden mb-2">
+                <button onClick={() => setModal(m => m ? { ...m, shiftDir: 'earlier' } : m)}
+                  className={`flex-1 py-1.5 text-xs font-medium transition ${modal.shiftDir === 'earlier' ? 'bg-orange-500 text-white' : 'bg-white text-gray-600'}`}>
+                  ← מוקדם יותר
+                </button>
+                <button onClick={() => setModal(m => m ? { ...m, shiftDir: 'later' } : m)}
+                  className={`flex-1 py-1.5 text-xs font-medium transition ${modal.shiftDir === 'later' ? 'bg-orange-500 text-white' : 'bg-white text-gray-600'}`}>
+                  מאוחר יותר →
+                </button>
+              </div>
+              <div className="flex rounded-lg border overflow-hidden mb-3">
+                {([20, 40] as const).map(m => (
+                  <button key={m} onClick={() => setModal(prev => prev ? { ...prev, shiftMin: m } : prev)}
+                    className={`flex-1 py-1.5 text-xs font-medium transition ${modal.shiftMin === m ? 'bg-orange-500 text-white' : 'bg-white text-gray-600'}`}>
+                    {m} דקות
+                  </button>
+                ))}
+              </div>
+              <button onClick={handleModalShift} disabled={modal.shifting}
+                className="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50 transition">
+                {modal.shifting ? 'מזיז...' : `הזז ${modal.shiftMin} דקות ${modal.shiftDir === 'earlier' ? 'מוקדם' : 'מאוחר'}`}
               </button>
             </div>
 
-            {/* Minutes toggle */}
+            {/* WhatsApp */}
+            {(() => {
+              const slot = slots.find(s => s.booking?.id === modal.group.ids[0])
+              const wa = slot ? whatsappLink(slot) : null
+              return wa ? (
+                <a href={wa} target="_blank" rel="noreferrer"
+                  className="block w-full bg-green-500 text-white text-center py-2 rounded-lg text-sm font-medium hover:bg-green-600 transition mb-3">
+                  📲 שלח תזכורת WhatsApp
+                </a>
+              ) : null
+            })()}
+
+            {/* Cancel */}
+            <button onClick={handleModalCancel} disabled={modal.cancelling}
+              className="w-full bg-red-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-red-600 disabled:opacity-50 transition mb-2">
+              {modal.cancelling ? 'מבטל...' : 'בטל שיעור'}
+            </button>
+
+            {modal.result && <p className="text-red-500 text-xs text-center mt-1">{modal.result}</p>}
+
+            <button onClick={() => setModal(null)} className="w-full text-gray-400 text-sm py-1 hover:text-gray-600 transition">סגור</button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk shift modal */}
+      {shiftOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
+            <h2 className="text-lg font-bold mb-1">הזזת מספר שיעורים</h2>
+            <p className="text-sm text-gray-500 mb-4">בחר שיעורים מרובים להזזה בבת אחת</p>
+            <div className="flex rounded-lg border overflow-hidden mb-2">
+              <button onClick={() => setShiftDirection('earlier')}
+                className={`flex-1 py-2 text-sm font-medium transition ${shiftDirection === 'earlier' ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                ← מוקדם יותר
+              </button>
+              <button onClick={() => setShiftDirection('later')}
+                className={`flex-1 py-2 text-sm font-medium transition ${shiftDirection === 'later' ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                מאוחר יותר →
+              </button>
+            </div>
             <div className="flex rounded-lg border overflow-hidden mb-4">
               {([20, 40] as const).map(m => (
-                <button key={m} type="button"
-                  onClick={() => setShiftMinutes(m)}
+                <button key={m} onClick={() => setShiftMinutes(m)}
                   className={`flex-1 py-2 text-sm font-medium transition ${shiftMinutes === m ? 'bg-orange-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
                   {m} דקות
                 </button>
               ))}
             </div>
-
-            {/* Lesson list */}
             {shiftGroups.length === 0 ? (
               <p className="text-gray-500 text-sm text-center py-6">אין שיעורים מאושרים מחר ואילך</p>
             ) : (
               <>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-700">{shiftGroups.length} שיעורים</span>
-                  <button onClick={toggleAll} className="text-sm text-blue-600 hover:underline">
+                  <button onClick={() => setSelectedIds(selectedIds.size === shiftGroups.length ? new Set() : new Set(shiftGroups.map(g => g.ids[0])))}
+                    className="text-sm text-blue-600 hover:underline">
                     {selectedIds.size === shiftGroups.length ? 'בטל הכל' : 'בחר הכל'}
                   </button>
                 </div>
-                <div className="space-y-2 mb-4 max-h-72 overflow-y-auto">
-                  {shiftGroups.map(g => {
-                    const key = g.ids[0]
-                    const checked = selectedIds.has(key)
-                    return (
-                      <label key={key}
-                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${checked ? 'bg-orange-50 border-orange-300' : 'bg-gray-50 border-gray-200 hover:border-gray-300'}`}>
-                        <input type="checkbox" checked={checked} onChange={() => toggleGroup(key)}
-                          className="w-4 h-4 accent-orange-500 flex-shrink-0" />
-                        <div>
-                          <p className="font-medium text-sm">{g.studentName}</p>
-                          <p className="text-xs text-gray-500">
-                            {format(new Date(g.startTime), "EEEE, d בMMMM", { locale: he })}
-                            {' | '}
-                            {format(new Date(g.startTime), 'HH:mm')}–{format(new Date(g.endTime), 'HH:mm')}
-                          </p>
-                        </div>
-                      </label>
-                    )
-                  })}
+                <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+                  {shiftGroups.map(g => (
+                    <label key={g.ids[0]}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${selectedIds.has(g.ids[0]) ? 'bg-orange-50 border-orange-300' : 'bg-gray-50 border-gray-200'}`}>
+                      <input type="checkbox" checked={selectedIds.has(g.ids[0])} onChange={() => toggleGroup(g.ids[0])}
+                        className="w-4 h-4 accent-orange-500 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium text-sm">{g.studentName}</p>
+                        <p className="text-xs text-gray-500">
+                          {format(new Date(g.startTime), "EEEE, d בMMMM", { locale: he })}
+                          {' | '}{format(new Date(g.startTime), 'HH:mm')}–{format(new Date(g.endTime), 'HH:mm')}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
                 </div>
               </>
             )}
-
-            {shiftResult && (
-              <p className={`text-sm mb-3 ${shiftResult.startsWith('✓') ? 'text-green-700' : 'text-red-600'}`}>
-                {shiftResult}
-              </p>
-            )}
-
+            {shiftResult && <p className={`text-sm mb-3 ${shiftResult.startsWith('✓') ? 'text-green-700' : 'text-red-600'}`}>{shiftResult}</p>}
             <div className="flex gap-3">
-              <button onClick={handleShift}
-                disabled={shifting || selectedIds.size === 0}
+              <button onClick={handleBulkShift} disabled={shifting || selectedIds.size === 0}
                 className="flex-1 bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 disabled:opacity-50 transition font-medium">
                 {shifting ? 'מזיז...' : `הזז ${selectedIds.size > 0 ? selectedIds.size : ''} שיעורים`}
               </button>
-              <button onClick={() => setShiftOpen(false)}
-                className="flex-1 border py-2 rounded-lg hover:bg-gray-50 transition">
-                סגור
-              </button>
+              <button onClick={() => setShiftOpen(false)} className="flex-1 border py-2 rounded-lg hover:bg-gray-50 transition">סגור</button>
             </div>
           </div>
         </div>
@@ -359,56 +475,42 @@ export default function AvailabilityPage() {
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto" dir="rtl">
             <div className="flex rounded-lg border overflow-hidden mb-4">
-              <button type="button"
-                onClick={() => { setMode('lesson'); setError('') }}
+              <button type="button" onClick={() => { setMode('lesson'); setError('') }}
                 className={`flex-1 py-2 text-sm font-medium transition ${mode === 'lesson' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
                 שיעורי נהיגה
               </button>
-              <button type="button"
-                onClick={() => { setMode('block'); setError(''); setForm(f => ({ ...f, startTime: '17:00', endTime: '18:00' })) }}
+              <button type="button" onClick={() => { setMode('block'); setError(''); setForm(f => ({ ...f, startTime: '17:00', endTime: '18:00' })) }}
                 className={`flex-1 py-2 text-sm font-medium transition ${mode === 'block' ? 'bg-red-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
                 חסימה (טסט / פגישה)
               </button>
             </div>
-
-            <h2 className="text-lg font-bold mb-4">
-              {mode === 'lesson' ? 'הוספת זמינות לשיעורים' : 'חסימת זמן'}
-            </h2>
-
+            <h2 className="text-lg font-bold mb-4">{mode === 'lesson' ? 'הוספת זמינות לשיעורים' : 'חסימת זמן'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">תאריך</label>
-                <input type="date" value={form.date}
-                  onChange={e => setForm({ ...form, date: e.target.value })} required
-                  min={format(new Date(), 'yyyy-MM-dd')}
-                  className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500" />
+                <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} required
+                  min={format(new Date(), 'yyyy-MM-dd')} className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">משעה</label>
-                  <input type="time" value={form.startTime}
-                    onChange={e => setForm({ ...form, startTime: e.target.value })} required
+                  <input type="time" value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })} required
                     className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">עד שעה</label>
-                  <input type="time" value={form.endTime}
-                    onChange={e => setForm({ ...form, endTime: e.target.value })} required
+                  <input type="time" value={form.endTime} onChange={e => setForm({ ...form, endTime: e.target.value })} required
                     className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
               {mode === 'lesson' && calcLessons() > 0 && (
-                <p className="text-sm text-blue-600 bg-blue-50 rounded-lg px-3 py-2">
-                  יווצרו {calcLessons()} שיעורים של 40 דקות
-                </p>
+                <p className="text-sm text-blue-600 bg-blue-50 rounded-lg px-3 py-2">יווצרו {calcLessons()} שיעורים של 40 דקות</p>
               )}
               {mode === 'block' && (
                 <div>
                   <label className="block text-sm font-medium mb-1">סיבה (אופציונלי)</label>
-                  <input type="text" value={form.blockNote}
-                    onChange={e => setForm({ ...form, blockNote: e.target.value })}
-                    placeholder="לדוגמא: טסט עם תלמיד"
-                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500" />
+                  <input type="text" value={form.blockNote} onChange={e => setForm({ ...form, blockNote: e.target.value })}
+                    placeholder="לדוגמא: טסט עם תלמיד" className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500" />
                 </div>
               )}
               {error && <p className="text-red-600 text-sm">{error}</p>}
@@ -417,10 +519,7 @@ export default function AvailabilityPage() {
                   className={`flex-1 text-white py-2 rounded-lg transition ${mode === 'block' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
                   {mode === 'lesson' ? 'הוסף שיעורים' : 'חסום זמן'}
                 </button>
-                <button type="button" onClick={() => { setCreating(false); setError('') }}
-                  className="flex-1 border py-2 rounded-lg hover:bg-gray-50">
-                  ביטול
-                </button>
+                <button type="button" onClick={() => { setCreating(false); setError('') }} className="flex-1 border py-2 rounded-lg hover:bg-gray-50">ביטול</button>
               </div>
             </form>
           </div>

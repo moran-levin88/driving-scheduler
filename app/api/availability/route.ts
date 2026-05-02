@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
       where: { startTime: { gte: now } },
       include: {
         booking: {
-          select: { status: true, student: { select: { name: true, email: true, phone: true } } },
+          select: { id: true, status: true, pickupAddress: true, student: { select: { name: true, email: true, phone: true } } },
         },
       },
       orderBy: { startTime: 'asc' },
