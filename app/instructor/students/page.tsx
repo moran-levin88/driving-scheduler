@@ -38,68 +38,63 @@ export default function StudentsPage() {
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-6">תלמידים</h1>
-      <div className="bg-white rounded-xl shadow overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">שם</th>
-              <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">אימייל</th>
-              <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">טלפון</th>
-              <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">שיעורים</th>
-              <th className="px-6 py-3"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {students.map(s => {
-              const lessonCount = s.bookings.filter(b => ['APPROVED', 'COMPLETED'].includes(b.status)).length
-              return (
-                <tr key={s.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 font-medium">{s.name}</td>
-                  <td className="px-6 py-4 text-gray-600">{s.email}</td>
-                  <td className="px-6 py-4 text-gray-600">{s.phone || '—'}</td>
-                  <td className="px-6 py-4">
-                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm font-medium">
+
+      {students.length === 0 ? (
+        <div className="bg-white rounded-xl shadow p-8 text-center text-gray-500">
+          אין תלמידים רשומים עדיין
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {students.map(s => {
+            const lessonCount = s.bookings.filter(b => ['APPROVED', 'COMPLETED'].includes(b.status)).length
+            return (
+              <div key={s.id} className="bg-white rounded-xl shadow p-4">
+                <div className="flex items-start justify-between gap-3">
+                  {/* Student info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 text-base">{s.name}</p>
+                    <p className="text-sm text-gray-500 truncate">{s.email}</p>
+                    {s.phone && (
+                      <a href={`tel:${s.phone}`} className="text-sm text-blue-600 hover:underline block">
+                        📞 {s.phone}
+                      </a>
+                    )}
+                    <span className="inline-block mt-1 bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium">
                       {lessonCount} שיעורים
                     </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex gap-3 justify-end">
-                      <Link href={`/instructor/students/${s.id}`} className="text-blue-600 hover:underline text-sm">
-                        היסטוריה
-                      </Link>
-                      {confirmId === s.id ? (
-                        <div className="flex gap-2 items-center">
-                          <span className="text-sm text-gray-600">למחוק?</span>
-                          <button
-                            onClick={() => deleteStudent(s.id)}
-                            disabled={deletingId === s.id}
-                            className="text-xs bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 disabled:opacity-50">
-                            {deletingId === s.id ? '...' : 'כן'}
-                          </button>
-                          <button
-                            onClick={() => setConfirmId(null)}
-                            className="text-xs border px-2 py-1 rounded hover:bg-gray-50">
-                            ביטול
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmId(s.id)}
-                          className="text-red-500 hover:text-red-700 text-sm">
-                          מחיקה
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex flex-col gap-2 shrink-0">
+                    <Link href={`/instructor/students/${s.id}`}
+                      className="text-sm text-center bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition">
+                      היסטוריה
+                    </Link>
+
+                    {confirmId === s.id ? (
+                      <div className="flex gap-1.5">
+                        <button onClick={() => deleteStudent(s.id)} disabled={deletingId === s.id}
+                          className="flex-1 text-xs bg-red-600 text-white px-2 py-1.5 rounded-lg hover:bg-red-700 disabled:opacity-50 transition">
+                          {deletingId === s.id ? '...' : 'מחק'}
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-        {students.length === 0 && (
-          <div className="p-8 text-center text-gray-500">אין תלמידים רשומים עדיין</div>
-        )}
-      </div>
+                        <button onClick={() => setConfirmId(null)}
+                          className="flex-1 text-xs border px-2 py-1.5 rounded-lg hover:bg-gray-50 transition">
+                          ביטול
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmId(s.id)}
+                        className="text-sm text-center bg-red-50 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-100 transition">
+                        מחיקה
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
