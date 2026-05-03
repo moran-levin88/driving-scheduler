@@ -26,17 +26,29 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(slots)
   }
 
-  // Student: all non-blocked future slots, with own booking status
+  // Student: all non-blocked future slots, excluding those inside a blocked range
   const studentId = (session.user as any).id
-  const slots = await prisma.availability.findMany({
-    where: { isBlocked: false, startTime: { gte: now } },
-    include: { booking: { select: { status: true, studentId: true } } },
-    orderBy: { startTime: 'asc' },
+  const [slots, blockedRanges] = await Promise.all([
+    prisma.availability.findMany({
+      where: { isBlocked: false, startTime: { gte: now } },
+      include: { booking: { select: { status: true, studentId: true } } },
+      orderBy: { startTime: 'asc' },
+    }),
+    prisma.availability.findMany({
+      where: { isBlocked: true, endTime: { gte: now } },
+      select: { startTime: true, endTime: true },
+    }),
+  ])
+
+  const filteredSlots = slots.filter(slot => {
+    const s = slot.startTime.getTime()
+    const e = slot.endTime.getTime()
+    return !blockedRanges.some(b => s >= b.startTime.getTime() && e <= b.endTime.getTime())
   })
 
   // Deduplicate by startTime — keep booked/mine first, then any free slot
   const seen = new Map<string, typeof slots[0]>()
-  for (const s of slots) {
+  for (const s of filteredSlots) {
     const key = s.startTime.toISOString()
     const existing = seen.get(key)
     if (!existing || s.isBooked) seen.set(key, s)
