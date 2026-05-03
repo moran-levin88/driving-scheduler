@@ -35,6 +35,17 @@ type LessonModal = {
   result: string
 }
 
+type BlockModal = {
+  id: string
+  date: string
+  startTime: string
+  endTime: string
+  blockNote: string
+  saving: boolean
+  deleting: boolean
+  result: string
+}
+
 function findLessonGroup(slot: Slot, allSlots: Slot[]): LessonGroup | null {
   if (!slot.isBooked || !slot.booking) return null
   const studentName = slot.booking.student.name
@@ -88,6 +99,7 @@ export default function AvailabilityPage() {
   const [form, setForm] = useState({ date: '', startTime: '09:00', endTime: '17:00', blockNote: '' })
   const [error, setError] = useState('')
   const [modal, setModal] = useState<LessonModal | null>(null)
+  const [blockModal, setBlockModal] = useState<BlockModal | null>(null)
   const [shiftOpen, setShiftOpen] = useState(false)
   const [shiftGroups, setShiftGroups] = useState<LessonGroup[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -144,6 +156,45 @@ export default function AvailabilityPage() {
     })
     if (res.ok) { setModal(null); fetchSlots() }
     else { const d = await res.json(); setModal(m => m ? { ...m, cancelling: false, result: `שגיאה: ${d.error}` } : m) }
+  }
+
+  function openBlockModal(slot: Slot) {
+    const start = new Date(slot.startTime)
+    const end = new Date(slot.endTime)
+    setBlockModal({
+      id: slot.id,
+      date: format(start, 'yyyy-MM-dd'),
+      startTime: format(start, 'HH:mm'),
+      endTime: format(end, 'HH:mm'),
+      blockNote: slot.blockNote || '',
+      saving: false,
+      deleting: false,
+      result: '',
+    })
+  }
+
+  async function handleBlockSave() {
+    if (!blockModal) return
+    setBlockModal(m => m ? { ...m, saving: true, result: '' } : m)
+    const startTime = new Date(`${blockModal.date}T${blockModal.startTime}:00`)
+    const endTime = new Date(`${blockModal.date}T${blockModal.endTime}:00`)
+    const res = await fetch(`/api/availability/${blockModal.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startTime: startTime.toISOString(), endTime: endTime.toISOString(), blockNote: blockModal.blockNote }),
+    })
+    const data = await res.json()
+    if (res.ok) { setBlockModal(null); fetchSlots() }
+    else setBlockModal(m => m ? { ...m, saving: false, result: data.error || 'שגיאה' } : m)
+  }
+
+  async function handleBlockDelete() {
+    if (!blockModal) return
+    if (!confirm('למחוק את החסימה?')) return
+    setBlockModal(m => m ? { ...m, deleting: true } : m)
+    const res = await fetch(`/api/availability/${blockModal.id}`, { method: 'DELETE' })
+    if (res.ok) { setBlockModal(null); fetchSlots() }
+    else setBlockModal(m => m ? { ...m, deleting: false, result: 'שגיאה במחיקה' } : m)
   }
 
   function whatsappLink(slot: Slot) {
@@ -203,16 +254,17 @@ export default function AvailabilityPage() {
   function SlotCard({ slot, compact = false }: { slot: Slot; compact?: boolean }) {
     const isBlock = slot.isBlocked
     const isBooked = slot.isBooked && slot.booking && !['CANCELLED', 'REJECTED'].includes(slot.booking.status)
+    const clickable = isBlock || isBooked
     return (
       <div
-        onClick={isBooked && !isSameDay(new Date(slot.startTime), new Date(new Date().setHours(0,0,0,0)-1)) ? () => openLessonModal(slot) : undefined}
+        onClick={clickable ? () => isBlock ? openBlockModal(slot) : openLessonModal(slot) : undefined}
         className={`rounded-lg transition ${compact ? 'text-xs p-1.5' : 'p-3'} ${
-          isBlock ? 'bg-red-100 text-red-800' :
+          isBlock ? 'bg-red-100 text-red-800 cursor-pointer hover:bg-red-200 active:bg-red-300' :
           isBooked ? 'bg-orange-100 text-orange-800 cursor-pointer hover:bg-orange-200 active:bg-orange-300' :
           'bg-blue-50 text-blue-800'
         }`}>
         <div className="flex justify-between items-start">
-          <div>
+          <div className="min-w-0 flex-1">
             <span className="font-semibold">{format(new Date(slot.startTime), 'HH:mm')}</span>
             {isBlock && <span className="text-xs mr-1">–{format(new Date(slot.endTime), 'HH:mm')}</span>}
             {isBooked && !compact && (
@@ -221,13 +273,13 @@ export default function AvailabilityPage() {
             {isBooked && compact && (
               <span className="text-xs mr-1 truncate block max-w-[60px]">{slot.booking!.student.name.split(' ')[0]}</span>
             )}
-            {isBlock && <p className="text-xs text-red-600 mt-0.5 truncate">{slot.blockNote || 'חסום'}</p>}
+            {isBlock && <p className="text-xs text-red-700 mt-0.5 truncate">{slot.blockNote || 'חסום'}</p>}
           </div>
           {!slot.isBooked && !isBlock && (
             <button onClick={e => { e.stopPropagation(); deleteSlot(slot.id) }}
               className="text-red-400 hover:text-red-600 font-bold text-base leading-none">&times;</button>
           )}
-          {isBooked && !compact && <span className="text-orange-500 text-lg">›</span>}
+          {clickable && !compact && <span className="text-gray-400 text-lg">›</span>}
         </div>
       </div>
     )
@@ -372,6 +424,52 @@ export default function AvailabilityPage() {
             </button>
             {modal.result && <p className="text-red-500 text-xs text-center mb-1">{modal.result}</p>}
             <button onClick={() => setModal(null)} className="w-full text-gray-400 text-sm py-1 hover:text-gray-600">סגור</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Block edit modal ── */}
+      {blockModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" onClick={() => setBlockModal(null)}>
+          <div className="bg-white rounded-xl p-5 w-full max-w-sm" dir="rtl" onClick={e => e.stopPropagation()}>
+            <p className="font-bold text-lg text-red-700 mb-1">עריכת חסימה</p>
+            <p className="text-gray-500 text-sm mb-4">{format(new Date(`${blockModal.date}T12:00:00`), "EEEE, d בMMMM yyyy", { locale: he })}</p>
+
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">שם / סיבה</label>
+                <input type="text" value={blockModal.blockNote}
+                  onChange={e => setBlockModal(m => m ? { ...m, blockNote: e.target.value } : m)}
+                  placeholder="לדוגמא: טסט עם תלמיד"
+                  className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-400 text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">משעה</label>
+                  <input type="time" value={blockModal.startTime}
+                    onChange={e => setBlockModal(m => m ? { ...m, startTime: e.target.value } : m)}
+                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-400 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">עד שעה</label>
+                  <input type="time" value={blockModal.endTime}
+                    onChange={e => setBlockModal(m => m ? { ...m, endTime: e.target.value } : m)}
+                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-400 text-sm" />
+                </div>
+              </div>
+            </div>
+
+            {blockModal.result && <p className="text-red-500 text-xs mb-2">{blockModal.result}</p>}
+
+            <button onClick={handleBlockSave} disabled={blockModal.saving}
+              className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition mb-2">
+              {blockModal.saving ? 'שומר...' : 'שמור שינויים'}
+            </button>
+            <button onClick={handleBlockDelete} disabled={blockModal.deleting}
+              className="w-full bg-red-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-red-600 disabled:opacity-50 transition mb-2">
+              {blockModal.deleting ? 'מוחק...' : 'מחק חסימה'}
+            </button>
+            <button onClick={() => setBlockModal(null)} className="w-full text-gray-400 text-sm py-1 hover:text-gray-600">סגור</button>
           </div>
         </div>
       )}
