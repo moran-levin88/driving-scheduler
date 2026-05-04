@@ -97,6 +97,7 @@ export default function AvailabilityPage() {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }))
   const [mobileDay, setMobileDay] = useState(() => new Date())
   const [creating, setCreating] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [mode, setMode] = useState<'lesson' | 'block'>('lesson')
   const [form, setForm] = useState({ date: '', startTime: '09:00', endTime: '17:00', blockNote: '' })
   const [error, setError] = useState('')
@@ -249,13 +250,16 @@ export default function AvailabilityPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError('')
+    if (submitting) return
+    setSubmitting(true)
     const startTime = new Date(`${form.date}T${form.startTime}:00`)
     const endTime = new Date(`${form.date}T${form.endTime}:00`)
-    if (endTime <= startTime) { setError('שעת הסיום חייבת להיות אחרי שעת ההתחלה'); return }
+    if (endTime <= startTime) { setError('שעת הסיום חייבת להיות אחרי שעת ההתחלה'); setSubmitting(false); return }
     const res = await fetch('/api/availability', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ startTime: startTime.toISOString(), endTime: endTime.toISOString(), isBlocked: mode === 'block', blockNote: form.blockNote || null }),
     })
+    setSubmitting(false)
     let data: any = {}
     try { const text = await res.text(); if (text) data = JSON.parse(text) } catch {}
     if (res.ok) { setCreating(false); setForm({ date: '', startTime: '09:00', endTime: '17:00', blockNote: '' }); fetchSlots() }
@@ -588,9 +592,9 @@ export default function AvailabilityPage() {
               )}
               {error && <p className="text-red-600 text-sm">{error}</p>}
               <div className="flex gap-3">
-                <button type="submit"
-                  className={`flex-1 text-white py-2 rounded-lg transition ${mode === 'block' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                  {mode === 'lesson' ? 'הוסף' : 'חסום'}
+                <button type="submit" disabled={submitting}
+                  className={`flex-1 text-white py-2 rounded-lg transition disabled:opacity-60 ${mode === 'block' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                  {submitting ? '...' : mode === 'lesson' ? 'הוסף' : 'חסום'}
                 </button>
                 <button type="button" onClick={() => { setCreating(false); setError('') }} className="flex-1 border py-2 rounded-lg hover:bg-gray-50">ביטול</button>
               </div>

@@ -104,6 +104,12 @@ export async function POST(req: NextRequest) {
 
   // If blocking: create one block covering the entire range
   if (isBlocked) {
+    // Prevent duplicate blocks at the same time
+    const existing = await prisma.availability.findFirst({
+      where: { isBlocked: true, startTime: start, endTime: end },
+    })
+    if (existing) return NextResponse.json({ created: 0, skipped: 1 }, { status: 201 })
+
     const eventId = await createBlockedCalendarEvent(start, end, blockNote)
     await prisma.availability.create({
       data: { instructorId, startTime: start, endTime: end, isBlocked: true, blockNote: blockNote || null, calendarEventId: eventId },
