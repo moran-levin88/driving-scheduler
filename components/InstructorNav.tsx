@@ -16,8 +16,6 @@ export default function InstructorNav() {
         .catch(() => {})
     }
     fetchCount()
-    const interval = setInterval(fetchCount, 30000) // refresh every 30s
-    return () => clearInterval(interval)
   }, [])
 
   const links = [
