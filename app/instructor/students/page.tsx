@@ -18,6 +18,7 @@ export default function StudentsPage() {
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [resettingId, setResettingId] = useState<string | null>(null)
   const [resetResult, setResetResult] = useState<ResetResult | null>(null)
+  const [search, setSearch] = useState('')
 
   async function fetchStudents() {
     const res = await fetch('/api/students')
@@ -55,7 +56,16 @@ export default function StudentsPage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">תלמידים</h1>
+      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+        <h1 className="text-3xl font-bold text-gray-900">תלמידים</h1>
+        <input
+          type="text"
+          placeholder="חיפוש לפי שם, אימייל או טלפון..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 w-64"
+        />
+      </div>
 
       {/* Password reset result modal */}
       {resetResult && (
@@ -86,13 +96,23 @@ export default function StudentsPage() {
         </div>
       )}
 
-      {students.length === 0 ? (
-        <div className="bg-white rounded-xl shadow p-8 text-center text-gray-500">
-          אין תלמידים רשומים עדיין
-        </div>
-      ) : (
+      {(() => {
+        const q = search.trim().toLowerCase()
+        const filtered = q
+          ? students.filter(s =>
+              s.name.toLowerCase().includes(q) ||
+              s.email.toLowerCase().includes(q) ||
+              (s.phone || '').includes(q)
+            )
+          : students
+        if (filtered.length === 0) return (
+          <div className="bg-white rounded-xl shadow p-8 text-center text-gray-500">
+            {q ? `לא נמצאו תלמידים עבור "${search}"` : 'אין תלמידים רשומים עדיין'}
+          </div>
+        )
+        return (
         <div className="space-y-3">
-          {students.map(s => {
+          {filtered.map(s => {
             const lessonCount = s.bookings.filter(b => ['APPROVED', 'COMPLETED'].includes(b.status)).length
             return (
               <div key={s.id} className="bg-white rounded-xl shadow p-4">
@@ -145,7 +165,8 @@ export default function StudentsPage() {
             )
           })}
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
