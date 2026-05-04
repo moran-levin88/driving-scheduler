@@ -12,6 +12,17 @@ const STATUS_COLORS: Record<string, string> = {
   REJECTED: 'bg-red-100 text-red-800', CANCELLED: 'bg-gray-100 text-gray-800', COMPLETED: 'bg-blue-100 text-blue-800',
 }
 
+// Format date/time in Israel timezone (server runs in UTC)
+function israelDate(date: Date) {
+  const local = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }))
+  return format(local, "d בMMMM yyyy", { locale: he })
+}
+function israelTime(date: Date) {
+  return new Intl.DateTimeFormat('he-IL', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem',
+  }).format(date)
+}
+
 export default async function StudentHistoryPage({ params }: { params: Promise<{ studentId: string }> }) {
   const { studentId } = await params
   const student = await prisma.user.findUnique({
@@ -19,14 +30,33 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
     include: {
       bookings: {
         include: { availability: true },
-        orderBy: { availability: { startTime: 'desc' } },
+        orderBy: { availability: { startTime: 'asc' } },
       },
     },
   })
 
   if (!student) notFound()
 
-  const completedCount = student.bookings.filter(b => ['APPROVED', 'COMPLETED'].includes(b.status)).length
+  // Group consecutive bookings into lessons
+  type Booking = typeof student.bookings[0]
+  type Lesson = { status: string; startTime: Date; endTime: Date }
+  const lessons: Lesson[] = []
+  for (const b of student.bookings) {
+    const last = lessons[lessons.length - 1]
+    if (
+      last &&
+      last.status === b.status &&
+      last.endTime.getTime() === b.availability.startTime.getTime()
+    ) {
+      last.endTime = b.availability.endTime
+    } else {
+      lessons.push({ status: b.status, startTime: b.availability.startTime, endTime: b.availability.endTime })
+    }
+  }
+  // Sort descending by lesson start
+  lessons.sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
+
+  const completedCount = lessons.filter(l => ['APPROVED', 'COMPLETED'].includes(l.status)).length
 
   return (
     <div>
@@ -52,22 +82,22 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
             </tr>
           </thead>
           <tbody className="divide-y">
-            {student.bookings.map(b => (
-              <tr key={b.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4">{format(b.availability.startTime, "d בMMMM yyyy", { locale: he })}</td>
+            {lessons.map((l, i) => (
+              <tr key={i} className="hover:bg-gray-50">
+                <td className="px-6 py-4">{israelDate(l.startTime)}</td>
                 <td className="px-6 py-4 text-gray-600">
-                  {format(b.availability.startTime, 'HH:mm')} - {format(b.availability.endTime, 'HH:mm')}
+                  {israelTime(l.startTime)} - {israelTime(l.endTime)}
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[b.status]}`}>
-                    {STATUS_LABELS[b.status]}
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[l.status]}`}>
+                    {STATUS_LABELS[l.status]}
                   </span>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {student.bookings.length === 0 && (
+        {lessons.length === 0 && (
           <div className="p-8 text-center text-gray-500">אין היסטוריית שיעורים</div>
         )}
       </div>

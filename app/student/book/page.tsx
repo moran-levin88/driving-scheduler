@@ -112,8 +112,14 @@ export default function BookPage() {
 
   function getAvailableTimesForDate(dateStr: string): Slot[] {
     if (!dateStr) return []
+    const needed = LESSON_SLOTS[lessonType]
     return slots
-      .filter(s => !s.isBooked && isSameDay(new Date(s.startTime), new Date(dateStr + 'T12:00:00')))
+      .filter(s =>
+        !s.isBooked &&
+        isSameDay(new Date(s.startTime), new Date(dateStr + 'T12:00:00')) &&
+        getSlotChain(s, needed).length >= needed &&
+        !wouldLeaveGap(getSlotChain(s, needed))
+      )
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
   }
 
