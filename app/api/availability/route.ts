@@ -40,10 +40,17 @@ export async function GET(req: NextRequest) {
     }),
   ])
 
+  // Round to nearest minute to avoid millisecond precision issues
+  const min = (ms: number) => Math.round(ms / 60000) * 60000
   const filteredSlots = slots.filter(slot => {
-    const s = slot.startTime.getTime()
-    const e = slot.endTime.getTime()
-    return !blockedRanges.some(b => s >= b.startTime.getTime() && e <= b.endTime.getTime())
+    const s = min(slot.startTime.getTime())
+    const e = min(slot.endTime.getTime())
+    // Exclude any slot that overlaps (even partially) with a blocked range
+    return !blockedRanges.some(b => {
+      const bs = min(b.startTime.getTime())
+      const be = min(b.endTime.getTime())
+      return s < be && e > bs
+    })
   })
 
   // Deduplicate by startTime — keep booked/mine first, then any free slot
@@ -79,6 +86,11 @@ export async function POST(req: NextRequest) {
     const eventId = await createBlockedCalendarEvent(start, end, blockNote)
     await prisma.availability.create({
       data: { instructorId, startTime: start, endTime: end, isBlocked: true, blockNote: blockNote || null, calendarEventId: eventId },
+    })
+    // Mark any free lesson slots inside the blocked range as blocked too
+    await prisma.availability.updateMany({
+      where: { isBlocked: false, isBooked: false, startTime: { gte: start }, endTime: { lte: end } },
+      data: { isBlocked: true },
     })
     return NextResponse.json({ created: 1, blocked: true }, { status: 201 })
   }
