@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-// sendBookingRequested removed — instructor sees pending requests via in-app badge
+import { sendPushToInstructor } from '@/lib/push'
 import { Prisma } from '@prisma/client'
 
 export async function GET(req: NextRequest) {
@@ -111,6 +111,8 @@ export async function POST(req: NextRequest) {
       return created
     })
 
+    const firstName = bookings[0].student.name.split(' ')[0]
+    sendPushToInstructor('בקשת שיעור חדשה', `${firstName} ביקש/ה שיעור`).catch(console.error)
     return NextResponse.json(bookings, { status: 201 })
   } catch (err: any) {
     if (err.message === 'SLOT_UNAVAILABLE') {
