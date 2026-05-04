@@ -10,10 +10,14 @@ type Student = {
   bookings: { status: string }[]
 }
 
+type ResetResult = { name: string; email: string; tempPassword: string }
+
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [resettingId, setResettingId] = useState<string | null>(null)
+  const [resetResult, setResetResult] = useState<ResetResult | null>(null)
 
   async function fetchStudents() {
     const res = await fetch('/api/students')
@@ -22,6 +26,20 @@ export default function StudentsPage() {
   }
 
   useEffect(() => { fetchStudents() }, [])
+
+  async function resetPassword(id: string) {
+    setResettingId(id)
+    const res = await fetch('/api/students/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentId: id }),
+    })
+    setResettingId(null)
+    if (res.ok) {
+      const data = await res.json()
+      setResetResult(data)
+    }
+  }
 
   async function deleteStudent(id: string) {
     setDeletingId(id)
@@ -38,6 +56,35 @@ export default function StudentsPage() {
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-6">תלמידים</h1>
+
+      {/* Password reset result modal */}
+      {resetResult && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-xl" dir="rtl">
+            <h2 className="text-lg font-bold mb-1">✅ סיסמה אופסה</h2>
+            <p className="text-gray-600 text-sm mb-4">שלח/י לתלמיד {resetResult.name} את פרטי הכניסה:</p>
+            <div className="bg-gray-50 rounded-xl p-4 space-y-2 mb-4 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-500">אימייל:</span>
+                <span className="font-mono font-semibold select-all">{resetResult.email}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-500">סיסמה זמנית:</span>
+                <span className="font-mono font-bold text-blue-700 text-lg select-all">{resetResult.tempPassword}</span>
+              </div>
+            </div>
+            {resetResult.email.includes('@placeholder') ? (
+              <p className="text-xs text-orange-600 mb-4">⚠ לתלמיד זה אין אימייל רשמי — שתף את הסיסמה ישירות</p>
+            ) : (
+              <p className="text-xs text-gray-500 mb-4">התלמיד יכול להתחבר עם פרטים אלו ולשנות סיסמה בהגדרות.</p>
+            )}
+            <button onClick={() => setResetResult(null)}
+              className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-medium">
+              סגור
+            </button>
+          </div>
+        </div>
+      )}
 
       {students.length === 0 ? (
         <div className="bg-white rounded-xl shadow p-8 text-center text-gray-500">
@@ -70,6 +117,10 @@ export default function StudentsPage() {
                       className="text-sm text-center bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition">
                       היסטוריה
                     </Link>
+                    <button onClick={() => resetPassword(s.id)} disabled={resettingId === s.id}
+                      className="text-sm bg-yellow-50 text-yellow-700 px-3 py-1.5 rounded-lg hover:bg-yellow-100 transition disabled:opacity-50">
+                      {resettingId === s.id ? '...' : '🔑 איפוס סיסמה'}
+                    </button>
 
                     {confirmId === s.id ? (
                       <div className="flex gap-1.5">
