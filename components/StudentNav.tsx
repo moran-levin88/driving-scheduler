@@ -19,6 +19,11 @@ export default function StudentNav({ name }: { name: string }) {
           className={`flex-shrink-0 hover:text-blue-200 transition text-sm ${pathname === '/student/book' ? 'font-bold border-b-2 border-white' : ''}`}>
           {t('navBook')}
         </Link>
+        <Link href="/student/settings"
+          className={`flex-shrink-0 hover:text-blue-200 transition text-sm ${pathname === '/student/settings' ? 'font-bold border-b-2 border-white' : 'text-blue-200'}`}
+          title={lang === 'ru' ? 'Сменить пароль' : 'שינוי סיסמה'}>
+          🔑
+        </Link>
         <button onClick={() => window.location.reload()}
           className="flex-shrink-0 text-blue-200 hover:text-white transition text-sm" title="רענן">
           ↻
