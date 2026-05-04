@@ -112,29 +112,6 @@ export default async function InstructorDashboard() {
         </div>
       </div>
 
-      {/* Today's lessons */}
-      <div className="bg-white rounded-xl shadow p-6">
-        <h2
-          className="text-xl font-bold text-gray-800 mb-4"
-          style={{ fontFamily: "'Choco Cooky', 'Fredoka One', cursive" }}
-        >
-          שיעורים היום
-        </h2>
-        {todayLessons.length === 0 ? (
-          <p className="text-gray-500">אין שיעורים מתוכננים להיום</p>
-        ) : (
-          <div className="space-y-3">
-            {todayLessons.map((g, i) => (
-              <div key={i} className="flex items-center justify-between border-b pb-3">
-                <span className="font-medium">{g.name}</span>
-                <span className="text-gray-600">
-                  {format(g.startTime, 'HH:mm')} - {format(g.endTime, 'HH:mm')}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   )
 }
