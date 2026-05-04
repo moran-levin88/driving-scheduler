@@ -12,15 +12,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const { id } = await params
-  const { latestEndTime } = await req.json()
-
-  // latestEndTime should be "HH:MM" or null
-  const value = latestEndTime?.trim() || null
+  const { isRestricted } = await req.json()
 
   const student = await prisma.user.update({
     where: { id, role: 'STUDENT' },
-    data: { latestEndTime: value },
-    select: { id: true, latestEndTime: true },
+    data: { isRestricted: !!isRestricted },
+    select: { id: true, isRestricted: true },
   })
 
   return NextResponse.json(student)

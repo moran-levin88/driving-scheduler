@@ -28,8 +28,8 @@ export async function GET(req: NextRequest) {
 
   // Student: all non-blocked future slots, excluding those inside a blocked range
   const studentId = (session.user as any).id
-  const student = await prisma.user.findUnique({ where: { id: studentId }, select: { latestEndTime: true } })
-  const latestEnd = student?.latestEndTime ?? null // "HH:MM" or null
+  const student = await prisma.user.findUnique({ where: { id: studentId }, select: { isRestricted: true } })
+  const isRestricted = student?.isRestricted ?? false
 
   const [slots, blockedRanges] = await Promise.all([
     prisma.availability.findMany({
@@ -64,14 +64,23 @@ export async function GET(req: NextRequest) {
     if (!existing || s.isBooked) seen.set(key, s)
   }
 
-  // Apply latestEndTime restriction — silently hide slots whose endTime exceeds the limit
-  const visibleSlots = latestEnd
-    ? [...seen.values()].filter(s => {
-        const end = new Date(s.endTime)
-        const [lh, lm] = latestEnd.split(':').map(Number)
-        return end.getHours() < lh || (end.getHours() === lh && end.getMinutes() <= lm)
-      })
-    : [...seen.values()]
+  const allVisible = [...seen.values()]
+
+  // For restricted students: hide any slot ending in the last 20 min of that day's availability
+  const TWENTY_MIN = 20 * 60 * 1000
+  const visibleSlots = isRestricted ? (() => {
+    // Build max endTime per calendar day (UTC date string)
+    const dayMax = new Map<string, number>()
+    for (const s of allVisible) {
+      const day = s.startTime.toISOString().slice(0, 10)
+      const e = s.endTime.getTime()
+      if (!dayMax.has(day) || e > dayMax.get(day)!) dayMax.set(day, e)
+    }
+    return allVisible.filter(s => {
+      const day = s.startTime.toISOString().slice(0, 10)
+      return s.endTime.getTime() <= (dayMax.get(day)! - TWENTY_MIN)
+    })
+  })() : allVisible
 
   return NextResponse.json(visibleSlots.map(s => ({
     id: s.id,

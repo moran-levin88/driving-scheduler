@@ -59,13 +59,17 @@ export async function POST(req: NextRequest) {
       if (slots.length !== availabilityIds.length) throw new Error('SLOT_UNAVAILABLE')
       if (slots.some(s => s.isBooked)) throw new Error('SLOT_UNAVAILABLE')
 
-      // Enforce latestEndTime restriction
-      const studentUser = await tx.user.findUnique({ where: { id: studentId }, select: { latestEndTime: true } })
-      if (studentUser?.latestEndTime) {
-        const [lh, lm] = studentUser.latestEndTime.split(':').map(Number)
+      // Enforce isRestricted: lesson must not end in the last 20 min of that day's availability
+      const studentUser = await tx.user.findUnique({ where: { id: studentId }, select: { isRestricted: true } })
+      if (studentUser?.isRestricted) {
         const lastSlot = slots.slice().sort((a, b) => b.endTime.getTime() - a.endTime.getTime())[0]
-        const end = lastSlot.endTime
-        if (end.getHours() > lh || (end.getHours() === lh && end.getMinutes() > lm)) {
+        const day = lastSlot.endTime.toISOString().slice(0, 10)
+        const daySlots = await tx.availability.findMany({
+          where: { isBlocked: false, startTime: { gte: new Date(day), lt: new Date(new Date(day).getTime() + 86400000) } },
+          select: { endTime: true },
+        })
+        const maxEnd = Math.max(...daySlots.map(s => s.endTime.getTime()))
+        if (lastSlot.endTime.getTime() > maxEnd - 20 * 60 * 1000) {
           throw new Error('SLOT_UNAVAILABLE')
         }
       }

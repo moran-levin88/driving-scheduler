@@ -7,7 +7,7 @@ type Student = {
   name: string
   email: string
   phone: string | null
-  latestEndTime: string | null
+  isRestricted: boolean
   bookings: { status: string }[]
 }
 
@@ -20,7 +20,7 @@ export default function StudentsPage() {
   const [resettingId, setResettingId] = useState<string | null>(null)
   const [resetResult, setResetResult] = useState<ResetResult | null>(null)
   const [search, setSearch] = useState('')
-  const [editingLimit, setEditingLimit] = useState<{ id: string; value: string } | null>(null)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
 
   async function fetchStudents() {
     const res = await fetch('/api/students')
@@ -30,17 +30,15 @@ export default function StudentsPage() {
 
   useEffect(() => { fetchStudents() }, [])
 
-  async function saveLimit(id: string, value: string) {
-    const latestEndTime = value.trim() || null
+  async function toggleRestriction(id: string, current: boolean) {
+    setTogglingId(id)
     const res = await fetch(`/api/students/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ latestEndTime }),
+      body: JSON.stringify({ isRestricted: !current }),
     })
-    if (res.ok) {
-      setStudents(prev => prev.map(s => s.id === id ? { ...s, latestEndTime } : s))
-      setEditingLimit(null)
-    }
+    setTogglingId(null)
+    if (res.ok) setStudents(prev => prev.map(s => s.id === id ? { ...s, isRestricted: !current } : s))
   }
 
   async function resetPassword(id: string) {
@@ -144,30 +142,17 @@ export default function StudentsPage() {
                     <span className="inline-block mt-1 bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium">
                       {lessonCount} שיעורים
                     </span>
-                    {/* Lesson end time limit */}
-                    {editingLimit?.id === s.id ? (
-                      <div className="flex items-center gap-1 mt-1">
-                        <input type="time" value={editingLimit.value}
-                          onChange={e => setEditingLimit({ id: s.id, value: e.target.value })}
-                          className="border rounded px-1 py-0.5 text-xs focus:ring-1 focus:ring-blue-400 w-24" />
-                        <button onClick={() => saveLimit(s.id, editingLimit.value)}
-                          className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded hover:bg-blue-700">✓</button>
-                        <button onClick={() => saveLimit(s.id, '')}
-                          className="text-xs text-gray-400 hover:text-red-500 px-1">הסר</button>
-                        <button onClick={() => setEditingLimit(null)}
-                          className="text-xs text-gray-400 hover:text-gray-600">✕</button>
-                      </div>
-                    ) : s.latestEndTime ? (
-                      <button onClick={() => setEditingLimit({ id: s.id, value: s.latestEndTime! })}
-                        className="inline-block mt-1 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs hover:bg-gray-200 transition">
-                        ⏰ עד {s.latestEndTime}
-                      </button>
-                    ) : (
-                      <button onClick={() => setEditingLimit({ id: s.id, value: '' })}
-                        className="inline-block mt-1 text-xs text-gray-300 hover:text-gray-500 transition">
-                        + הגבל שעה
-                      </button>
-                    )}
+                    <button
+                      onClick={() => toggleRestriction(s.id, s.isRestricted)}
+                      disabled={togglingId === s.id}
+                      title={s.isRestricted ? 'הגבלת שעות פעילה — לחץ להסרה' : 'ללא הגבלת שעות — לחץ להפעלה'}
+                      className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs transition disabled:opacity-50 ${
+                        s.isRestricted
+                          ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                          : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                      }`}>
+                      {s.isRestricted ? '⏰ מוגבל שעות' : '⏰'}
+                    </button>
                   </div>
 
                   {/* Actions */}
