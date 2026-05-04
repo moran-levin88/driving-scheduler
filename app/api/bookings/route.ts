@@ -59,6 +59,17 @@ export async function POST(req: NextRequest) {
       if (slots.length !== availabilityIds.length) throw new Error('SLOT_UNAVAILABLE')
       if (slots.some(s => s.isBooked)) throw new Error('SLOT_UNAVAILABLE')
 
+      // Enforce latestEndTime restriction
+      const studentUser = await tx.user.findUnique({ where: { id: studentId }, select: { latestEndTime: true } })
+      if (studentUser?.latestEndTime) {
+        const [lh, lm] = studentUser.latestEndTime.split(':').map(Number)
+        const lastSlot = slots.slice().sort((a, b) => b.endTime.getTime() - a.endTime.getTime())[0]
+        const end = lastSlot.endTime
+        if (end.getHours() > lh || (end.getHours() === lh && end.getMinutes() > lm)) {
+          throw new Error('SLOT_UNAVAILABLE')
+        }
+      }
+
       // Enforce weekly limit: student may not exceed 4 slots (80 min) per week
       const firstSlot = slots.slice().sort((a, b) => a.startTime.getTime() - b.startTime.getTime())[0]
       const dayOfWeek = firstSlot.startTime.getUTCDay() // 0=Sun
