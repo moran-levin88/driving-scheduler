@@ -28,8 +28,8 @@ type LessonGroup = {
 
 type LessonModal = {
   group: LessonGroup
-  shiftDir: 'earlier' | 'later'
-  shiftMin: 20 | 40
+  targetDate: string  // yyyy-MM-dd
+  targetTime: string  // HH:mm
   shifting: boolean
   cancelling: boolean
   result: string
@@ -46,6 +46,8 @@ type BlockModal = {
   result: string
 }
 
+const roundMin = (d: string | Date) => Math.round(new Date(d).getTime() / 60000) * 60000
+
 function findLessonGroup(slot: Slot, allSlots: Slot[]): LessonGroup | null {
   if (!slot.isBooked || !slot.booking) return null
   const studentName = slot.booking.student.name
@@ -56,7 +58,7 @@ function findLessonGroup(slot: Slot, allSlots: Slot[]): LessonGroup | null {
   let found: Slot[] = []
   for (const s of booked) {
     const last = current[current.length - 1]
-    if (last && new Date(last.endTime).getTime() === new Date(s.startTime).getTime()) {
+    if (last && roundMin(last.endTime) === roundMin(s.startTime)) {
       current.push(s)
     } else { current = [s] }
     if (current.some(x => x.id === slot.id)) found = [...current]
@@ -131,15 +133,24 @@ export default function AvailabilityPage() {
   function openLessonModal(slot: Slot) {
     const group = findLessonGroup(slot, slots)
     if (!group) return
-    setModal({ group, shiftDir: 'earlier', shiftMin: 20, shifting: false, cancelling: false, result: '' })
+    const start = new Date(group.startTime)
+    setModal({
+      group,
+      targetDate: format(start, 'yyyy-MM-dd'),
+      targetTime: format(start, 'HH:mm'),
+      shifting: false,
+      cancelling: false,
+      result: '',
+    })
   }
 
   async function handleModalShift() {
     if (!modal) return
     setModal(m => m ? { ...m, shifting: true, result: '' } : m)
+    const targetStartTimeIso = new Date(`${modal.targetDate}T${modal.targetTime}:00`).toISOString()
     const res = await fetch('/api/bookings/shift', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookingIds: modal.group.ids, minutes: modal.shiftMin, direction: modal.shiftDir }),
+      body: JSON.stringify({ bookingIds: modal.group.ids, targetStartTimeIso }),
     })
     const data = await res.json()
     if (res.ok) { setModal(null); fetchSlots() }
@@ -384,26 +395,29 @@ export default function AvailabilityPage() {
             </p>
 
             <div className="bg-orange-50 rounded-xl p-3 mb-3">
-              <p className="text-sm font-semibold text-orange-800 mb-2">הזזת שיעור</p>
-              <div className="flex rounded-lg border overflow-hidden mb-2">
-                {(['earlier', 'later'] as const).map(d => (
-                  <button key={d} onClick={() => setModal(m => m ? { ...m, shiftDir: d } : m)}
-                    className={`flex-1 py-1.5 text-xs font-medium transition ${modal.shiftDir === d ? 'bg-orange-500 text-white' : 'bg-white text-gray-600'}`}>
-                    {d === 'earlier' ? '← מוקדם' : 'מאוחר →'}
-                  </button>
-                ))}
-              </div>
-              <div className="flex rounded-lg border overflow-hidden mb-2">
-                {([20, 40] as const).map(m => (
-                  <button key={m} onClick={() => setModal(p => p ? { ...p, shiftMin: m } : p)}
-                    className={`flex-1 py-1.5 text-xs font-medium transition ${modal.shiftMin === m ? 'bg-orange-500 text-white' : 'bg-white text-gray-600'}`}>
-                    {m} דקות
-                  </button>
-                ))}
+              <p className="text-sm font-semibold text-orange-800 mb-2">
+                הזזת שיעור
+                <span className="text-xs font-normal text-orange-600 mr-2">
+                  (משך: {Math.round((new Date(modal.group.endTime).getTime() - new Date(modal.group.startTime).getTime()) / 60000)} דק׳)
+                </span>
+              </p>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">תאריך</label>
+                  <input type="date" value={modal.targetDate}
+                    onChange={e => setModal(m => m ? { ...m, targetDate: e.target.value } : m)}
+                    className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-400" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">שעת התחלה</label>
+                  <input type="time" value={modal.targetTime}
+                    onChange={e => setModal(m => m ? { ...m, targetTime: e.target.value } : m)}
+                    className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-400" />
+                </div>
               </div>
               <button onClick={handleModalShift} disabled={modal.shifting}
                 className="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50 transition">
-                {modal.shifting ? 'מזיז...' : 'הזז שיעור'}
+                {modal.shifting ? 'מזיז...' : `הזז לשעה ${modal.targetTime} ב-${modal.targetDate.slice(8)}.${modal.targetDate.slice(5,7)}`}
               </button>
             </div>
 

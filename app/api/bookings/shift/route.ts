@@ -7,22 +7,25 @@ import { prisma } from '@/lib/prisma'
 import { updateCalendarEvent } from '@/lib/calendar'
 import { sendBookingShifted } from '@/lib/email'
 
+const roundMs = (ms: number) => Math.round(ms / 60000) * 60000
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session || (session.user as any).role !== 'INSTRUCTOR') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { bookingIds, minutes, direction } = await req.json()
+  const { bookingIds, minutes, direction, targetStartTimeIso } = await req.json()
   if (!Array.isArray(bookingIds) || bookingIds.length === 0) {
     return NextResponse.json({ error: 'bookingIds required' }, { status: 400 })
   }
-  if (minutes !== 20 && minutes !== 40) {
-    return NextResponse.json({ error: 'minutes must be 20 or 40' }, { status: 400 })
-  }
 
-  // earlier = subtract, later = add
-  const shiftMs = minutes * 60 * 1000 * (direction === 'later' ? 1 : -1)
+  // targetStartTimeIso = precise shift to a specific time (single lesson)
+  // minutes + direction = relative shift (bulk shift)
+  const usePrecise = !!targetStartTimeIso
+  if (!usePrecise && (!minutes || !direction)) {
+    return NextResponse.json({ error: 'minutes and direction required for bulk shift' }, { status: 400 })
+  }
 
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
@@ -46,9 +49,7 @@ export async function POST(req: NextRequest) {
     if (
       prev &&
       prev.studentId === b.studentId &&
-      (prev.pickupAddress ?? null) === (b.pickupAddress ?? null) &&
-      (prev.notes ?? null) === (b.notes ?? null) &&
-      new Date(prev.availability.endTime).getTime() === new Date(b.availability.startTime).getTime()
+      roundMs(new Date(prev.availability.endTime).getTime()) === roundMs(new Date(b.availability.startTime).getTime())
     ) {
       last.bookings.push(b)
     } else {
@@ -61,6 +62,14 @@ export async function POST(req: NextRequest) {
     const last = group.bookings[group.bookings.length - 1]
     const oldStart = new Date(first.availability.startTime)
     const oldEnd = new Date(last.availability.endTime)
+
+    // Calculate shiftMs
+    let shiftMs: number
+    if (usePrecise) {
+      shiftMs = new Date(targetStartTimeIso).getTime() - oldStart.getTime()
+    } else {
+      shiftMs = minutes * 60 * 1000 * (direction === 'later' ? 1 : -1)
+    }
 
     // Shift all availability slots
     for (const b of group.bookings) {
@@ -76,12 +85,10 @@ export async function POST(req: NextRequest) {
     const newStart = new Date(oldStart.getTime() + shiftMs)
     const newEnd = new Date(oldEnd.getTime() + shiftMs)
 
-    // Update Google Calendar event
     if (first.calendarEventId) {
       await updateCalendarEvent(first.calendarEventId, newStart, newEnd)
     }
 
-    // Notify student by email (fire-and-forget)
     const emailBooking = {
       ...first,
       availability: { ...first.availability, startTime: newStart, endTime: newEnd },

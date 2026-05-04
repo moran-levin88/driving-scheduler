@@ -59,6 +59,26 @@ export async function POST(req: NextRequest) {
       if (slots.length !== availabilityIds.length) throw new Error('SLOT_UNAVAILABLE')
       if (slots.some(s => s.isBooked)) throw new Error('SLOT_UNAVAILABLE')
 
+      // Enforce weekly limit: student may not exceed 4 slots (80 min) per week
+      const firstSlot = slots.slice().sort((a, b) => a.startTime.getTime() - b.startTime.getTime())[0]
+      const dayOfWeek = firstSlot.startTime.getUTCDay() // 0=Sun
+      const weekStart = new Date(firstSlot.startTime)
+      weekStart.setUTCDate(weekStart.getUTCDate() - dayOfWeek)
+      weekStart.setUTCHours(0, 0, 0, 0)
+      const weekEnd = new Date(weekStart)
+      weekEnd.setUTCDate(weekEnd.getUTCDate() + 7)
+
+      const existingCount = await tx.booking.count({
+        where: {
+          studentId,
+          status: { in: ['PENDING', 'APPROVED'] },
+          availability: { startTime: { gte: weekStart, lt: weekEnd } },
+        },
+      })
+      if (existingCount + availabilityIds.length > 4) {
+        throw new Error('WEEKLY_LIMIT')
+      }
+
       // Create a booking for each slot
       const created = []
       for (const availabilityId of availabilityIds) {
@@ -85,6 +105,9 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     if (err.message === 'SLOT_UNAVAILABLE') {
       return NextResponse.json({ error: 'אחד השיעורים כבר לא פנוי' }, { status: 409 })
+    }
+    if (err.message === 'WEEKLY_LIMIT') {
+      return NextResponse.json({ error: 'לא ניתן לקבוע יותר משיעור כפול אחד בשבוע' }, { status: 400 })
     }
     throw err
   }
