@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { sendBookingRequested } from '@/lib/email'
+// sendBookingRequested removed — instructor sees pending requests via in-app badge
 import { Prisma } from '@prisma/client'
 
 export async function GET(req: NextRequest) {
@@ -111,11 +111,6 @@ export async function POST(req: NextRequest) {
       return created
     })
 
-    const requestEmail = {
-      ...bookings[0],
-      availability: { ...bookings[0].availability, endTime: bookings[bookings.length - 1].availability.endTime },
-    }
-    sendBookingRequested(requestEmail as any).catch(console.error)
     return NextResponse.json(bookings, { status: 201 })
   } catch (err: any) {
     if (err.message === 'SLOT_UNAVAILABLE') {
