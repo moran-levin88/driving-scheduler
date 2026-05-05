@@ -18,6 +18,8 @@ type Slot = {
   } | null
 }
 
+type Student = { id: string; name: string; phone: string | null }
+
 type LessonGroup = {
   ids: string[]
   slotIds: string[]
@@ -103,6 +105,10 @@ export default function AvailabilityPage() {
   const [error, setError] = useState('')
   const [modal, setModal] = useState<LessonModal | null>(null)
   const [blockModal, setBlockModal] = useState<BlockModal | null>(null)
+  const [broadcastSlot, setBroadcastSlot] = useState<Slot | null>(null)
+  const [broadcastMsg, setBroadcastMsg] = useState('')
+  const [broadcastStudents, setBroadcastStudents] = useState<Student[]>([])
+  const [copied, setCopied] = useState(false)
   const [shiftOpen, setShiftOpen] = useState(false)
   const [shiftGroups, setShiftGroups] = useState<LessonGroup[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -117,6 +123,33 @@ export default function AvailabilityPage() {
     setSlots(data)
   }
   useEffect(() => { fetchSlots() }, [])
+
+  // "Tomorrow" = the calendar day after today
+  const tomorrowStart = new Date(); tomorrowStart.setDate(tomorrowStart.getDate() + 1); tomorrowStart.setHours(0,0,0,0)
+  const tomorrowEnd = new Date(tomorrowStart); tomorrowEnd.setDate(tomorrowEnd.getDate() + 1)
+  function isTomorrow(startTime: string) {
+    const d = new Date(startTime)
+    return d >= tomorrowStart && d < tomorrowEnd
+  }
+
+  async function openBroadcast(slot: Slot) {
+    const dateStr = format(new Date(slot.startTime), "EEEE, d בMMMM", { locale: he })
+    const timeStr = format(new Date(slot.startTime), 'HH:mm')
+    setBroadcastMsg(`שלום! שיעור נהיגה התפנה מחר ${dateStr} בשעה ${timeStr}. מי מעוניין לקבוע? צרו קשר בהקדם 🚗`)
+    setBroadcastSlot(slot)
+    setCopied(false)
+    if (broadcastStudents.length === 0) {
+      const res = await fetch('/api/students')
+      const data = await res.json()
+      if (Array.isArray(data)) setBroadcastStudents(data.map((s: any) => ({ id: s.id, name: s.name, phone: s.phone })))
+    }
+  }
+
+  function copyMessage() {
+    navigator.clipboard.writeText(broadcastMsg)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   const days = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i))
 
@@ -291,8 +324,15 @@ export default function AvailabilityPage() {
             {isBlock && <p className="text-xs text-red-700 mt-0.5 truncate">{slot.blockNote || 'חסום'}</p>}
           </div>
           {!slot.isBooked && !isBlock && (
-            <button onClick={e => { e.stopPropagation(); deleteSlot(slot.id) }}
-              className="text-red-400 hover:text-red-600 font-bold text-base leading-none">&times;</button>
+            <div className="flex items-center gap-1">
+              {isTomorrow(slot.startTime) && (
+                <button onClick={e => { e.stopPropagation(); openBroadcast(slot) }}
+                  title="שלח הודעה לתלמידים שהשיעור התפנה"
+                  className="text-green-500 hover:text-green-700 text-xs leading-none">📢</button>
+              )}
+              <button onClick={e => { e.stopPropagation(); deleteSlot(slot.id) }}
+                className="text-red-400 hover:text-red-600 font-bold text-base leading-none">&times;</button>
+            </div>
           )}
           {clickable && !compact && <span className="text-gray-400 text-lg">›</span>}
         </div>
@@ -442,6 +482,50 @@ export default function AvailabilityPage() {
             </button>
             {modal.result && <p className="text-red-500 text-xs text-center mb-1">{modal.result}</p>}
             <button onClick={() => setModal(null)} className="w-full text-gray-400 text-sm py-1 hover:text-gray-600">סגור</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Broadcast modal ── */}
+      {broadcastSlot && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" onClick={() => setBroadcastSlot(null)}>
+          <div className="bg-white rounded-xl p-5 w-full max-w-sm max-h-[90vh] overflow-y-auto" dir="rtl" onClick={e => e.stopPropagation()}>
+            <p className="font-bold text-lg mb-0.5">📢 שיעור התפנה</p>
+            <p className="text-gray-500 text-sm mb-4">
+              {format(new Date(broadcastSlot.startTime), "EEEE, d בMMMM", { locale: he })} | {format(new Date(broadcastSlot.startTime), 'HH:mm')}
+            </p>
+
+            <div className="mb-3">
+              <label className="block text-xs text-gray-500 mb-1">הודעה (ניתן לעריכה)</label>
+              <textarea value={broadcastMsg} onChange={e => setBroadcastMsg(e.target.value)} rows={4}
+                className="w-full text-sm border rounded-lg px-3 py-2 resize-none focus:ring-2 focus:ring-blue-400" />
+            </div>
+
+            <button onClick={copyMessage}
+              className={`w-full py-2 rounded-lg text-sm font-medium mb-3 transition ${copied ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+              {copied ? '✓ הועתק!' : '📋 העתק הודעה לקבוצת WhatsApp'}
+            </button>
+
+            {broadcastStudents.filter(s => s.phone).length > 0 && (
+              <div>
+                <p className="text-xs text-gray-500 mb-2">או שלח ישירות לתלמיד:</p>
+                <div className="space-y-1.5 max-h-52 overflow-y-auto">
+                  {broadcastStudents.filter(s => s.phone).map(s => {
+                    const phone = s.phone!.replace(/\D/g, '').replace(/^0/, '972')
+                    const wa = `https://wa.me/${phone}?text=${encodeURIComponent(broadcastMsg)}`
+                    return (
+                      <a key={s.id} href={wa} target="_blank" rel="noreferrer"
+                        className="flex items-center justify-between px-3 py-2 bg-green-50 rounded-lg hover:bg-green-100 transition">
+                        <span className="text-sm font-medium">{s.name}</span>
+                        <span className="text-green-600 text-xs font-medium">WhatsApp ›</span>
+                      </a>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            <button onClick={() => setBroadcastSlot(null)} className="w-full text-gray-400 text-sm py-2 mt-3 hover:text-gray-600">סגור</button>
           </div>
         </div>
       )}
