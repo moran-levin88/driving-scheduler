@@ -14,7 +14,7 @@ export default function BookPage() {
   const [slots, setSlots] = useState<Slot[]>([])
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }))
   const [selected, setSelected] = useState<Slot | null>(null)
-  const [lessonType, setLessonType] = useState<LessonType>('single')
+  const [lessonType, setLessonType] = useState<LessonType | null>(null)
   const [notes, setNotes] = useState('')
   const [pickupAddress, setPickupAddress] = useState('')
   const [altSlots, setAltSlots] = useState<AltSlot[]>([])
@@ -79,11 +79,14 @@ export default function BookPage() {
     const after  = slotsToNextBooked(new Date(chain[chain.length - 1].endTime).getTime(), true)
     const before = slotsToNextBooked(new Date(chain[0].startTime).getTime(), false)
 
-    // Special exception: double lesson (4 slots) in a 2h20m window (7 slots total).
-    // Allow if lesson fits snugly at either end leaving exactly 60 min (3 slots) on the other.
+    // Special exceptions for double lessons (4 slots = 80 min) at either end of a window:
+    // - 2h20m window (7 slots): leaves 60 min (3 slots) on one side
+    // - 2h window (6 slots): leaves 40 min (2 slots = one single lesson) on one side
     if (chain.length === 4) {
       if (after.free === 3 && after.hasBooked && before.free === 0 && before.hasBooked) return false
       if (before.free === 3 && before.hasBooked && after.free === 0 && after.hasBooked) return false
+      if (after.free === 2 && after.hasBooked && before.free === 0 && before.hasBooked) return false
+      if (before.free === 2 && before.hasBooked && after.free === 0 && after.hasBooked) return false
     }
 
     if (after.free >= 1 && after.free <= 3 && after.hasBooked) return true
@@ -93,7 +96,7 @@ export default function BookPage() {
 
   function handleSelectSlot(slot: Slot) {
     setSelected(slot)
-    setLessonType('single')
+    setLessonType(null)
     setSuccess(false)
     setError('')
     setTimeout(() => confirmRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
@@ -114,16 +117,16 @@ export default function BookPage() {
   }
 
   function getAvailableTimesForDate(dateStr: string): Slot[] {
-    if (!dateStr) return []
+    if (!dateStr || !lessonType) return []
     const needed = LESSON_SLOTS[lessonType]
     return slots
-      .filter(s =>
+      .filter((s: Slot) =>
         !s.isBooked &&
         isSameDay(new Date(s.startTime), new Date(dateStr + 'T12:00:00')) &&
         getSlotChain(s, needed).length >= needed &&
         !wouldLeaveGap(getSlotChain(s, needed))
       )
-      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+      .sort((a: Slot, b: Slot) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
   }
 
   const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 })
@@ -134,16 +137,16 @@ export default function BookPage() {
     half:   selected ? getSlotChain(selected, 3) : [],
     double: selected ? getSlotChain(selected, 4) : [],
   }
-  const activeChain = selected ? chains[lessonType] : []
+  const activeChain: Slot[] = selected && lessonType ? chains[lessonType] : []
   const canBook: Record<LessonType, boolean> = {
     single: chains.single.length >= 2,
     half:   chains.half.length >= 3,
     double: chains.double.length >= 4,
   }
-  const hasGap = selected && canBook[lessonType] ? wouldLeaveGap(activeChain) : false
+  const hasGap = selected && lessonType && canBook[lessonType] ? wouldLeaveGap(activeChain) : false
 
   async function submitBooking() {
-    if (!selected) return
+    if (!selected || !lessonType) return
     setSubmitting(true)
     setError('')
 
@@ -160,7 +163,7 @@ export default function BookPage() {
         return
       }
 
-      const availabilityIds = chain.map(s => s.id)
+      const availabilityIds = chain.map((s: Slot) => s.id)
       const alternativeSlots = altSlots
         .filter(a => a.date && a.time)
         .map(a => new Date(`${a.date}T${a.time}`).toISOString())
@@ -174,7 +177,7 @@ export default function BookPage() {
       if (res.ok) {
         setSuccess(true)
         setSelected(null)
-        setLessonType('single')
+        setLessonType(null)
         setNotes('')
         setPickupAddress('')
         setAltSlots([])
@@ -245,7 +248,7 @@ export default function BookPage() {
                     <p className="text-xs text-gray-300 text-center">{t('noSlots')}</p>
                   ) : daySlots.map(slot => {
                     const isSelected = selected?.id === slot.id
-                    const isNext = selected && activeChain.some(s => s.id === slot.id && s.id !== selected.id)
+                    const isNext = selected && activeChain.some((s: Slot) => s.id === slot.id && s.id !== selected.id)
                     const myStatus = slot.myBookingStatus
                     if (slot.isBooked && !myStatus) {
                       return (
@@ -312,7 +315,11 @@ export default function BookPage() {
             ))}
           </div>
 
-          {!canBook[lessonType] && (
+          {!lessonType && (
+            <p className="text-blue-500 text-sm mb-3 text-center">← {lang === 'ru' ? 'Выберите тип урока' : 'בחר/י סוג שיעור'}</p>
+          )}
+
+          {lessonType && !canBook[lessonType] && (
             <p className="text-red-500 text-sm mb-3">{t('noConsecutive')}</p>
           )}
 
@@ -320,7 +327,7 @@ export default function BookPage() {
             <p className="text-red-500 text-sm mb-3">{t('gapError')}</p>
           )}
 
-          {canBook[lessonType] && !hasGap && (
+          {lessonType && canBook[lessonType] && !hasGap && (
             <div className="bg-blue-50 rounded-lg p-3 mb-4">
               <p className="text-gray-700 text-sm">
                 <strong>{t('date')}</strong> {format(new Date(selected.startTime), t('dateFormat'), { locale })}
@@ -330,7 +337,7 @@ export default function BookPage() {
                 {format(new Date(selected.startTime), 'HH:mm')}
                 {' - '}
                 {format(new Date(activeChain[activeChain.length - 1]?.endTime ?? selected.endTime), 'HH:mm')}
-                {lessonType !== 'single' && (
+                {lessonType && lessonType !== 'single' && (
                   <span className="text-blue-600 font-medium"> {t(lessonOptions.find(o => o.type === lessonType)!.durationKey!)}</span>
                 )}
               </p>
@@ -400,7 +407,7 @@ export default function BookPage() {
 
           {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
           <div className="flex gap-3">
-            <button onClick={submitBooking} disabled={submitting || !canBook[lessonType] || !!hasGap}
+            <button onClick={submitBooking} disabled={submitting || !lessonType || !canBook[lessonType!] || !!hasGap}
               className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
               {submitting ? t('submitting') : t('bookLesson')}
             </button>
