@@ -109,6 +109,7 @@ export default function AvailabilityPage() {
   const [broadcastMsg, setBroadcastMsg] = useState('')
   const [broadcastStudents, setBroadcastStudents] = useState<Student[]>([])
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set())
+  const [broadcastStep, setBroadcastStep] = useState<'select' | 'send'>('select')
   const [copied, setCopied] = useState(false)
   const [shiftOpen, setShiftOpen] = useState(false)
   const [shiftGroups, setShiftGroups] = useState<LessonGroup[]>([])
@@ -139,6 +140,7 @@ export default function AvailabilityPage() {
     setBroadcastMsg(`שלום! שיעור נהיגה התפנה מחר ${dateStr} בשעה ${timeStr}. מי מעוניין? היכנסו למערכת וקבעו שיעור 🚗`)
     setBroadcastSlot(slot)
     setCopied(false)
+    setBroadcastStep('select')
     setSelectedStudents(new Set())
     const res = await fetch('/api/students')
     const data = await res.json()
@@ -510,10 +512,10 @@ export default function AvailabilityPage() {
               {copied ? '✓ הועתק!' : '📋 העתק הודעה לקבוצת WhatsApp'}
             </button>
 
-            {broadcastStudents.length > 0 && (
+            {broadcastStudents.length > 0 && broadcastStep === 'select' && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-gray-600">בחר/י תלמידים לשליחה ישירה:</p>
+                  <p className="text-xs font-semibold text-gray-600">בחר/י תלמידים לשליחה:</p>
                   <button onClick={() => setSelectedStudents(
                     selectedStudents.size === broadcastStudents.length
                       ? new Set()
@@ -527,27 +529,40 @@ export default function AvailabilityPage() {
                     <label key={s.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition ${selectedStudents.has(s.id) ? 'bg-green-50' : 'bg-gray-50 hover:bg-gray-100'}`}>
                       <input type="checkbox" checked={selectedStudents.has(s.id)}
                         onChange={() => setSelectedStudents(prev => {
-                          const n = new Set(prev)
-                          n.has(s.id) ? n.delete(s.id) : n.add(s.id)
-                          return n
+                          const n = new Set(prev); n.has(s.id) ? n.delete(s.id) : n.add(s.id); return n
                         })}
                         className="w-4 h-4 accent-green-600 shrink-0" />
-                      <span className="text-sm font-medium flex-1">{s.name}</span>
-                      <span className="text-xs text-gray-400">{s.phone}</span>
+                      <span className="text-sm font-medium">{s.name}</span>
                     </label>
                   ))}
                 </div>
-                <button
-                  disabled={selectedStudents.size === 0}
-                  onClick={() => {
-                    broadcastStudents.filter(s => selectedStudents.has(s.id)).forEach(s => {
-                      const phone = s.phone!.replace(/\D/g, '').replace(/^0/, '972')
-                      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(broadcastMsg)}`, '_blank')
-                    })
-                  }}
+                <button disabled={selectedStudents.size === 0}
+                  onClick={() => setBroadcastStep('send')}
                   className="w-full bg-green-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-40 transition">
-                  📲 שלח ב-WhatsApp לנבחרים ({selectedStudents.size})
+                  המשך לשליחה ({selectedStudents.size} תלמידים)
                 </button>
+              </div>
+            )}
+
+            {broadcastStep === 'send' && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <button onClick={() => setBroadcastStep('select')} className="text-blue-600 text-sm hover:underline">← חזרה</button>
+                  <p className="text-xs font-semibold text-gray-600">לחץ/י על כל תלמיד לשליחה:</p>
+                </div>
+                <div className="space-y-2">
+                  {broadcastStudents.filter(s => selectedStudents.has(s.id)).map(s => {
+                    const phone = s.phone!.replace(/\D/g, '').replace(/^0/, '972')
+                    return (
+                      <a key={s.id} href={`https://wa.me/${phone}?text=${encodeURIComponent(broadcastMsg)}`}
+                        target="_blank" rel="noreferrer"
+                        className="flex items-center justify-between px-4 py-3 bg-green-500 text-white rounded-xl hover:bg-green-600 active:bg-green-700 transition">
+                        <span className="font-medium">{s.name}</span>
+                        <span className="text-sm opacity-90">📲 WhatsApp</span>
+                      </a>
+                    )
+                  })}
+                </div>
               </div>
             )}
 
