@@ -300,23 +300,44 @@ export default function BookPage() {
         <div ref={confirmRef} className="bg-white rounded-xl shadow p-6 max-w-lg">
           <h2 className="text-xl font-semibold mb-4">{t('confirmTitle')}</h2>
 
-          {/* Lesson type selector */}
-          <div className="flex rounded-lg border overflow-hidden mb-4">
-            {lessonOptions.map(opt => (
-              <button key={opt.type} type="button"
-                onClick={() => setLessonType(opt.type)}
-                disabled={!canBook[opt.type]}
-                title={!canBook[opt.type] ? t('noConsecutive') : ''}
-                className={`flex-1 py-2 text-xs font-medium transition ${
-                  lessonType === opt.type ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
-                } disabled:opacity-40 disabled:cursor-not-allowed`}>
-                {opt.label}
-              </button>
-            ))}
+          {/* Lesson type selector — cards */}
+          <p className="text-sm font-semibold text-gray-700 mb-2">
+            {lang === 'ru' ? 'Выберите тип урока:' : 'כמה זמן השיעור?'}
+          </p>
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {[
+              { type: 'single' as const, emoji: '🕐', he: 'שיעור בודד', ru: 'Одиночный', min: '40 דק׳', minRu: '40 мин' },
+              { type: 'half'   as const, emoji: '🕑', he: 'שיעור וחצי', ru: 'Полтора',   min: '60 דק׳', minRu: '60 мин' },
+              { type: 'double' as const, emoji: '🕒', he: 'שיעור כפול', ru: 'Двойной',   min: '80 דק׳', minRu: '80 мин' },
+            ].map(opt => {
+              const active = lessonType === opt.type
+              const available = canBook[opt.type]
+              return (
+                <button key={opt.type} type="button"
+                  onClick={() => available && setLessonType(opt.type)}
+                  className={`flex flex-col items-center py-3 px-1 rounded-xl border-2 transition select-none ${
+                    active
+                      ? 'border-blue-600 bg-blue-50 shadow-sm'
+                      : available
+                      ? 'border-gray-200 bg-white hover:border-blue-300 active:bg-blue-50'
+                      : 'border-gray-100 bg-gray-50 opacity-35 cursor-not-allowed'
+                  }`}>
+                  <span className="text-2xl mb-1">{opt.emoji}</span>
+                  <span className={`text-xs font-bold leading-tight text-center ${active ? 'text-blue-700' : 'text-gray-800'}`}>
+                    {lang === 'ru' ? opt.ru : opt.he}
+                  </span>
+                  <span className={`text-xs mt-0.5 font-medium ${active ? 'text-blue-500' : 'text-gray-400'}`}>
+                    {lang === 'ru' ? opt.minRu : opt.min}
+                  </span>
+                </button>
+              )
+            })}
           </div>
 
           {!lessonType && (
-            <p className="text-blue-500 text-sm mb-3 text-center">← {lang === 'ru' ? 'Выберите тип урока' : 'בחר/י סוג שיעור'}</p>
+            <p className="text-blue-500 text-sm mb-3 text-center font-medium">
+              ↑ {lang === 'ru' ? 'Выберите тип урока' : 'בחר/י את סוג השיעור'}
+            </p>
           )}
 
           {lessonType && !canBook[lessonType] && (

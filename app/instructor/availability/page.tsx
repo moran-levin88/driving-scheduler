@@ -108,6 +108,7 @@ export default function AvailabilityPage() {
   const [broadcastSlot, setBroadcastSlot] = useState<Slot | null>(null)
   const [broadcastMsg, setBroadcastMsg] = useState('')
   const [broadcastStudents, setBroadcastStudents] = useState<Student[]>([])
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState(false)
   const [shiftOpen, setShiftOpen] = useState(false)
   const [shiftGroups, setShiftGroups] = useState<LessonGroup[]>([])
@@ -135,13 +136,16 @@ export default function AvailabilityPage() {
   async function openBroadcast(slot: Slot) {
     const dateStr = format(new Date(slot.startTime), "EEEE, d בMMMM", { locale: he })
     const timeStr = format(new Date(slot.startTime), 'HH:mm')
-    setBroadcastMsg(`שלום! שיעור נהיגה התפנה מחר ${dateStr} בשעה ${timeStr}. מי מעוניין לקבוע? צרו קשר בהקדם 🚗`)
+    setBroadcastMsg(`שלום! שיעור נהיגה התפנה מחר ${dateStr} בשעה ${timeStr}. מי מעוניין? היכנסו למערכת וקבעו שיעור 🚗`)
     setBroadcastSlot(slot)
     setCopied(false)
-    if (broadcastStudents.length === 0) {
-      const res = await fetch('/api/students')
-      const data = await res.json()
-      if (Array.isArray(data)) setBroadcastStudents(data.map((s: any) => ({ id: s.id, name: s.name, phone: s.phone })))
+    setSelectedStudents(new Set())
+    const res = await fetch('/api/students')
+    const data = await res.json()
+    if (Array.isArray(data)) {
+      const withPhone = data.filter((s: any) => s.phone).map((s: any) => ({ id: s.id, name: s.name, phone: s.phone }))
+      setBroadcastStudents(withPhone)
+      setSelectedStudents(new Set(withPhone.map((s: Student) => s.id)))
     }
   }
 
@@ -502,26 +506,48 @@ export default function AvailabilityPage() {
             </div>
 
             <button onClick={copyMessage}
-              className={`w-full py-2 rounded-lg text-sm font-medium mb-3 transition ${copied ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+              className={`w-full py-2 rounded-lg text-sm font-medium mb-4 transition ${copied ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
               {copied ? '✓ הועתק!' : '📋 העתק הודעה לקבוצת WhatsApp'}
             </button>
 
-            {broadcastStudents.filter(s => s.phone).length > 0 && (
+            {broadcastStudents.length > 0 && (
               <div>
-                <p className="text-xs text-gray-500 mb-2">או שלח ישירות לתלמיד:</p>
-                <div className="space-y-1.5 max-h-52 overflow-y-auto">
-                  {broadcastStudents.filter(s => s.phone).map(s => {
-                    const phone = s.phone!.replace(/\D/g, '').replace(/^0/, '972')
-                    const wa = `https://wa.me/${phone}?text=${encodeURIComponent(broadcastMsg)}`
-                    return (
-                      <a key={s.id} href={wa} target="_blank" rel="noreferrer"
-                        className="flex items-center justify-between px-3 py-2 bg-green-50 rounded-lg hover:bg-green-100 transition">
-                        <span className="text-sm font-medium">{s.name}</span>
-                        <span className="text-green-600 text-xs font-medium">WhatsApp ›</span>
-                      </a>
-                    )
-                  })}
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-600">בחר/י תלמידים לשליחה ישירה:</p>
+                  <button onClick={() => setSelectedStudents(
+                    selectedStudents.size === broadcastStudents.length
+                      ? new Set()
+                      : new Set(broadcastStudents.map(s => s.id))
+                  )} className="text-xs text-blue-600 hover:underline">
+                    {selectedStudents.size === broadcastStudents.length ? 'בטל הכל' : 'בחר הכל'}
+                  </button>
                 </div>
+                <div className="space-y-1.5 max-h-44 overflow-y-auto mb-3">
+                  {broadcastStudents.map(s => (
+                    <label key={s.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition ${selectedStudents.has(s.id) ? 'bg-green-50' : 'bg-gray-50 hover:bg-gray-100'}`}>
+                      <input type="checkbox" checked={selectedStudents.has(s.id)}
+                        onChange={() => setSelectedStudents(prev => {
+                          const n = new Set(prev)
+                          n.has(s.id) ? n.delete(s.id) : n.add(s.id)
+                          return n
+                        })}
+                        className="w-4 h-4 accent-green-600 shrink-0" />
+                      <span className="text-sm font-medium flex-1">{s.name}</span>
+                      <span className="text-xs text-gray-400">{s.phone}</span>
+                    </label>
+                  ))}
+                </div>
+                <button
+                  disabled={selectedStudents.size === 0}
+                  onClick={() => {
+                    broadcastStudents.filter(s => selectedStudents.has(s.id)).forEach(s => {
+                      const phone = s.phone!.replace(/\D/g, '').replace(/^0/, '972')
+                      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(broadcastMsg)}`, '_blank')
+                    })
+                  }}
+                  className="w-full bg-green-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-40 transition">
+                  📲 שלח ב-WhatsApp לנבחרים ({selectedStudents.size})
+                </button>
               </div>
             )}
 
