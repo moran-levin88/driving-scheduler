@@ -54,37 +54,40 @@ export default function BookPage() {
     return result
   }
 
-  // Returns true if booking this chain would leave a 20 or 40-min gap next to a booked lesson
+  // Returns true if booking this chain would leave a forbidden gap next to a booked lesson.
+  // Gap rules: 0 (back-to-back) = fine; ≥4 slots (≥80 min) = fine; 1-3 slots = forbidden.
+  // Exception: a double lesson (4 slots) MAY leave exactly 3 slots (60 min) on one side
+  // when the other side is back-to-back — this covers the 2h20m window scenario.
   function wouldLeaveGap(chain: Slot[]): boolean {
     if (!chain.length) return false
     const SLOT_MS = 20 * 60 * 1000
 
-    // A gap is forbidden if it is between 1 and 3 slots (20–60 min).
-    // 0 slots (back-to-back) is fine; 4+ slots (≥80 min) is fine.
-    const lessonEndMs = new Date(chain[chain.length - 1].endTime).getTime()
-    let freeAfter = 0
-    let t = lessonEndMs
-    while (freeAfter <= 3) {
-      const next = slots.find(s => new Date(s.startTime).getTime() === t)
-      if (!next) break
-      if (isOccupied(next)) return freeAfter >= 1 && freeAfter <= 3
-      freeAfter++
-      if (freeAfter > 3) break
-      t += SLOT_MS
+    function slotsToNextBooked(startMs: number, forward: boolean): { free: number; hasBooked: boolean } {
+      let free = 0, t = startMs
+      for (let i = 0; i < 4; i++) {
+        const s = forward
+          ? slots.find(x => new Date(x.startTime).getTime() === t)
+          : slots.find(x => new Date(x.endTime).getTime() === t)
+        if (!s) return { free, hasBooked: false }
+        if (isOccupied(s)) return { free, hasBooked: true }
+        free++
+        t = forward ? t + SLOT_MS : t - SLOT_MS
+      }
+      return { free, hasBooked: false } // ≥4 free slots = fine
     }
 
-    const lessonStartMs = new Date(chain[0].startTime).getTime()
-    let freeBefore = 0
-    t = lessonStartMs
-    while (freeBefore <= 3) {
-      const prev = slots.find(s => new Date(s.endTime).getTime() === t)
-      if (!prev) break
-      if (isOccupied(prev)) return freeBefore >= 1 && freeBefore <= 3
-      freeBefore++
-      if (freeBefore > 3) break
-      t -= SLOT_MS
+    const after  = slotsToNextBooked(new Date(chain[chain.length - 1].endTime).getTime(), true)
+    const before = slotsToNextBooked(new Date(chain[0].startTime).getTime(), false)
+
+    // Special exception: double lesson (4 slots) in a 2h20m window (7 slots total).
+    // Allow if lesson fits snugly at either end leaving exactly 60 min (3 slots) on the other.
+    if (chain.length === 4) {
+      if (after.free === 3 && after.hasBooked && before.free === 0 && before.hasBooked) return false
+      if (before.free === 3 && before.hasBooked && after.free === 0 && after.hasBooked) return false
     }
 
+    if (after.free >= 1 && after.free <= 3 && after.hasBooked) return true
+    if (before.free >= 1 && before.free <= 3 && before.hasBooked) return true
     return false
   }
 
