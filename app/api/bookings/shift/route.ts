@@ -71,15 +71,41 @@ export async function POST(req: NextRequest) {
       shiftMs = minutes * 60 * 1000 * (direction === 'later' ? 1 : -1)
     }
 
-    // Shift all availability slots
+    // Shift all slots in the group.
+    // If a free slot already exists at the target time → reassign the booking to it
+    // and free the original slot. Otherwise → update the original slot's times and
+    // recreate a free slot at the original position so availability is not lost.
     for (const b of group.bookings) {
-      await prisma.availability.update({
-        where: { id: b.availabilityId },
-        data: {
-          startTime: new Date(new Date(b.availability.startTime).getTime() + shiftMs),
-          endTime: new Date(new Date(b.availability.endTime).getTime() + shiftMs),
-        },
+      const newSlotStart = new Date(b.availability.startTime.getTime() + shiftMs)
+      const newSlotEnd   = new Date(b.availability.endTime.getTime()   + shiftMs)
+      const oldSlotId    = b.availabilityId
+      const oldStart     = b.availability.startTime
+      const oldEnd       = b.availability.endTime
+      const instructorId = b.availability.instructorId
+
+      const existingAtTarget = await prisma.availability.findFirst({
+        where: { startTime: newSlotStart, endTime: newSlotEnd, isBooked: false, isBlocked: false },
       })
+
+      if (existingAtTarget) {
+        // Reassign booking to the pre-existing slot, free the original slot
+        await prisma.booking.update({ where: { id: b.id }, data: { availabilityId: existingAtTarget.id } })
+        await prisma.availability.update({ where: { id: existingAtTarget.id }, data: { isBooked: true } })
+        await prisma.availability.update({ where: { id: oldSlotId }, data: { isBooked: false } })
+      } else {
+        // Move the original slot to the new time
+        await prisma.availability.update({
+          where: { id: oldSlotId },
+          data: { startTime: newSlotStart, endTime: newSlotEnd },
+        })
+        // Restore a free slot at the original position so availability is preserved
+        const alreadyThere = await prisma.availability.findFirst({ where: { startTime: oldStart, endTime: oldEnd } })
+        if (!alreadyThere) {
+          await prisma.availability.create({
+            data: { instructorId, startTime: oldStart, endTime: oldEnd, isBooked: false, isBlocked: false },
+          })
+        }
+      }
     }
 
     const newStart = new Date(oldStart.getTime() + shiftMs)
