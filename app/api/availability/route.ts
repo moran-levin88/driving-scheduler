@@ -82,13 +82,28 @@ export async function GET(req: NextRequest) {
     })
   })() : allVisible
 
-  return NextResponse.json(visibleSlots.map(s => ({
+  // Generate synthetic 20-min "תפוס" slots from blocked ranges so students see
+  // blocked times as occupied (same visual as a booked lesson by another student).
+  const SLOT_MS = 20 * 60 * 1000
+  type StudentSlot = { id: string; startTime: Date; endTime: Date; isBooked: boolean; myBookingStatus: string | null }
+  const syntheticBlocked: StudentSlot[] = []
+  for (const block of blockedRanges) {
+    let t = block.startTime.getTime()
+    while (t < block.endTime.getTime()) {
+      syntheticBlocked.push({ id: `block_${block.id}_${t}`, startTime: new Date(t), endTime: new Date(t + SLOT_MS), isBooked: true, myBookingStatus: null })
+      t += SLOT_MS
+    }
+  }
+
+  const regularSlots = visibleSlots.map(s => ({
     id: s.id,
     startTime: s.startTime,
     endTime: s.endTime,
     isBooked: s.isBooked,
     myBookingStatus: s.booking?.studentId === studentId ? s.booking?.status ?? null : null,
-  })))
+  }))
+
+  return NextResponse.json([...regularSlots, ...syntheticBlocked])
 }
 
 export async function POST(req: NextRequest) {
