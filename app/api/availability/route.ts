@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     }),
     prisma.availability.findMany({
       where: { isBlocked: true, endTime: { gte: now } },
-      select: { startTime: true, endTime: true },
+      select: { id: true, startTime: true, endTime: true },
     }),
   ])
 
