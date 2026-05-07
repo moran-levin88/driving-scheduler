@@ -406,13 +406,13 @@ export default function AvailabilityPage() {
             {isBlock && <p className="text-xs text-red-700 mt-0.5 truncate">{slot.blockNote || 'חסום'}</p>}
           </div>
           {!slot.isBooked && !isBlock && (
-            <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-1">
               {isTomorrow(slot.startTime) && (
-                <button onClick={() => openBroadcast(slot)}
+                <button onClick={e => { e.stopPropagation(); openBroadcast(slot) }}
                   title="שלח הודעה לתלמידים שהשיעור התפנה"
                   className="text-green-500 hover:text-green-700 text-xs leading-none">📢</button>
               )}
-              <button onClick={() => deleteSlot(slot.id)}
+              <button onClick={e => { e.stopPropagation(); deleteSlot(slot.id) }}
                 className="text-red-400 hover:text-red-600 font-bold text-base leading-none">&times;</button>
             </div>
           )}
