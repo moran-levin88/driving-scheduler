@@ -11,9 +11,36 @@ type Booking = {
   availability: { startTime: string; endTime: string }
 }
 
+type Lesson = {
+  ids: string[]
+  status: string
+  startTime: string
+  endTime: string
+}
+
 const STATUS_COLORS: Record<string, string> = {
   PENDING: 'bg-yellow-100 text-yellow-800', APPROVED: 'bg-green-100 text-green-800',
   REJECTED: 'bg-red-100 text-red-800', CANCELLED: 'bg-gray-100 text-gray-800', COMPLETED: 'bg-blue-100 text-blue-800',
+}
+
+const roundMin = (d: string) => Math.round(new Date(d).getTime() / 60000) * 60000
+
+function groupToLessons(bookings: Booking[]): Lesson[] {
+  const sorted = [...bookings].sort((a, b) =>
+    new Date(a.availability.startTime).getTime() - new Date(b.availability.startTime).getTime()
+  )
+  const lessons: Lesson[] = []
+  for (const b of sorted) {
+    const last = lessons[lessons.length - 1]
+    if (last && last.status === b.status &&
+        roundMin(last.endTime) === roundMin(b.availability.startTime)) {
+      last.ids.push(b.id)
+      last.endTime = b.availability.endTime
+    } else {
+      lessons.push({ ids: [b.id], status: b.status, startTime: b.availability.startTime, endTime: b.availability.endTime })
+    }
+  }
+  return lessons
 }
 
 export default function StudentDashboard() {
@@ -33,37 +60,45 @@ export default function StudentDashboard() {
   async function fetchBookings() {
     const res = await fetch('/api/bookings')
     const data = await res.json()
-    setBookings(data)
+    setBookings(Array.isArray(data) ? data : [])
   }
 
   useEffect(() => { fetchBookings() }, [])
 
-  async function cancelBooking(id: string) {
-    setCancelling(id)
-    setError(prev => ({ ...prev, [id]: '' }))
-    const res = await fetch(`/api/bookings/${id}`, { method: 'DELETE' })
+  // Cancel the first booking — the DELETE handler cascades to all siblings
+  async function cancelLesson(lesson: Lesson) {
+    const key = lesson.ids[0]
+    setCancelling(key)
+    setError(prev => ({ ...prev, [key]: '' }))
+    const res = await fetch(`/api/bookings/${key}`, { method: 'DELETE' })
     if (!res.ok) {
       const data = await res.json()
-      setError(prev => ({ ...prev, [id]: data.error || t('cancelError') }))
+      setError(prev => ({ ...prev, [key]: data.error || t('cancelError') }))
     } else {
       fetchBookings()
     }
     setCancelling(null)
   }
 
-  const upcoming = bookings.filter(b =>
-    ['PENDING', 'APPROVED'].includes(b.status) &&
-    new Date(b.availability.startTime) >= new Date()
-  )
-  const past = bookings.filter(b =>
-    !['PENDING', 'APPROVED'].includes(b.status) ||
-    new Date(b.availability.startTime) < new Date()
-  )
-
-  function canCancel(b: Booking) {
-    const hoursUntil = (new Date(b.availability.startTime).getTime() - Date.now()) / (1000 * 60 * 60)
+  function canCancel(lesson: Lesson) {
+    const hoursUntil = (new Date(lesson.startTime).getTime() - Date.now()) / (1000 * 60 * 60)
     return hoursUntil >= 24
   }
+
+  function durationLabel(startTime: string, endTime: string): string {
+    const mins = (new Date(endTime).getTime() - new Date(startTime).getTime()) / 60000
+    if (mins <= 40) return ''
+    if (mins <= 60) return lang === 'ru' ? ' (60 мин)' : ' (שעה)'
+    return lang === 'ru' ? ' (80 мин)' : ' (80 דק׳)'
+  }
+
+  const allLessons = groupToLessons(bookings)
+  const upcoming = allLessons.filter(l =>
+    ['PENDING', 'APPROVED'].includes(l.status) && new Date(l.startTime) >= new Date()
+  )
+  const past = allLessons.filter(l =>
+    !['PENDING', 'APPROVED'].includes(l.status) || new Date(l.startTime) < new Date()
+  ).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
 
   return (
     <div>
@@ -79,38 +114,38 @@ export default function StudentDashboard() {
           </div>
         ) : (
           <div className="space-y-3">
-            {upcoming.map(b => (
-              <div key={b.id} className="bg-white rounded-xl shadow p-5">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="font-medium text-lg">
-                      {format(new Date(b.availability.startTime), t('dateFormat'), { locale })}
-                    </p>
-                    <p className="text-gray-600">
-                      {format(new Date(b.availability.startTime), 'HH:mm')} - {format(new Date(b.availability.endTime), 'HH:mm')}
-                    </p>
+            {upcoming.map(lesson => {
+              const key = lesson.ids[0]
+              return (
+                <div key={key} className="bg-white rounded-xl shadow p-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-medium text-lg">
+                        {format(new Date(lesson.startTime), t('dateFormat'), { locale })}
+                      </p>
+                      <p className="text-gray-600">
+                        {format(new Date(lesson.startTime), 'HH:mm')} – {format(new Date(lesson.endTime), 'HH:mm')}
+                        <span className="text-blue-600 font-medium">{durationLabel(lesson.startTime, lesson.endTime)}</span>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-sm px-3 py-1 rounded-full font-medium ${STATUS_COLORS[lesson.status]}`}>
+                        {STATUS_LABELS[lesson.status]}
+                      </span>
+                      {canCancel(lesson) ? (
+                        <button onClick={() => cancelLesson(lesson)} disabled={cancelling === key}
+                          className="text-xs text-red-400 hover:text-red-600 hover:underline disabled:opacity-50 transition">
+                          {cancelling === key ? t('cancelling') : t('cancelLesson')}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400">{t('cannotCancel')}<br/>{t('lessThan24')}</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className={`text-sm px-3 py-1 rounded-full font-medium ${STATUS_COLORS[b.status]}`}>
-                      {STATUS_LABELS[b.status]}
-                    </span>
-                    {canCancel(b) ? (
-                      <button
-                        onClick={() => cancelBooking(b.id)}
-                        disabled={cancelling === b.id}
-                        className="text-xs text-red-400 hover:text-red-600 hover:underline disabled:opacity-50 transition">
-                        {cancelling === b.id ? t('cancelling') : t('cancelLesson')}
-                      </button>
-                    ) : (
-                      <span className="text-xs text-gray-400">{t('cannotCancel')}<br/>{t('lessThan24')}</span>
-                    )}
-                  </div>
+                  {error[key] && <p className="text-red-500 text-sm mt-2">{error[key]}</p>}
                 </div>
-                {error[b.id] && (
-                  <p className="text-red-500 text-sm mt-2">{error[b.id]}</p>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
@@ -119,17 +154,17 @@ export default function StudentDashboard() {
         <div>
           <h2 className="text-xl font-semibold mb-4 text-gray-800">{t('lessonHistory')}</h2>
           <div className="space-y-2">
-            {past.map(b => (
-              <div key={b.id} className="bg-white rounded-xl shadow p-4 flex items-center justify-between">
+            {past.map(lesson => (
+              <div key={lesson.ids[0]} className="bg-white rounded-xl shadow p-4 flex items-center justify-between">
                 <div>
                   <p className="font-medium">
-                    {format(new Date(b.availability.startTime), t('dateFormatShort'), { locale })}
+                    {format(new Date(lesson.startTime), t('dateFormatShort'), { locale })}
                     {' | '}
-                    {format(new Date(b.availability.startTime), 'HH:mm')} - {format(new Date(b.availability.endTime), 'HH:mm')}
+                    {format(new Date(lesson.startTime), 'HH:mm')} – {format(new Date(lesson.endTime), 'HH:mm')}
                   </p>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[b.status]}`}>
-                  {STATUS_LABELS[b.status]}
+                <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[lesson.status]}`}>
+                  {STATUS_LABELS[lesson.status]}
                 </span>
               </div>
             ))}

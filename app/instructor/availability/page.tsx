@@ -48,6 +48,16 @@ type BlockModal = {
   result: string
 }
 
+type BookModal = {
+  startSlot: Slot
+  studentId: string
+  lessonType: 'single' | 'half' | 'double' | null
+  pickupAddress: string
+  notes: string
+  submitting: boolean
+  doneInfo: { studentName: string; phone: string | null; startTime: string; endTime: string } | null
+}
+
 const roundMin = (d: string | Date) => Math.round(new Date(d).getTime() / 60000) * 60000
 
 function findLessonGroup(slot: Slot, allSlots: Slot[]): LessonGroup | null {
@@ -105,6 +115,8 @@ export default function AvailabilityPage() {
   const [error, setError] = useState('')
   const [modal, setModal] = useState<LessonModal | null>(null)
   const [blockModal, setBlockModal] = useState<BlockModal | null>(null)
+  const [bookModal, setBookModal] = useState<BookModal | null>(null)
+  const [bookStudents, setBookStudents] = useState<Student[]>([])
   const [broadcastSlot, setBroadcastSlot] = useState<Slot | null>(null)
   const [broadcastMsg, setBroadcastMsg] = useState('')
   const [broadcastStudents, setBroadcastStudents] = useState<Student[]>([])
@@ -148,6 +160,69 @@ export default function AvailabilityPage() {
       const withPhone = data.filter((s: any) => s.phone).map((s: any) => ({ id: s.id, name: s.name, phone: s.phone }))
       setBroadcastStudents(withPhone)
       setSelectedStudents(new Set(withPhone.map((s: Student) => s.id)))
+    }
+  }
+
+  function getConsecutiveFreeCount(slot: Slot): number {
+    let count = 1, current = slot
+    while (count < 4) {
+      const next = slots.find(s =>
+        !s.isBooked && !s.isBlocked &&
+        roundMin(s.startTime) === roundMin(current.endTime)
+      )
+      if (!next) break
+      count++; current = next
+    }
+    return count
+  }
+
+  function getConsecutiveFreeSlotIds(startSlot: Slot, n: number): string[] {
+    const ids = [startSlot.id]
+    let current = startSlot
+    while (ids.length < n) {
+      const next = slots.find(s =>
+        !s.isBooked && !s.isBlocked &&
+        roundMin(s.startTime) === roundMin(current.endTime)
+      )
+      if (!next) break
+      ids.push(next.id); current = next
+    }
+    return ids
+  }
+
+  function getBookEndTime(startSlot: Slot, n: number): string {
+    const ids = getConsecutiveFreeSlotIds(startSlot, n)
+    const lastSlot = slots.find(s => s.id === ids[ids.length - 1])
+    return lastSlot?.endTime ?? startSlot.endTime
+  }
+
+  async function openBookModal(slot: Slot) {
+    setBookModal({ startSlot: slot, studentId: '', lessonType: null, pickupAddress: '', notes: '', submitting: false, doneInfo: null })
+    if (bookStudents.length === 0) {
+      const res = await fetch('/api/students')
+      const data = await res.json()
+      if (Array.isArray(data)) setBookStudents(data.map((s: any) => ({ id: s.id, name: s.name, phone: s.phone })))
+    }
+  }
+
+  async function handleBookSubmit() {
+    if (!bookModal || !bookModal.studentId || !bookModal.lessonType) return
+    const n = bookModal.lessonType === 'single' ? 2 : bookModal.lessonType === 'half' ? 3 : 4
+    const availabilityIds = getConsecutiveFreeSlotIds(bookModal.startSlot, n)
+    if (availabilityIds.length < n) return
+    setBookModal(m => m ? { ...m, submitting: true } : m)
+    const res = await fetch('/api/instructor/book', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentId: bookModal.studentId, availabilityIds, pickupAddress: bookModal.pickupAddress, notes: bookModal.notes }),
+    })
+    if (res.ok) {
+      const student = bookStudents.find(s => s.id === bookModal.studentId)
+      const endTime = getBookEndTime(bookModal.startSlot, n)
+      setBookModal(m => m ? { ...m, submitting: false, doneInfo: { studentName: student?.name ?? '', phone: student?.phone ?? null, startTime: m.startSlot.startTime, endTime } } : m)
+      fetchSlots()
+    } else {
+      setBookModal(m => m ? { ...m, submitting: false } : m)
     }
   }
 
@@ -308,14 +383,15 @@ export default function AvailabilityPage() {
   function SlotCard({ slot, compact = false }: { slot: Slot; compact?: boolean }) {
     const isBlock = slot.isBlocked
     const isBooked = slot.isBooked && slot.booking && !['CANCELLED', 'REJECTED'].includes(slot.booking.status)
-    const clickable = isBlock || isBooked
+    const isFree = !slot.isBooked && !isBlock
+    const clickable = isBlock || isBooked || isFree
     return (
       <div
-        onClick={clickable ? () => isBlock ? openBlockModal(slot) : openLessonModal(slot) : undefined}
+        onClick={clickable ? () => isBlock ? openBlockModal(slot) : isBooked ? openLessonModal(slot) : openBookModal(slot) : undefined}
         className={`rounded-lg transition ${compact ? 'text-xs p-1.5' : 'p-3'} ${
           isBlock ? 'bg-red-100 text-red-800 cursor-pointer hover:bg-red-200 active:bg-red-300' :
           isBooked ? 'bg-orange-100 text-orange-800 cursor-pointer hover:bg-orange-200 active:bg-orange-300' :
-          'bg-blue-50 text-blue-800'
+          'bg-blue-50 text-blue-800 cursor-pointer hover:bg-blue-100 active:bg-blue-200'
         }`}>
         <div className="flex justify-between items-start">
           <div className="min-w-0 flex-1">
@@ -330,13 +406,13 @@ export default function AvailabilityPage() {
             {isBlock && <p className="text-xs text-red-700 mt-0.5 truncate">{slot.blockNote || 'חסום'}</p>}
           </div>
           {!slot.isBooked && !isBlock && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
               {isTomorrow(slot.startTime) && (
-                <button onClick={e => { e.stopPropagation(); openBroadcast(slot) }}
+                <button onClick={() => openBroadcast(slot)}
                   title="שלח הודעה לתלמידים שהשיעור התפנה"
                   className="text-green-500 hover:text-green-700 text-xs leading-none">📢</button>
               )}
-              <button onClick={e => { e.stopPropagation(); deleteSlot(slot.id) }}
+              <button onClick={() => deleteSlot(slot.id)}
                 className="text-red-400 hover:text-red-600 font-bold text-base leading-none">&times;</button>
             </div>
           )}
@@ -567,6 +643,108 @@ export default function AvailabilityPage() {
             )}
 
             <button onClick={() => setBroadcastSlot(null)} className="w-full text-gray-400 text-sm py-2 mt-3 hover:text-gray-600">סגור</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Book lesson modal (from free slot) ── */}
+      {bookModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" onClick={() => !bookModal.doneInfo && setBookModal(null)}>
+          <div className="bg-white rounded-xl p-5 w-full max-w-sm max-h-[90vh] overflow-y-auto" dir="rtl" onClick={e => e.stopPropagation()}>
+
+            {bookModal.doneInfo ? (
+              /* ── Success: show WhatsApp link ── */
+              <div>
+                <p className="font-bold text-green-700 text-lg mb-1">✓ שיעור נקבע!</p>
+                <p className="text-gray-600 text-sm mb-1">{bookModal.doneInfo.studentName}</p>
+                <p className="text-gray-700 text-sm mb-4">
+                  {format(new Date(bookModal.doneInfo.startTime), "EEEE, d בMMMM", { locale: he })} | {format(new Date(bookModal.doneInfo.startTime), 'HH:mm')}–{format(new Date(bookModal.doneInfo.endTime), 'HH:mm')}
+                </p>
+                {bookModal.doneInfo.phone && (() => {
+                  const phone = bookModal.doneInfo.phone!.replace(/\D/g, '').replace(/^0/, '972')
+                  const dateStr = format(new Date(bookModal.doneInfo.startTime), "EEEE, d בMMMM", { locale: he })
+                  const timeStr = format(new Date(bookModal.doneInfo.startTime), 'HH:mm')
+                  const endStr  = format(new Date(bookModal.doneInfo.endTime),   'HH:mm')
+                  const text = `שלום ${bookModal.doneInfo.studentName}! נקבע לך שיעור נהיגה ב${dateStr} בשעה ${timeStr}–${endStr}. להתראות! 🚗`
+                  return (
+                    <a href={`https://wa.me/${phone}?text=${encodeURIComponent(text)}`} target="_blank" rel="noreferrer"
+                      className="block w-full bg-green-500 text-white text-center py-3 rounded-xl font-medium hover:bg-green-600 transition mb-3">
+                      📲 שלח אישור ב-WhatsApp לתלמיד
+                    </a>
+                  )
+                })()}
+                <button onClick={() => setBookModal(null)} className="w-full border py-2 rounded-lg text-sm hover:bg-gray-50">סגור</button>
+              </div>
+            ) : (
+              /* ── Booking form ── */
+              <div>
+                <p className="font-bold text-lg mb-0.5">📅 קביעת שיעור</p>
+                <p className="text-gray-500 text-sm mb-4">
+                  {format(new Date(bookModal.startSlot.startTime), "EEEE, d בMMMM", { locale: he })} | {format(new Date(bookModal.startSlot.startTime), 'HH:mm')}
+                </p>
+
+                {/* Lesson type */}
+                {(() => {
+                  const freeCount = getConsecutiveFreeCount(bookModal.startSlot)
+                  const opts = [
+                    { type: 'single' as const, label: 'שיעור בודד (40 דק׳)', n: 2 },
+                    { type: 'half'   as const, label: 'שיעור וחצי (60 דק׳)', n: 3 },
+                    { type: 'double' as const, label: 'שיעור כפול (80 דק׳)', n: 4 },
+                  ]
+                  return (
+                    <div className="flex rounded-lg border overflow-hidden mb-3">
+                      {opts.map(o => (
+                        <button key={o.type} type="button"
+                          disabled={freeCount < o.n}
+                          onClick={() => setBookModal(m => m ? { ...m, lessonType: o.type } : m)}
+                          className={`flex-1 py-1.5 text-xs font-medium transition ${bookModal.lessonType === o.type ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} disabled:opacity-30 disabled:cursor-not-allowed`}>
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })()}
+
+                {/* End time preview */}
+                {bookModal.lessonType && (
+                  <p className="text-xs text-blue-600 mb-3">
+                    ✓ {format(new Date(bookModal.startSlot.startTime), 'HH:mm')}–{format(new Date(getBookEndTime(bookModal.startSlot, bookModal.lessonType === 'single' ? 2 : bookModal.lessonType === 'half' ? 3 : 4)), 'HH:mm')}
+                  </p>
+                )}
+
+                {/* Student */}
+                <div className="mb-3">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">תלמיד</label>
+                  <select value={bookModal.studentId} onChange={e => setBookModal(m => m ? { ...m, studentId: e.target.value } : m)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
+                    <option value="">— בחר תלמיד —</option>
+                    {bookStudents.map(s => <option key={s.id} value={s.id}>{s.name}{s.phone ? ` (${s.phone})` : ''}</option>)}
+                  </select>
+                </div>
+
+                <div className="mb-3">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">כתובת איסוף</label>
+                  <input type="text" value={bookModal.pickupAddress}
+                    onChange={e => setBookModal(m => m ? { ...m, pickupAddress: e.target.value } : m)}
+                    placeholder="רחוב, מספר בית, עיר"
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">הערות (אופציונלי)</label>
+                  <input type="text" value={bookModal.notes}
+                    onChange={e => setBookModal(m => m ? { ...m, notes: e.target.value } : m)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+                </div>
+
+                <button onClick={handleBookSubmit}
+                  disabled={bookModal.submitting || !bookModal.studentId || !bookModal.lessonType}
+                  className="w-full bg-blue-600 text-white py-2.5 rounded-xl font-medium hover:bg-blue-700 disabled:opacity-50 transition mb-2">
+                  {bookModal.submitting ? 'קובע...' : 'קבע שיעור'}
+                </button>
+                <button onClick={() => setBookModal(null)} className="w-full text-gray-400 text-sm py-1 hover:text-gray-600">ביטול</button>
+              </div>
+            )}
           </div>
         </div>
       )}
