@@ -54,10 +54,13 @@ export default function BookPage() {
     return result
   }
 
-  // Returns true if booking this chain would leave a forbidden gap next to a booked lesson.
-  // Gap rules: 0 (back-to-back) = fine; ≥4 slots (≥80 min) = fine; 1-3 slots = forbidden.
-  // Exception: a double lesson (4 slots) MAY leave exactly 3 slots (60 min) on one side
-  // when the other side is back-to-back — this covers the 2h20m window scenario.
+  // Returns true if booking this chain would leave a forbidden gap.
+  //
+  // Rule: block ONLY when a small gap (1-3 slots = 20-60 min) is left adjacent to a
+  // booked lesson AND the lesson is not flush against the opposite side.
+  // → Lesson must be "anchored" to at least one booked lesson (before.free=0 OR after.free=0).
+  // → This allows filling any constrained window between existing lessons.
+  // → On a fully free day neither side has a booked lesson so nothing is blocked.
   function wouldLeaveGap(chain: Slot[]): boolean {
     if (!chain.length) return false
     const SLOT_MS = 20 * 60 * 1000
@@ -73,29 +76,15 @@ export default function BookPage() {
         free++
         t = forward ? t + SLOT_MS : t - SLOT_MS
       }
-      return { free, hasBooked: false } // ≥4 free slots = fine
+      return { free, hasBooked: false }
     }
 
     const after  = slotsToNextBooked(new Date(chain[chain.length - 1].endTime).getTime(), true)
     const before = slotsToNextBooked(new Date(chain[0].startTime).getTime(), false)
 
-    // Exception: single lesson (2 slots) placed between two booked lessons.
-    // Any remaining gap is acceptable — both sides are already occupied so
-    // the leftover time cannot be used anyway.
-    if (chain.length === 2 && before.hasBooked && after.hasBooked) return false
-
-    // Special exceptions for double lessons (4 slots = 80 min) at either end of a window:
-    // - 2h20m window (7 slots): leaves 60 min (3 slots) on one side
-    // - 2h window (6 slots): leaves 40 min (2 slots = one single lesson) on one side
-    if (chain.length === 4) {
-      if (after.free === 3 && after.hasBooked && before.free === 0 && before.hasBooked) return false
-      if (before.free === 3 && before.hasBooked && after.free === 0 && after.hasBooked) return false
-      if (after.free === 2 && after.hasBooked && before.free === 0 && before.hasBooked) return false
-      if (before.free === 2 && before.hasBooked && after.free === 0 && after.hasBooked) return false
-    }
-
-    if (after.free >= 1 && after.free <= 3 && after.hasBooked) return true
-    if (before.free >= 1 && before.free <= 3 && before.hasBooked) return true
+    // Small gap on one side is only a problem when the lesson is NOT flush on the other side
+    if (after.free  >= 1 && after.free  <= 3 && after.hasBooked  && before.free > 0) return true
+    if (before.free >= 1 && before.free <= 3 && before.hasBooked && after.free  > 0) return true
     return false
   }
 
