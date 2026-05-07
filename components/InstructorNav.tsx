@@ -16,7 +16,7 @@ function urlBase64ToUint8Array(base64String: string) {
 export default function InstructorNav() {
   const pathname = usePathname()
   const [pendingCount, setPendingCount] = useState(0)
-  const [notifStatus, setNotifStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown')
+  const [notifStatus, setNotifStatus] = useState<'unknown' | 'default' | 'granted' | 'denied'>('unknown')
 
   useEffect(() => {
     fetch('/api/instructor/pending-count')
