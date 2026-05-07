@@ -79,6 +79,11 @@ export default function BookPage() {
     const after  = slotsToNextBooked(new Date(chain[chain.length - 1].endTime).getTime(), true)
     const before = slotsToNextBooked(new Date(chain[0].startTime).getTime(), false)
 
+    // Exception: single lesson (2 slots) placed between two booked lessons.
+    // Any remaining gap is acceptable — both sides are already occupied so
+    // the leftover time cannot be used anyway.
+    if (chain.length === 2 && before.hasBooked && after.hasBooked) return false
+
     // Special exceptions for double lessons (4 slots = 80 min) at either end of a window:
     // - 2h20m window (7 slots): leaves 60 min (3 slots) on one side
     // - 2h window (6 slots): leaves 40 min (2 slots = one single lesson) on one side
