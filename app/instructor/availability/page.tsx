@@ -683,24 +683,32 @@ export default function AvailabilityPage() {
                   {format(new Date(bookModal.startSlot.startTime), "EEEE, d בMMMM", { locale: he })} | {format(new Date(bookModal.startSlot.startTime), 'HH:mm')}
                 </p>
 
-                {/* Lesson type */}
+                {/* Lesson type — cards */}
                 {(() => {
                   const freeCount = getConsecutiveFreeCount(bookModal.startSlot)
-                  const opts = [
-                    { type: 'single' as const, label: 'שיעור בודד (40 דק׳)', n: 2 },
-                    { type: 'half'   as const, label: 'שיעור וחצי (60 דק׳)', n: 3 },
-                    { type: 'double' as const, label: 'שיעור כפול (80 דק׳)', n: 4 },
-                  ]
                   return (
-                    <div className="flex rounded-lg border overflow-hidden mb-3">
-                      {opts.map(o => (
-                        <button key={o.type} type="button"
-                          disabled={freeCount < o.n}
-                          onClick={() => setBookModal(m => m ? { ...m, lessonType: o.type } : m)}
-                          className={`flex-1 py-1.5 text-xs font-medium transition ${bookModal.lessonType === o.type ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} disabled:opacity-30 disabled:cursor-not-allowed`}>
-                          {o.label}
-                        </button>
-                      ))}
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      {([
+                        { type: 'single' as const, emoji: '🕐', label: 'שיעור בודד', min: '40 דק׳', n: 2 },
+                        { type: 'half'   as const, emoji: '🕑', label: 'שיעור וחצי', min: '60 דק׳', n: 3 },
+                        { type: 'double' as const, emoji: '🕒', label: 'שיעור כפול', min: '80 דק׳', n: 4 },
+                      ]).map(o => {
+                        const active    = bookModal.lessonType === o.type
+                        const available = freeCount >= o.n
+                        return (
+                          <button key={o.type} type="button" disabled={!available}
+                            onClick={() => setBookModal(m => m ? { ...m, lessonType: o.type } : m)}
+                            className={`flex flex-col items-center py-3 px-1 rounded-xl border-2 transition select-none ${
+                              active    ? 'border-blue-600 bg-blue-50 shadow-sm' :
+                              available ? 'border-gray-200 bg-white hover:border-blue-300' :
+                              'border-gray-100 bg-gray-50 opacity-35 cursor-not-allowed'
+                            }`}>
+                            <span className="text-2xl mb-1">{o.emoji}</span>
+                            <span className={`text-xs font-bold leading-tight text-center ${active ? 'text-blue-700' : 'text-gray-800'}`}>{o.label}</span>
+                            <span className={`text-xs mt-0.5 ${active ? 'text-blue-500' : 'text-gray-400'}`}>{o.min}</span>
+                          </button>
+                        )
+                      })}
                     </div>
                   )
                 })()}
