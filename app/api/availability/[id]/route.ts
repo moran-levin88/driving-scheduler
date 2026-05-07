@@ -48,6 +48,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (slot.isBlocked && (slot as any).calendarEventId) {
     await deleteCalendarEvent((slot as any).calendarEventId)
   }
+  // Remove any cancelled/rejected booking records linked to this slot (foreign key)
+  await prisma.booking.deleteMany({ where: { availabilityId: id } })
   await prisma.availability.delete({ where: { id } })
   return NextResponse.json({ success: true })
 }
