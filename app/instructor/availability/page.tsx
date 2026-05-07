@@ -384,14 +384,13 @@ export default function AvailabilityPage() {
     const isBlock = slot.isBlocked
     const isBooked = slot.isBooked && slot.booking && !['CANCELLED', 'REJECTED'].includes(slot.booking.status)
     const isFree = !slot.isBooked && !isBlock
-    const clickable = isBlock || isBooked || isFree
     return (
       <div
-        onClick={clickable ? () => isBlock ? openBlockModal(slot) : isBooked ? openLessonModal(slot) : openBookModal(slot) : undefined}
+        onClick={isBlock ? () => openBlockModal(slot) : isBooked ? () => openLessonModal(slot) : undefined}
         className={`rounded-lg transition ${compact ? 'text-xs p-1.5' : 'p-3'} ${
           isBlock ? 'bg-red-100 text-red-800 cursor-pointer hover:bg-red-200 active:bg-red-300' :
           isBooked ? 'bg-orange-100 text-orange-800 cursor-pointer hover:bg-orange-200 active:bg-orange-300' :
-          'bg-blue-50 text-blue-800 cursor-pointer hover:bg-blue-100 active:bg-blue-200'
+          'bg-blue-50 text-blue-800'
         }`}>
         <div className="flex justify-between items-start">
           <div className="min-w-0 flex-1">
@@ -405,18 +404,22 @@ export default function AvailabilityPage() {
             )}
             {isBlock && <p className="text-xs text-red-700 mt-0.5 truncate">{slot.blockNote || 'חסום'}</p>}
           </div>
-          {!slot.isBooked && !isBlock && (
+          {isFree && (
             <div className="flex items-center gap-1">
               {isTomorrow(slot.startTime) && (
-                <button onClick={e => { e.stopPropagation(); openBroadcast(slot) }}
-                  title="שלח הודעה לתלמידים שהשיעור התפנה"
+                <button onClick={() => openBroadcast(slot)}
+                  title="שלח הודעה לתלמידים"
                   className="text-green-500 hover:text-green-700 text-xs leading-none">📢</button>
               )}
-              <button onClick={e => { e.stopPropagation(); deleteSlot(slot.id) }}
+              <button onClick={() => openBookModal(slot)}
+                title="קבע שיעור לתלמיד"
+                className="text-blue-500 hover:text-blue-700 text-xs leading-none">📅</button>
+              <button onClick={() => deleteSlot(slot.id)}
+                title="מחק שעה"
                 className="text-red-400 hover:text-red-600 font-bold text-base leading-none">&times;</button>
             </div>
           )}
-          {clickable && !compact && <span className="text-gray-400 text-lg">›</span>}
+          {(isBlock || isBooked) && !compact && <span className="text-gray-400 text-lg">›</span>}
         </div>
       </div>
     )
