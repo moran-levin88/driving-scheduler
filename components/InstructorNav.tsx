@@ -33,15 +33,25 @@ export default function InstructorNav() {
 
   async function registerPush() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
-
+    if (Notification.permission !== 'granted') return
     try {
-      const reg = await navigator.serviceWorker.register('/sw.js')
-      const existing = await reg.pushManager.getSubscription()
-      if (existing) return // already subscribed
-
-      if (Notification.permission === 'denied') return
-      if (Notification.permission === 'default') return // wait for user to click bell
-    } catch {}
+      const reg = await navigator.serviceWorker.ready
+      let sub = await reg.pushManager.getSubscription()
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        })
+      }
+      // Always sync subscription to server — handles expired/cleared subscriptions
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub),
+      })
+    } catch (e) {
+      console.error('Push sync failed:', e)
+    }
   }
 
   async function requestPushPermission() {
