@@ -352,7 +352,12 @@ export default function AvailabilityPage() {
   }
 
   async function deleteSlot(id: string) {
-    await fetch(`/api/availability/${id}`, { method: 'DELETE' }); fetchSlots()
+    const res = await fetch(`/api/availability/${id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || `שגיאה במחיקה (${res.status})`)
+    }
+    fetchSlots()
   }
 
   function calcLessons() {
