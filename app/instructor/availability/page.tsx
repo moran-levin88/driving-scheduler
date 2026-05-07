@@ -407,14 +407,14 @@ export default function AvailabilityPage() {
           {isFree && (
             <div className="flex items-center gap-1">
               {isTomorrow(slot.startTime) && (
-                <button onClick={() => openBroadcast(slot)}
+                <button type="button" onClick={() => openBroadcast(slot)}
                   title="שלח הודעה לתלמידים"
                   className="text-green-500 hover:text-green-700 text-xs leading-none">📢</button>
               )}
-              <button onClick={() => openBookModal(slot)}
+              <button type="button" onClick={() => openBookModal(slot)}
                 title="קבע שיעור לתלמיד"
                 className="text-blue-500 hover:text-blue-700 text-xs leading-none">📅</button>
-              <button onClick={() => deleteSlot(slot.id)}
+              <button type="button" onClick={() => deleteSlot(slot.id)}
                 title="מחק שעה"
                 className="text-red-400 hover:text-red-600 font-bold text-base leading-none">&times;</button>
             </div>

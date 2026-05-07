@@ -100,16 +100,13 @@ export default function InstructorNav() {
           </Link>
         ))}
 
-        {/* Bell icon — request push permission if not granted */}
-        {notifStatus !== 'granted' && notifStatus !== 'denied' && (
+        {/* Bell — only visible when permission not yet granted */}
+        {notifStatus === 'default' && (
           <button onClick={requestPushPermission}
-            title="הפעל התראות לבקשות חדשות"
+            title="הפעל התראות כדי לקבל עדכונים על בקשות ושיעורים שמתבטלים"
             className="flex-shrink-0 text-yellow-300 hover:text-yellow-100 transition text-base">
             🔔
           </button>
-        )}
-        {notifStatus === 'granted' && (
-          <span className="flex-shrink-0 text-green-300 text-sm" title="התראות פעילות">🔔</span>
         )}
 
         <button onClick={() => window.location.reload()}
