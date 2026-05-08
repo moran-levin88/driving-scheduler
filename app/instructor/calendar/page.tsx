@@ -82,6 +82,8 @@ type ActionModal = {
   shifting: boolean
   result: string
   shiftedInfo: { newStart: Date; newEnd: Date } | null
+  confirmCancel: boolean
+  cancelling: boolean
 }
 
 export default function CalendarPage() {
@@ -115,7 +117,31 @@ export default function CalendarPage() {
       shifting: false,
       result: '',
       shiftedInfo: null,
+      confirmCancel: false,
+      cancelling: false,
     })
+  }
+
+  async function handleCancel() {
+    if (!actionModal) return
+    setActionModal(m => m ? { ...m, cancelling: true } : m)
+    try {
+      const res = await fetch(`/api/bookings/${actionModal.lesson.firstId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'CANCELLED' }),
+      })
+      if (res.ok) {
+        setLessons(prev => prev.filter(l => l.firstId !== actionModal.lesson.firstId))
+        setActionModal(null)
+      } else {
+        let errMsg = `שגיאה (${res.status})`
+        try { const d = await res.json(); errMsg = d.error || errMsg } catch {}
+        setActionModal(m => m ? { ...m, cancelling: false, confirmCancel: false, result: errMsg } : m)
+      }
+    } catch {
+      setActionModal(m => m ? { ...m, cancelling: false, confirmCancel: false, result: 'שגיאת רשת — נסה שוב' } : m)
+    }
   }
 
   async function handleShift() {
@@ -346,6 +372,30 @@ export default function CalendarPage() {
                 </a>
               )
             })()}
+
+            {/* Cancel lesson */}
+            {!actionModal.shiftedInfo && (
+              actionModal.confirmCancel ? (
+                <div className="border border-red-200 rounded-xl p-3 mb-2 text-center">
+                  <p className="text-sm font-semibold text-red-700 mb-2">לבטל את השיעור של {actionModal.lesson.studentName}?</p>
+                  <div className="flex gap-2">
+                    <button onClick={handleCancel} disabled={actionModal.cancelling}
+                      className="flex-1 bg-red-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-red-600 disabled:opacity-50 transition">
+                      {actionModal.cancelling ? 'מבטל...' : 'כן, בטל שיעור'}
+                    </button>
+                    <button type="button" onClick={() => setActionModal(m => m ? { ...m, confirmCancel: false } : m)}
+                      className="flex-1 border py-2 rounded-lg text-sm hover:bg-gray-50">
+                      חזור
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setActionModal(m => m ? { ...m, confirmCancel: true } : m)}
+                  className="w-full text-red-400 text-sm py-1.5 hover:text-red-600 mb-1">
+                  ביטול שיעור
+                </button>
+              )
+            )}
 
             <button onClick={() => setActionModal(null)} className="w-full text-gray-400 text-sm py-1 hover:text-gray-600">סגור</button>
           </div>
