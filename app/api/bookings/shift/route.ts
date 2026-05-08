@@ -88,7 +88,12 @@ export async function POST(req: NextRequest) {
       })
 
       if (existingAtTarget) {
-        // Reassign booking to the pre-existing slot, free the original slot
+        // Reassign booking to the pre-existing slot, free the original slot.
+        // Clean up stale cancelled/rejected booking records first (their availabilityId @unique
+        // would block the reassignment even though the slot is free).
+        await prisma.booking.deleteMany({
+          where: { availabilityId: existingAtTarget.id, status: { in: ['CANCELLED', 'REJECTED'] } },
+        })
         await prisma.booking.update({ where: { id: b.id }, data: { availabilityId: existingAtTarget.id } })
         await prisma.availability.update({ where: { id: existingAtTarget.id }, data: { isBooked: true } })
         await prisma.availability.update({ where: { id: oldSlotId }, data: { isBooked: false } })

@@ -79,6 +79,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     })
 
     if (existingFree) {
+      await prisma.booking.deleteMany({
+        where: { availabilityId: existingFree.id, status: { in: ['CANCELLED', 'REJECTED'] } },
+      })
       await prisma.booking.update({ where: { id: b.id }, data: { availabilityId: existingFree.id, status: 'APPROVED' } })
       await prisma.availability.update({ where: { id: existingFree.id }, data: { isBooked: true } })
       await prisma.availability.update({ where: { id: b.availabilityId }, data: { isBooked: false } })
