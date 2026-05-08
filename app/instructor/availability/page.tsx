@@ -24,17 +24,19 @@ type LessonGroup = {
   ids: string[]
   slotIds: string[]
   studentName: string
+  phone: string | null
   startTime: string
   endTime: string
 }
 
 type LessonModal = {
   group: LessonGroup
-  targetDate: string  // yyyy-MM-dd
-  targetTime: string  // HH:mm
+  targetDate: string
+  targetTime: string
   shifting: boolean
   cancelling: boolean
   result: string
+  shiftedInfo: { newStart: Date; newEnd: Date } | null
 }
 
 type BlockModal = {
@@ -80,6 +82,7 @@ function findLessonGroup(slot: Slot, allSlots: Slot[]): LessonGroup | null {
     ids: found.map(s => s.booking!.id),
     slotIds: found.map(s => s.id),
     studentName,
+    phone: found[0].booking?.student.phone ?? null,
     startTime: found[0].startTime,
     endTime: found[found.length - 1].endTime,
   }
@@ -98,7 +101,7 @@ function groupUpcomingForBulk(slots: Slot[]): LessonGroup[] {
     if (last && last.studentName === s.booking!.student.name && new Date(last.endTime).getTime() === new Date(s.startTime).getTime()) {
       last.ids.push(s.booking!.id); last.slotIds.push(s.id); last.endTime = s.endTime
     } else {
-      groups.push({ ids: [s.booking!.id], slotIds: [s.id], studentName: s.booking!.student.name, startTime: s.startTime, endTime: s.endTime })
+      groups.push({ ids: [s.booking!.id], slotIds: [s.id], studentName: s.booking!.student.name, phone: s.booking!.student.phone ?? null, startTime: s.startTime, endTime: s.endTime })
     }
   }
   return groups
@@ -256,6 +259,7 @@ export default function AvailabilityPage() {
       shifting: false,
       cancelling: false,
       result: '',
+      shiftedInfo: null,
     })
   }
 
@@ -268,8 +272,14 @@ export default function AvailabilityPage() {
       body: JSON.stringify({ bookingIds: modal.group.ids, targetStartTimeIso }),
     })
     const data = await res.json()
-    if (res.ok) { setModal(null); fetchSlots() }
-    else setModal(m => m ? { ...m, shifting: false, result: `שגיאה: ${data.error}` } : m)
+    if (res.ok) {
+      const newStart = new Date(`${modal.targetDate}T${modal.targetTime}:00`)
+      const duration = new Date(modal.group.endTime).getTime() - new Date(modal.group.startTime).getTime()
+      setModal(m => m ? { ...m, shifting: false, shiftedInfo: { newStart, newEnd: new Date(newStart.getTime() + duration) } } : m)
+      fetchSlots()
+    } else {
+      setModal(m => m ? { ...m, shifting: false, result: `שגיאה: ${data.error}` } : m)
+    }
   }
 
   async function handleModalCancel() {
@@ -347,8 +357,13 @@ export default function AvailabilityPage() {
     })
     const data = await res.json()
     setShifting(false)
-    if (res.ok) { setShiftResult(`✓ ${data.shifted} שיעורים הוזזו בהצלחה`); setSelectedIds(new Set()); fetchSlots() }
-    else setShiftResult(`שגיאה: ${data.error}`)
+    if (res.ok) {
+      setShiftResult(`✓ ${data.shifted} שיעורים הוזזו בהצלחה`)
+      setSelectedIds(new Set())
+      fetchSlots()
+    } else {
+      setShiftResult(`שגיאה: ${data.error}`)
+    }
   }
 
   async function deleteSlot(id: string) {
@@ -527,6 +542,30 @@ export default function AvailabilityPage() {
             <p className="text-gray-500 text-sm mb-4">
               {format(new Date(modal.group.startTime), "EEEE, d בMMMM", { locale: he })} | {format(new Date(modal.group.startTime), 'HH:mm')}–{format(new Date(modal.group.endTime), 'HH:mm')}
             </p>
+
+            {modal.shiftedInfo && (() => {
+              const { newStart, newEnd } = modal.shiftedInfo
+              const dateStr = format(newStart, "EEEE, d בMMMM", { locale: he })
+              const timeStr = `${format(newStart, 'HH:mm')}–${format(newEnd, 'HH:mm')}`
+              const phone = modal.group.phone?.replace(/\D/g, '').replace(/^0/, '972')
+              const waText = `שלום ${modal.group.studentName}! שיעור הנהיגה שלך הוזז: ${dateStr} בשעה ${timeStr}. בהצלחה! 🚗`
+              return (
+                <div className="bg-green-50 rounded-xl p-4 mb-3 text-center">
+                  <p className="font-semibold text-green-800 mb-0.5">✓ השיעור הוזז!</p>
+                  <p className="text-sm text-gray-600 mb-3">{dateStr} | {timeStr}</p>
+                  {phone ? (
+                    <a href={`https://wa.me/${phone}?text=${encodeURIComponent(waText)}`}
+                      target="_blank" rel="noreferrer"
+                      className="block w-full bg-green-500 text-white py-2.5 rounded-xl font-medium hover:bg-green-600 transition mb-2">
+                      📲 שלח עדכון WhatsApp לתלמיד
+                    </a>
+                  ) : (
+                    <p className="text-xs text-gray-400 mb-2">אין מספר טלפון לתלמיד</p>
+                  )}
+                  <button onClick={() => setModal(null)} className="w-full border py-2 rounded-lg text-sm hover:bg-gray-50">סגור</button>
+                </div>
+              )
+            })()}
 
             <div className="bg-orange-50 rounded-xl p-3 mb-3">
               <p className="text-sm font-semibold text-orange-800 mb-2">

@@ -81,6 +81,7 @@ type ActionModal = {
   targetTime: string
   shifting: boolean
   result: string
+  shiftedInfo: { newStart: Date; newEnd: Date } | null
 }
 
 export default function CalendarPage() {
@@ -113,6 +114,7 @@ export default function CalendarPage() {
       targetTime: format(lesson.startTime, 'HH:mm'),
       shifting: false,
       result: '',
+      shiftedInfo: null,
     })
   }
 
@@ -126,8 +128,9 @@ export default function CalendarPage() {
       body: JSON.stringify({ bookingIds: actionModal.lesson.ids, targetStartTimeIso }),
     })
     if (res.ok) {
-      setActionModal(null)
-      // Refresh lessons
+      const newStart = new Date(`${actionModal.targetDate}T${actionModal.targetTime}:00`)
+      const duration = actionModal.lesson.endTime.getTime() - actionModal.lesson.startTime.getTime()
+      setActionModal(m => m ? { ...m, shifting: false, shiftedInfo: { newStart, newEnd: new Date(newStart.getTime() + duration) } } : m)
       fetch('/api/bookings').then(r => r.json()).then(data => {
         if (Array.isArray(data)) setLessons(groupToLessons(data))
       })
@@ -252,6 +255,31 @@ export default function CalendarPage() {
             <p className="text-gray-500 text-sm mb-4">
               {format(actionModal.lesson.startTime, "EEEE, d בMMMM", { locale: he })} | {format(actionModal.lesson.startTime, 'HH:mm')}–{format(actionModal.lesson.endTime, 'HH:mm')}
             </p>
+
+            {/* Shifted success */}
+            {actionModal.shiftedInfo && (() => {
+              const { newStart, newEnd } = actionModal.shiftedInfo
+              const dateStr = format(newStart, "EEEE, d בMMMM", { locale: he })
+              const timeStr = `${format(newStart, 'HH:mm')}–${format(newEnd, 'HH:mm')}`
+              const phone = actionModal.lesson.phone?.replace(/\D/g, '').replace(/^0/, '972')
+              const waText = `שלום ${actionModal.lesson.studentName}! שיעור הנהיגה שלך הוזז: ${dateStr} בשעה ${timeStr}. בהצלחה! 🚗`
+              return (
+                <div className="bg-green-50 rounded-xl p-4 mb-3 text-center">
+                  <p className="font-semibold text-green-800 mb-0.5">✓ השיעור הוזז!</p>
+                  <p className="text-sm text-gray-600 mb-3">{dateStr} | {timeStr}</p>
+                  {phone ? (
+                    <a href={`https://wa.me/${phone}?text=${encodeURIComponent(waText)}`}
+                      target="_blank" rel="noreferrer"
+                      className="block w-full bg-green-500 text-white py-2.5 rounded-xl font-medium hover:bg-green-600 transition mb-2">
+                      📲 שלח עדכון WhatsApp לתלמיד
+                    </a>
+                  ) : (
+                    <p className="text-xs text-gray-400 mb-2">אין מספר טלפון לתלמיד</p>
+                  )}
+                  <button onClick={() => setActionModal(null)} className="w-full border py-2 rounded-lg text-sm hover:bg-gray-50">סגור</button>
+                </div>
+              )
+            })()}
 
             {/* Shift */}
             <div className="bg-orange-50 rounded-xl p-3 mb-3">
