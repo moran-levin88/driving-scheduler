@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { updateCalendarEvent } from '@/lib/calendar'
-import { sendBookingShifted } from '@/lib/email'
+import { sendBookingApproved } from '@/lib/email'
 
 const roundMin = (ms: number) => Math.round(ms / 60000) * 60000
 
@@ -97,10 +97,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await updateCalendarEvent((first as any).calendarEventId, newStart, newFirstEnd)
   }
 
-  // Notify student
+  // Send approval email to student with the new lesson time
   const newEnd = new Date(oldEnd.getTime() + shiftMs)
   const emailBooking = { ...first, availability: { ...first.availability, startTime: newStart, endTime: newEnd } }
-  sendBookingShifted(emailBooking as any, oldStart, oldEnd).catch(console.error)
+  sendBookingApproved(emailBooking as any).catch(console.error)
 
   return NextResponse.json({ success: true })
 }
