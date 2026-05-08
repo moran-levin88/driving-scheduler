@@ -139,6 +139,20 @@ export default function BookPage() {
   }
   const hasGap = selected && lessonType && canBook[lessonType] ? wouldLeaveGap(activeChain) : false
 
+  // When there's a gap error, find nearby valid alternatives (adjacent to existing lessons)
+  const gapSuggestions: Slot[] = hasGap && selected && lessonType ? (() => {
+    const needed = LESSON_SLOTS[lessonType]
+    const sameDay = slots.filter(s =>
+      !s.isBooked &&
+      new Date(s.startTime).toDateString() === new Date(selected.startTime).toDateString()
+    )
+    return sameDay.filter(s => {
+      if (s.id === selected.id) return false
+      const chain = getSlotChain(s, needed)
+      return chain.length >= needed && !wouldLeaveGap(chain)
+    }).slice(0, 4)
+  })() : []
+
   async function submitBooking() {
     if (!selected || !lessonType) return
     setSubmitting(true)
@@ -339,7 +353,25 @@ export default function BookPage() {
           )}
 
           {hasGap && (
-            <p className="text-red-500 text-sm mb-3">{t('gapError')}</p>
+            <div className="mb-3">
+              <p className="text-red-500 text-sm mb-2">{t('gapError')}</p>
+              {gapSuggestions.length > 0 && (
+                <div className="bg-blue-50 rounded-lg p-2">
+                  <p className="text-xs text-blue-700 font-medium mb-1.5">
+                    {lang === 'ru' ? 'Попробуйте один из этих вариантов:' : 'שעות שיעובדו עבורך:'}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {gapSuggestions.map(s => (
+                      <button key={s.id} type="button"
+                        onClick={() => { setSelected(s); setError('') }}
+                        className="text-xs bg-white border border-blue-300 text-blue-700 px-2.5 py-1 rounded-lg hover:bg-blue-100 transition font-medium">
+                        {new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' }).format(new Date(s.startTime))}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {lessonType && canBook[lessonType] && !hasGap && (
