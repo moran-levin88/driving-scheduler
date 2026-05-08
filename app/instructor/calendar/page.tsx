@@ -121,22 +121,27 @@ export default function CalendarPage() {
   async function handleShift() {
     if (!actionModal) return
     setActionModal(m => m ? { ...m, shifting: true, result: '' } : m)
-    const targetStartTimeIso = new Date(`${actionModal.targetDate}T${actionModal.targetTime}:00`).toISOString()
-    const res = await fetch('/api/bookings/shift', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookingIds: actionModal.lesson.ids, targetStartTimeIso }),
-    })
-    if (res.ok) {
-      const newStart = new Date(`${actionModal.targetDate}T${actionModal.targetTime}:00`)
-      const duration = actionModal.lesson.endTime.getTime() - actionModal.lesson.startTime.getTime()
-      setActionModal(m => m ? { ...m, shifting: false, shiftedInfo: { newStart, newEnd: new Date(newStart.getTime() + duration) } } : m)
-      fetch('/api/bookings').then(r => r.json()).then(data => {
-        if (Array.isArray(data)) setLessons(groupToLessons(data))
+    try {
+      const targetStartTimeIso = new Date(`${actionModal.targetDate}T${actionModal.targetTime}:00`).toISOString()
+      const res = await fetch('/api/bookings/shift', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingIds: actionModal.lesson.ids, targetStartTimeIso }),
       })
-    } else {
-      const d = await res.json()
-      setActionModal(m => m ? { ...m, shifting: false, result: d.error || 'שגיאה' } : m)
+      if (res.ok) {
+        const newStart = new Date(`${actionModal.targetDate}T${actionModal.targetTime}:00`)
+        const duration = actionModal.lesson.endTime.getTime() - actionModal.lesson.startTime.getTime()
+        setActionModal(m => m ? { ...m, shifting: false, shiftedInfo: { newStart, newEnd: new Date(newStart.getTime() + duration) } } : m)
+        fetch('/api/bookings').then(r => r.json()).then(data => {
+          if (Array.isArray(data)) setLessons(groupToLessons(data))
+        })
+      } else {
+        let errMsg = `שגיאה (${res.status})`
+        try { const d = await res.json(); errMsg = d.error || errMsg } catch {}
+        setActionModal(m => m ? { ...m, shifting: false, result: errMsg } : m)
+      }
+    } catch {
+      setActionModal(m => m ? { ...m, shifting: false, result: 'שגיאת רשת — נסה שוב' } : m)
     }
   }
 
