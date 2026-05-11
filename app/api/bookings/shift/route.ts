@@ -98,18 +98,14 @@ export async function POST(req: NextRequest) {
         await prisma.availability.update({ where: { id: existingAtTarget.id }, data: { isBooked: true } })
         await prisma.availability.update({ where: { id: oldSlotId }, data: { isBooked: false } })
       } else {
-        // Move the original slot to the new time
-        await prisma.availability.update({
-          where: { id: oldSlotId },
-          data: { startTime: newSlotStart, endTime: newSlotEnd },
+        // Create a new booked slot at the target time and free the original.
+        // Never mutate the slot's time in place — that causes duplicates when the
+        // shift amount is smaller than the lesson duration (target overlaps source slots).
+        const newSlot = await prisma.availability.create({
+          data: { instructorId, startTime: newSlotStart, endTime: newSlotEnd, isBooked: true },
         })
-        // Restore a free slot at the original position so availability is preserved
-        const alreadyThere = await prisma.availability.findFirst({ where: { startTime: oldStart, endTime: oldEnd } })
-        if (!alreadyThere) {
-          await prisma.availability.create({
-            data: { instructorId, startTime: oldStart, endTime: oldEnd, isBooked: false, isBlocked: false },
-          })
-        }
+        await prisma.booking.update({ where: { id: b.id }, data: { availabilityId: newSlot.id } })
+        await prisma.availability.update({ where: { id: oldSlotId }, data: { isBooked: false } })
       }
     }
 

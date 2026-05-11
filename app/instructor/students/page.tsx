@@ -126,7 +126,7 @@ export default function StudentsPage() {
         return (
         <div className="space-y-3">
           {filtered.map(s => {
-            const lessonCount = s.bookings.filter(b => ['APPROVED', 'COMPLETED'].includes(b.status)).length
+            const lessonCount = Math.round(s.bookings.filter(b => ['APPROVED', 'COMPLETED'].includes(b.status)).length / 2)
             return (
               <div key={s.id} className="bg-white rounded-xl shadow p-4">
                 <div className="flex items-start justify-between gap-3">

@@ -6,6 +6,10 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendBookingApproved, sendBookingRejected, sendBookingCancelled } from '@/lib/email'
 import { createCalendarEvent, deleteCalendarEvent } from '@/lib/calendar'
+import { sendSmsToInstructor } from '@/lib/sms'
+import { sendPushToInstructor } from '@/lib/push'
+import { format } from 'date-fns'
+import { he } from 'date-fns/locale'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
@@ -95,7 +99,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if (status === 'APPROVED') sendBookingApproved(bookingForEmail as any).catch(err => console.error('Email failed:', err))
   else if (status === 'REJECTED') sendBookingRejected(bookingForEmail as any).catch(err => console.error('Email failed:', err))
-  else if (status === 'CANCELLED') sendBookingCancelled(bookingForEmail as any).catch(err => console.error('Email failed:', err))
+  else if (status === 'CANCELLED') {
+    sendBookingCancelled(bookingForEmail as any).catch(err => console.error('Email failed:', err))
+    const hoursUntil = (first.availability.startTime.getTime() - Date.now()) / (1000 * 60 * 60)
+    if (hoursUntil >= 0 && hoursUntil <= 96) {
+      const dateStr = format(first.availability.startTime, "EEEE, d בMMMM", { locale: he })
+      const timeStr = format(first.availability.startTime, 'HH:mm')
+      const msg = `שיעור נהיגה התפנה ב${dateStr} בשעה ${timeStr}. מי מעוניין? היכנסו למערכת וקבעו שיעור 🚗`
+      sendSmsToInstructor(msg).catch(console.error)
+      sendPushToInstructor('שיעור התפנה', `${first.student.name} — שיעור ב${dateStr} ${timeStr} בוטל`).catch(console.error)
+    }
+  }
 
   return NextResponse.json({ ok: true })
 }
