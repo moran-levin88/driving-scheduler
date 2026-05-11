@@ -74,24 +74,33 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Enforce weekly limit: student may not exceed 4 slots (80 min) per week
-      const firstSlot = slots.slice().sort((a, b) => a.startTime.getTime() - b.startTime.getTime())[0]
-      const dayOfWeek = firstSlot.startTime.getUTCDay() // 0=Sun
-      const weekStart = new Date(firstSlot.startTime)
-      weekStart.setUTCDate(weekStart.getUTCDate() - dayOfWeek)
-      weekStart.setUTCHours(0, 0, 0, 0)
-      const weekEnd = new Date(weekStart)
-      weekEnd.setUTCDate(weekEnd.getUTCDate() + 7)
-
-      const existingCount = await tx.booking.count({
-        where: {
-          studentId,
-          status: { in: ['PENDING', 'APPROVED'] },
-          availability: { startTime: { gte: weekStart, lt: weekEnd } },
-        },
+      // Enforce weekly limit: student may not exceed 4 slots (80 min) per week.
+      // Exception: if the requested slots were freed by another student's cancellation
+      // (CANCELLED record still exists on the slot), allow booking regardless of weekly count
+      // so late-cancellation vacancies can always be filled.
+      const isCancelledVacancy = await tx.booking.findFirst({
+        where: { availabilityId: { in: availabilityIds }, status: { in: ['CANCELLED', 'REJECTED'] } },
       })
-      if (existingCount + availabilityIds.length > 4) {
-        throw new Error('WEEKLY_LIMIT')
+
+      if (!isCancelledVacancy) {
+        const firstSlot = slots.slice().sort((a, b) => a.startTime.getTime() - b.startTime.getTime())[0]
+        const dayOfWeek = firstSlot.startTime.getUTCDay() // 0=Sun
+        const weekStart = new Date(firstSlot.startTime)
+        weekStart.setUTCDate(weekStart.getUTCDate() - dayOfWeek)
+        weekStart.setUTCHours(0, 0, 0, 0)
+        const weekEnd = new Date(weekStart)
+        weekEnd.setUTCDate(weekEnd.getUTCDate() + 7)
+
+        const existingCount = await tx.booking.count({
+          where: {
+            studentId,
+            status: { in: ['PENDING', 'APPROVED'] },
+            availability: { startTime: { gte: weekStart, lt: weekEnd } },
+          },
+        })
+        if (existingCount + availabilityIds.length > 4) {
+          throw new Error('WEEKLY_LIMIT')
+        }
       }
 
       // Create a booking for each slot
