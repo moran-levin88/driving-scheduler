@@ -29,6 +29,8 @@ type LessonGroup = {
   createdAt: string
 }
 
+const roundMin = (ms: number) => Math.round(ms / 60000) * 60000
+
 function groupBookings(bookings: Booking[]): LessonGroup[] {
   const sorted = [...bookings].sort((a, b) =>
     new Date(a.availability.startTime).getTime() - new Date(b.availability.startTime).getTime()
@@ -42,7 +44,7 @@ function groupBookings(bookings: Booking[]): LessonGroup[] {
       last.student.email === b.student.email &&
       (last.pickupAddress ?? null) === (b.pickupAddress ?? null) &&
       (last.notes ?? null) === (b.notes ?? null) &&
-      new Date(last.endTime).getTime() === new Date(b.availability.startTime).getTime()
+      roundMin(new Date(last.endTime).getTime()) === roundMin(new Date(b.availability.startTime).getTime())
     ) {
       last.ids.push(b.id)
       last.endTime = b.availability.endTime
