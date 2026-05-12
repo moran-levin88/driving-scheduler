@@ -75,8 +75,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (role === 'STUDENT' && (first as any).calendarEventId) {
     const hoursUntil = (lessonStart.getTime() - Date.now()) / (1000 * 60 * 60)
     if (hoursUntil <= 96) {
-      const dateStr = format(lessonStart, "EEEE, d בMMMM", { locale: he })
-      const timeStr = format(lessonStart, 'HH:mm')
+      const israelLocal = new Date(lessonStart.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }))
+      const dateStr = format(israelLocal, "EEEE, d בMMMM", { locale: he })
+      const timeStr = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' }).format(lessonStart)
       const msg = `שיעור נהיגה התפנה ב${dateStr} בשעה ${timeStr}. מי מעוניין? היכנסו למערכת וקבעו שיעור 🚗`
       sendSmsToInstructor(msg).catch(console.error)
       sendPushToInstructor('שיעור התפנה', `${(booking as any).student?.name} ביטל — ${dateStr} ${timeStr}`).catch(console.error)

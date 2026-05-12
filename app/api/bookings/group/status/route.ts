@@ -80,8 +80,9 @@ export async function PATCH(req: NextRequest) {
     sendBookingCancelled(bookingForEmail as any).catch(err => console.error('Email failed:', err))
     const hoursUntil = (firstBooking.availability.startTime.getTime() - Date.now()) / (1000 * 60 * 60)
     if (hoursUntil >= 0 && hoursUntil <= 96) {
-      const dateStr = format(firstBooking.availability.startTime, "EEEE, d בMMMM", { locale: he })
-      const timeStr = format(firstBooking.availability.startTime, 'HH:mm')
+      const israelLocal = new Date(firstBooking.availability.startTime.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }))
+      const dateStr = format(israelLocal, "EEEE, d בMMMM", { locale: he })
+      const timeStr = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' }).format(firstBooking.availability.startTime)
       const msg = `שיעור נהיגה התפנה ב${dateStr} בשעה ${timeStr}. מי מעוניין? היכנסו למערכת וקבעו שיעור 🚗`
       sendSmsToInstructor(msg).catch(console.error)
       sendPushToInstructor('שיעור התפנה', `${firstBooking.student.name} — שיעור ב${dateStr} ${timeStr} בוטל`).catch(console.error)
