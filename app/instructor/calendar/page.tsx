@@ -86,11 +86,20 @@ type ActionModal = {
   cancelling: boolean
 }
 
+type SwapModal = {
+  lessonA: Lesson
+  lessonB: Lesson
+  swapping: boolean
+  result: string
+}
+
 export default function CalendarPage() {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }))
   const [lessons, setLessons] = useState<Lesson[]>([])
   const [blocks, setBlocks] = useState<Block[]>([])
   const [actionModal, setActionModal] = useState<ActionModal | null>(null)
+  const [swapSource, setSwapSource] = useState<Lesson | null>(null)
+  const [swapModal, setSwapModal] = useState<SwapModal | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -108,6 +117,43 @@ export default function CalendarPage() {
       }
     })
   }, [])
+
+  function handleLessonClick(lesson: Lesson) {
+    if (swapSource) {
+      if (swapSource.firstId === lesson.firstId) {
+        setSwapSource(null) // clicked same lesson — cancel swap mode
+      } else {
+        setSwapModal({ lessonA: swapSource, lessonB: lesson, swapping: false, result: '' })
+        setSwapSource(null)
+      }
+      return
+    }
+    openAction(lesson)
+  }
+
+  async function handleSwap() {
+    if (!swapModal) return
+    setSwapModal(m => m ? { ...m, swapping: true, result: '' } : m)
+    try {
+      const res = await fetch('/api/bookings/swap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idsA: swapModal.lessonA.ids, idsB: swapModal.lessonB.ids }),
+      })
+      if (res.ok) {
+        setSwapModal(null)
+        fetch('/api/bookings').then(r => r.json()).then(data => {
+          if (Array.isArray(data)) setLessons(groupToLessons(data))
+        })
+      } else {
+        let errMsg = 'שגיאה'
+        try { const d = await res.json(); errMsg = d.error || errMsg } catch {}
+        setSwapModal(m => m ? { ...m, swapping: false, result: errMsg } : m)
+      }
+    } catch {
+      setSwapModal(m => m ? { ...m, swapping: false, result: 'שגיאת רשת — נסה שוב' } : m)
+    }
+  }
 
   function openAction(lesson: Lesson) {
     setActionModal({
@@ -179,6 +225,14 @@ export default function CalendarPage() {
 
   return (
     <div>
+      {swapSource && (
+        <div className="mb-3 bg-amber-50 border border-amber-300 rounded-xl px-4 py-2.5 flex items-center justify-between gap-3" dir="rtl">
+          <p className="text-sm font-medium text-amber-800">
+            ⇄ {swapSource.studentName} נבחר — לחץ על שיעור אחר להחלפה
+          </p>
+          <button onClick={() => setSwapSource(null)} className="text-xs text-amber-600 hover:text-amber-800 shrink-0">ביטול</button>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h1 className="text-2xl font-bold text-gray-900">קלנדר</h1>
         <div className="flex items-center gap-2">
@@ -251,19 +305,25 @@ export default function CalendarPage() {
                     </div>
                   ))}
 
-                  {/* Lessons — green, clickable */}
+                  {/* Lessons — clickable */}
                   {dayLessons.map(lesson => {
                     const top = getTop(lesson.startTime)
                     const height = getHeight(lesson.startTime, lesson.endTime)
                     const hasAlts = lesson.alternativeSlots.length > 0
+                    const isSwapSource = swapSource?.firstId === lesson.firstId
+                    const isSwapTarget = !!swapSource && !isSwapSource
                     return (
                       <div key={lesson.firstId}
                         style={{ position: 'absolute', top: `${top}px`, height: `${height}px`, left: '2px', right: '2px', zIndex: 5 }}
-                        onClick={() => openAction(lesson)}
-                        className="bg-green-500 text-white rounded-lg px-1.5 py-1 cursor-pointer overflow-hidden select-none hover:bg-green-600 transition">
+                        onClick={() => handleLessonClick(lesson)}
+                        className={`rounded-lg px-1.5 py-1 cursor-pointer overflow-hidden select-none transition text-white
+                          ${isSwapSource ? 'bg-amber-500 ring-2 ring-amber-300 ring-offset-1 animate-pulse' : ''}
+                          ${isSwapTarget ? 'bg-blue-500 hover:bg-blue-600' : ''}
+                          ${!isSwapSource && !isSwapTarget ? 'bg-green-500 hover:bg-green-600' : ''}`}>
                         <div className="flex items-start justify-between">
                           <p className="text-xs font-semibold leading-tight truncate flex-1">{lesson.studentName}</p>
-                          {hasAlts && <span className="text-xs opacity-75 shrink-0 mr-0.5" title="יש מועדים חלופיים">🔄</span>}
+                          {hasAlts && !isSwapSource && <span className="text-xs opacity-75 shrink-0 mr-0.5">🔄</span>}
+                          {isSwapSource && <span className="text-xs shrink-0">⇄</span>}
                         </div>
                         {height >= 36 && (
                           <p className="text-xs opacity-90">{format(lesson.startTime, 'HH:mm')}–{format(lesson.endTime, 'HH:mm')}</p>
@@ -397,7 +457,47 @@ export default function CalendarPage() {
               )
             )}
 
+            {/* Swap with another lesson */}
+            {!actionModal.shiftedInfo && (
+              <button type="button"
+                onClick={() => { setSwapSource(actionModal!.lesson); setActionModal(null) }}
+                className="w-full text-blue-500 text-sm py-1.5 hover:text-blue-700 mb-1">
+                ⇄ החלף עם שיעור אחר
+              </button>
+            )}
+
             <button onClick={() => setActionModal(null)} className="w-full text-gray-400 text-sm py-1 hover:text-gray-600">סגור</button>
+          </div>
+        </div>
+      )}
+
+      {/* Swap confirmation modal */}
+      {swapModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" onClick={() => setSwapModal(null)}>
+          <div className="bg-white rounded-xl p-5 w-full max-w-sm" dir="rtl" onClick={e => e.stopPropagation()}>
+            <p className="font-bold text-lg mb-1">החלפת שיעורים</p>
+            <div className="bg-gray-50 rounded-xl p-3 mb-3 space-y-2 text-sm">
+              <div>
+                <span className="font-medium text-green-700">{swapModal.lessonA.studentName}</span>
+                <span className="text-gray-500 mr-1">{format(swapModal.lessonA.startTime, "d/M", { locale: he })} {format(swapModal.lessonA.startTime, 'HH:mm')}–{format(swapModal.lessonA.endTime, 'HH:mm')}</span>
+              </div>
+              <div className="text-center text-gray-400 text-lg">⇄</div>
+              <div>
+                <span className="font-medium text-blue-700">{swapModal.lessonB.studentName}</span>
+                <span className="text-gray-500 mr-1">{format(swapModal.lessonB.startTime, "d/M", { locale: he })} {format(swapModal.lessonB.startTime, 'HH:mm')}–{format(swapModal.lessonB.endTime, 'HH:mm')}</span>
+              </div>
+            </div>
+            {swapModal.result && <p className="text-red-500 text-sm mb-2 text-center">{swapModal.result}</p>}
+            <div className="flex gap-2">
+              <button onClick={handleSwap} disabled={swapModal.swapping}
+                className="flex-1 bg-blue-500 text-white py-2.5 rounded-xl font-medium hover:bg-blue-600 disabled:opacity-50 transition">
+                {swapModal.swapping ? 'מחליף...' : 'אישור החלפה'}
+              </button>
+              <button onClick={() => setSwapModal(null)}
+                className="flex-1 border py-2.5 rounded-xl text-sm hover:bg-gray-50">
+                ביטול
+              </button>
+            </div>
           </div>
         </div>
       )}
