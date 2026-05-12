@@ -77,6 +77,31 @@ export async function updateCalendarEvent(eventId: string, startTime: Date, endT
   }
 }
 
+export async function updateCalendarEventStudent(
+  eventId: string,
+  student: { name: string; phone?: string | null },
+  pickupAddress?: string | null,
+): Promise<void> {
+  if (!process.env.GOOGLE_CLIENT_ID) return
+  try {
+    const calendar = getCalendar()
+    await calendar.events.patch({
+      calendarId: CALENDAR_ID,
+      eventId,
+      requestBody: {
+        summary: student.name,
+        description: [
+          `תלמיד: ${student.name}`,
+          student.phone ? `טלפון: ${student.phone}` : '',
+          pickupAddress ? `כתובת איסוף: ${pickupAddress}` : '',
+        ].filter(Boolean).join('\n'),
+      },
+    })
+  } catch (err) {
+    console.error('Calendar student update failed:', err)
+  }
+}
+
 export async function deleteCalendarEvent(eventId: string): Promise<void> {
   if (!process.env.GOOGLE_CLIENT_ID) return
   try {

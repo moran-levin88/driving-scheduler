@@ -93,6 +93,17 @@ type SwapModal = {
   result: string
 }
 
+type Student = { id: string; name: string; phone: string | null }
+
+type ReassignModal = {
+  lesson: Lesson
+  students: Student[]
+  selectedId: string
+  search: string
+  reassigning: boolean
+  result: string
+}
+
 export default function CalendarPage() {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }))
   const [lessons, setLessons] = useState<Lesson[]>([])
@@ -100,6 +111,7 @@ export default function CalendarPage() {
   const [actionModal, setActionModal] = useState<ActionModal | null>(null)
   const [swapSource, setSwapSource] = useState<Lesson | null>(null)
   const [swapModal, setSwapModal] = useState<SwapModal | null>(null)
+  const [reassignModal, setReassignModal] = useState<ReassignModal | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -117,6 +129,43 @@ export default function CalendarPage() {
       }
     })
   }, [])
+
+  async function openReassign(lesson: Lesson) {
+    setActionModal(null)
+    setReassignModal({ lesson, students: [], selectedId: '', search: '', reassigning: false, result: '' })
+    const res = await fetch('/api/students')
+    if (res.ok) {
+      const data = await res.json()
+      setReassignModal(m => m ? {
+        ...m,
+        students: data.map((s: any) => ({ id: s.id, name: s.name, phone: s.phone ?? null })),
+      } : m)
+    }
+  }
+
+  async function handleReassign() {
+    if (!reassignModal || !reassignModal.selectedId) return
+    setReassignModal(m => m ? { ...m, reassigning: true, result: '' } : m)
+    try {
+      const res = await fetch('/api/bookings/reassign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingIds: reassignModal.lesson.ids, newStudentId: reassignModal.selectedId }),
+      })
+      if (res.ok) {
+        setReassignModal(null)
+        fetch('/api/bookings').then(r => r.json()).then(data => {
+          if (Array.isArray(data)) setLessons(groupToLessons(data))
+        })
+      } else {
+        let errMsg = 'שגיאה'
+        try { const d = await res.json(); errMsg = d.error || errMsg } catch {}
+        setReassignModal(m => m ? { ...m, reassigning: false, result: errMsg } : m)
+      }
+    } catch {
+      setReassignModal(m => m ? { ...m, reassigning: false, result: 'שגיאת רשת — נסה שוב' } : m)
+    }
+  }
 
   function handleLessonClick(lesson: Lesson) {
     if (swapSource) {
@@ -457,16 +506,87 @@ export default function CalendarPage() {
               )
             )}
 
-            {/* Swap with another lesson */}
+            {/* Swap / Reassign */}
             {!actionModal.shiftedInfo && (
-              <button type="button"
-                onClick={() => { setSwapSource(actionModal!.lesson); setActionModal(null) }}
-                className="w-full text-blue-500 text-sm py-1.5 hover:text-blue-700 mb-1">
-                ⇄ החלף עם שיעור אחר
-              </button>
+              <div className="flex gap-2 mb-1">
+                <button type="button"
+                  onClick={() => { setSwapSource(actionModal!.lesson); setActionModal(null) }}
+                  className="flex-1 text-blue-500 text-sm py-1.5 hover:text-blue-700 border border-blue-200 rounded-lg">
+                  ⇄ החלף שיעורים
+                </button>
+                <button type="button"
+                  onClick={() => openReassign(actionModal!.lesson)}
+                  className="flex-1 text-purple-600 text-sm py-1.5 hover:text-purple-800 border border-purple-200 rounded-lg">
+                  👤 שנה תלמיד
+                </button>
+              </div>
             )}
 
             <button onClick={() => setActionModal(null)} className="w-full text-gray-400 text-sm py-1 hover:text-gray-600">סגור</button>
+          </div>
+        </div>
+      )}
+
+      {/* Reassign student modal */}
+      {reassignModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" onClick={() => setReassignModal(null)}>
+          <div className="bg-white rounded-xl p-5 w-full max-w-sm max-h-[85vh] flex flex-col" dir="rtl" onClick={e => e.stopPropagation()}>
+            <p className="font-bold text-lg mb-0.5">שינוי תלמיד</p>
+            <p className="text-sm text-gray-500 mb-3">
+              {reassignModal.lesson.studentName} — {format(reassignModal.lesson.startTime, "d/M", { locale: he })} {format(reassignModal.lesson.startTime, 'HH:mm')}–{format(reassignModal.lesson.endTime, 'HH:mm')}
+            </p>
+
+            <input
+              type="text"
+              placeholder="חיפוש תלמיד..."
+              value={reassignModal.search}
+              onChange={e => setReassignModal(m => m ? { ...m, search: e.target.value, selectedId: '' } : m)}
+              className="w-full border rounded-lg px-3 py-2 text-sm mb-2 focus:ring-2 focus:ring-purple-400"
+            />
+
+            <div className="flex-1 overflow-y-auto space-y-1 mb-3 min-h-0">
+              {reassignModal.students.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-4">טוען תלמידים...</p>
+              )}
+              {reassignModal.students
+                .filter(s => s.id !== reassignModal.lesson.firstId && s.name.includes(reassignModal.search))
+                .map(s => (
+                  <button key={s.id} type="button"
+                    onClick={() => setReassignModal(m => m ? { ...m, selectedId: s.id } : m)}
+                    className={`w-full text-right px-3 py-2 rounded-lg text-sm transition ${
+                      reassignModal.selectedId === s.id
+                        ? 'bg-purple-100 border border-purple-400 font-medium'
+                        : 'bg-gray-50 hover:bg-gray-100 border border-transparent'
+                    }`}>
+                    {s.name}
+                    {s.phone && <span className="text-gray-400 text-xs mr-2">{s.phone}</span>}
+                  </button>
+                ))}
+            </div>
+
+            {reassignModal.result && <p className="text-red-500 text-sm mb-2 text-center">{reassignModal.result}</p>}
+
+            {reassignModal.selectedId && (() => {
+              const sel = reassignModal.students.find(s => s.id === reassignModal.selectedId)
+              return (
+                <div className="bg-purple-50 rounded-xl p-3 mb-3 text-sm text-right">
+                  <span className="text-purple-700 font-medium">העברה מ-{reassignModal.lesson.studentName} ← {sel?.name}</span>
+                  <p className="text-xs text-gray-500 mt-0.5">מייל ביטול לתלמיד הנוכחי + מייל אישור לתלמיד החדש</p>
+                </div>
+              )
+            })()}
+
+            <div className="flex gap-2">
+              <button onClick={handleReassign}
+                disabled={!reassignModal.selectedId || reassignModal.reassigning}
+                className="flex-1 bg-purple-600 text-white py-2.5 rounded-xl font-medium hover:bg-purple-700 disabled:opacity-40 transition">
+                {reassignModal.reassigning ? 'מעביר...' : 'אישור שינוי'}
+              </button>
+              <button onClick={() => setReassignModal(null)}
+                className="flex-1 border py-2.5 rounded-xl text-sm hover:bg-gray-50">
+                ביטול
+              </button>
+            </div>
           </div>
         </div>
       )}
