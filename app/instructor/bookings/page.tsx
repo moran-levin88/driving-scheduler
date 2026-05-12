@@ -103,6 +103,7 @@ function LessonGroupCard({
   onGroupStatus: (ids: string[], status: string) => void
   onRemind: (id: string) => void
 }) {
+  const [confirmReject, setConfirmReject] = useState(false)
   const hasAlts = Array.isArray(g.alternativeSlots) && g.alternativeSlots.length > 0
   const dur = durationLabel(g.startTime, g.endTime)
 
@@ -179,10 +180,24 @@ function LessonGroupCard({
               className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm transition">
               אשר
             </button>
-            <button onClick={() => onGroupStatus(g.ids, 'REJECTED')}
-              className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 text-sm transition">
-              דחה
-            </button>
+            {confirmReject ? (
+              <div className="flex flex-col gap-1 border border-red-200 rounded-lg p-2 bg-red-50 text-center">
+                <p className="text-xs text-red-700 font-medium">לדחות את הבקשה?</p>
+                <button onClick={() => { onGroupStatus(g.ids, 'REJECTED'); setConfirmReject(false) }}
+                  className="bg-red-500 text-white px-3 py-1.5 rounded-lg hover:bg-red-600 text-xs font-medium transition">
+                  כן, דחה
+                </button>
+                <button onClick={() => setConfirmReject(false)}
+                  className="text-gray-500 text-xs py-1 hover:text-gray-700">
+                  חזור
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmReject(true)}
+                className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 text-sm transition">
+                דחה
+              </button>
+            )}
           </>)}
           {g.status === 'APPROVED' && g.student.phone && (
             <button onClick={() => onRemind(g.firstId)}
