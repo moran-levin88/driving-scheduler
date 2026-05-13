@@ -9,36 +9,41 @@ export default function StudentNav({ name }: { name: string }) {
   const { t, lang, setLang, dir } = useLanguage()
 
   return (
-    <nav className="bg-blue-700 text-white px-4 py-3">
-      <div className="flex items-center gap-4 overflow-x-auto whitespace-nowrap [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none' }} dir={dir}>
+    <nav className="sticky top-0 z-40 bg-blue-700 text-white px-3 pt-[max(env(safe-area-inset-top),0.75rem)] pb-2 shadow-sm">
+      <div className="flex min-h-11 items-center gap-1 overflow-x-auto overscroll-x-contain [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none' }} dir={dir}>
         <Link href="/student/dashboard"
-          className={`flex-shrink-0 hover:text-blue-200 transition text-sm ${pathname === '/student/dashboard' ? 'font-bold border-b-2 border-white' : ''}`}>
+          className={`shrink-0 flex items-center min-h-11 rounded-full px-3 text-sm font-medium transition active:scale-95 ${
+            pathname === '/student/dashboard' ? 'bg-white text-blue-700 font-semibold' : 'text-blue-100 hover:text-white hover:bg-blue-600'
+          }`}>
           {t('navMyLessons')}
         </Link>
         <Link href="/student/book"
-          className={`flex-shrink-0 hover:text-blue-200 transition text-sm ${pathname === '/student/book' ? 'font-bold border-b-2 border-white' : ''}`}>
+          className={`shrink-0 flex items-center min-h-11 rounded-full px-3 text-sm font-medium transition active:scale-95 ${
+            pathname === '/student/book' ? 'bg-white text-blue-700 font-semibold' : 'text-blue-100 hover:text-white hover:bg-blue-600'
+          }`}>
           {t('navBook')}
         </Link>
         <Link href="/student/settings"
-          className={`flex-shrink-0 hover:text-blue-200 transition text-sm ${pathname === '/student/settings' ? 'font-bold border-b-2 border-white' : 'text-blue-200'}`}
-          title={lang === 'ru' ? 'Сменить пароль' : 'שינוי סיסמה'}>
+          className={`shrink-0 flex items-center min-h-11 rounded-full px-3 text-sm transition active:scale-95 ${
+            pathname === '/student/settings' ? 'bg-white text-blue-700 font-semibold' : 'text-blue-200 hover:text-white hover:bg-blue-600'
+          }`}>
           🔑
         </Link>
         <button onClick={() => window.location.reload()}
-          className="flex-shrink-0 text-blue-200 hover:text-white transition text-sm" title="רענן">
+          className="shrink-0 flex items-center min-h-11 px-2 text-blue-200 hover:text-white transition active:scale-95" title="רענן">
           ↻
         </button>
         <button onClick={() => signOut({ callbackUrl: '/login' })}
-          className="flex-shrink-0 text-blue-200 hover:text-white transition text-sm mr-auto">
+          className="shrink-0 flex items-center min-h-11 px-2 text-blue-200 hover:text-white transition text-sm active:scale-95 mr-auto">
           {t('navLogout')}
         </button>
-        <div className="flex-shrink-0 flex items-center gap-0 border border-blue-400 rounded-lg overflow-hidden text-xs">
+        <div className="shrink-0 flex items-center border border-blue-400 rounded-lg overflow-hidden text-xs">
           <button onClick={() => setLang('he')}
-            className={`px-2 py-1 transition ${lang === 'he' ? 'bg-white text-blue-700 font-bold' : 'hover:bg-blue-600'}`}>
+            className={`px-2 py-1.5 transition ${lang === 'he' ? 'bg-white text-blue-700 font-bold' : 'hover:bg-blue-600'}`}>
             עב
           </button>
           <button onClick={() => setLang('ru')}
-            className={`px-2 py-1 transition ${lang === 'ru' ? 'bg-white text-blue-700 font-bold' : 'hover:bg-blue-600'}`}>
+            className={`px-2 py-1.5 transition ${lang === 'ru' ? 'bg-white text-blue-700 font-bold' : 'hover:bg-blue-600'}`}>
             RU
           </button>
         </div>

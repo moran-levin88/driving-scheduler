@@ -122,8 +122,18 @@
   }
   body {
     @apply bg-background text-foreground;
+    overscroll-behavior-y: none;
+    user-select: none;
   }
   html {
     @apply font-sans;
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+  input, textarea, [contenteditable="true"] {
+    user-select: text;
+  }
+  button, a, input, select, textarea {
+    touch-action: manipulation;
   }
 }

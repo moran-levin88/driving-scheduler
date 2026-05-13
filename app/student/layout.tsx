@@ -13,7 +13,9 @@ export default async function StudentLayout({ children }: { children: React.Reac
   return (
     <StudentLayoutWrapper>
       <StudentNav name={(session.user as any).name || ''} />
-      <main className="container mx-auto px-4 py-8">{children}</main>
+      <main className="mx-auto w-full max-w-6xl px-4 pt-5 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+        {children}
+      </main>
     </StudentLayoutWrapper>
   )
 }

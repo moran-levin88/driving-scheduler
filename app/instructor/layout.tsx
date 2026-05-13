@@ -10,9 +10,11 @@ export default async function InstructorLayout({ children }: { children: React.R
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-gray-50">
+    <div dir="rtl" className="min-h-dvh bg-gray-50">
       <InstructorNav />
-      <main className="container mx-auto px-4 py-8">{children}</main>
+      <main className="mx-auto w-full max-w-6xl px-4 pt-5 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+        {children}
+      </main>
     </div>
   )
 }

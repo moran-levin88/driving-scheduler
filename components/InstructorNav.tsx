@@ -86,35 +86,38 @@ export default function InstructorNav() {
   ]
 
   return (
-    <nav className="bg-blue-700 text-white px-4 py-3">
-      <div className="flex items-center gap-4 overflow-x-auto whitespace-nowrap [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none' }} dir="rtl">
+    <nav className="sticky top-0 z-40 bg-blue-700 text-white px-3 pt-[max(env(safe-area-inset-top),0.75rem)] pb-2 shadow-sm">
+      <div className="flex min-h-11 items-center gap-1 overflow-x-auto overscroll-x-contain [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none' }} dir="rtl">
         {links.map(l => (
           <Link key={l.href} href={l.href}
-            className={`flex-shrink-0 hover:text-blue-200 transition text-sm relative ${pathname === l.href ? 'font-bold border-b-2 border-white' : ''}`}>
+            className={`relative flex shrink-0 items-center min-h-11 rounded-full px-3 text-sm font-medium transition active:scale-95 ${
+              pathname === l.href
+                ? 'bg-white text-blue-700 font-semibold'
+                : 'text-blue-100 hover:text-white hover:bg-blue-600'
+            }`}>
             {l.label}
             {l.badge ? (
-              <span className="absolute -top-2 -left-2 bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 leading-none">
+              <span className="absolute -top-0.5 -left-0.5 bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 leading-none">
                 {l.badge}
               </span>
             ) : null}
           </Link>
         ))}
 
-        {/* Bell — only visible when permission not yet granted */}
         {notifStatus === 'default' && (
           <button onClick={requestPushPermission}
-            title="הפעל התראות כדי לקבל עדכונים על בקשות ושיעורים שמתבטלים"
-            className="flex-shrink-0 text-yellow-300 hover:text-yellow-100 transition text-base">
+            title="הפעל התראות"
+            className="shrink-0 flex items-center min-h-11 px-2 text-yellow-300 hover:text-yellow-100 transition active:scale-95">
             🔔
           </button>
         )}
 
         <button onClick={() => window.location.reload()}
-          className="flex-shrink-0 text-blue-200 hover:text-white transition text-sm" title="רענן">
+          className="shrink-0 flex items-center min-h-11 px-2 text-blue-200 hover:text-white transition active:scale-95" title="רענן">
           ↻
         </button>
         <button onClick={() => signOut({ callbackUrl: '/login' })}
-          className="flex-shrink-0 text-blue-200 hover:text-white transition text-sm mr-auto">
+          className="shrink-0 flex items-center min-h-11 px-2 text-blue-200 hover:text-white transition text-sm active:scale-95 mr-auto">
           התנתקות
         </button>
       </div>
