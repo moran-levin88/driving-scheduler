@@ -121,10 +121,16 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Create a booking for each slot
+      // Create a booking for each slot — claim atomically to prevent race conditions
       const created = []
       for (const availabilityId of availabilityIds) {
-        // Remove any old cancelled/rejected booking for this slot
+        // Atomic claim: only succeeds if the slot is still free at this exact moment
+        const claimed = await tx.availability.updateMany({
+          where: { id: availabilityId, isBooked: false, isBlocked: false },
+          data: { isBooked: true },
+        })
+        if (claimed.count !== 1) throw new Error('SLOT_UNAVAILABLE')
+
         await tx.booking.deleteMany({
           where: { availabilityId, status: { in: ['CANCELLED', 'REJECTED'] } },
         })
@@ -132,7 +138,6 @@ export async function POST(req: NextRequest) {
           data: { studentId, availabilityId, notes, pickupAddress, alternativeSlots: alternativeSlots || [] },
           include: { student: true, availability: true },
         })
-        await tx.availability.update({ where: { id: availabilityId }, data: { isBooked: true } })
         created.push(booking)
       }
       return created

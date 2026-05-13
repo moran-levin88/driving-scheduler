@@ -78,6 +78,9 @@ model Availability {
   createdAt       DateTime @default(now())
 
   booking Booking?
+
+  @@index([startTime])
+  @@index([isBooked, isBlocked, startTime])
 }
 
 model Booking {
@@ -94,6 +97,10 @@ model Booking {
   calendarEventId   String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+
+  @@index([studentId, status])
+  @@index([status, createdAt])
+  @@index([reminderSent, status])
 }
 
 enum BookingStatus {

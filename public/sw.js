@@ -1,5 +1,11 @@
 self.addEventListener('push', (event) => {
-  const data = event.data?.json() ?? {}
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch {
+    data = { title: 'שיעורי נהיגה', body: event.data?.text() || '' }
+  }
+  const tag = data.tag || `booking-${Date.now()}`
   event.waitUntil(
     self.registration.showNotification(data.title || 'שיעורי נהיגה', {
       body: data.body || '',
@@ -7,7 +13,7 @@ self.addEventListener('push', (event) => {
       badge: '/icon-192.png',
       dir: 'rtl',
       lang: 'he',
-      tag: 'booking-request',
+      tag,
       renotify: true,
       data: { url: data.url || '/instructor/bookings' },
     })
