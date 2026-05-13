@@ -59,6 +59,24 @@ export async function POST(req: NextRequest) {
       if (slots.length !== availabilityIds.length) throw new Error('SLOT_UNAVAILABLE')
       if (slots.some(s => s.isBooked)) throw new Error('SLOT_UNAVAILABLE')
 
+      // Edge gap rule: don't allow booking that leaves < 3 free slots (60 min)
+      // isolated at the very start or end of the day's availability window.
+      const sortedForEdge = slots.slice().sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+      const lessonStart = sortedForEdge[0].startTime
+      const lessonEnd   = sortedForEdge[sortedForEdge.length - 1].endTime
+      const dayKey      = lessonStart.toISOString().slice(0, 10)
+      const dayStartUtc = new Date(dayKey + 'T00:00:00.000Z')
+      const dayEndUtc   = new Date(dayKey + 'T23:59:59.999Z')
+      const freeBefore  = await tx.availability.count({
+        where: { isBooked: false, isBlocked: false, startTime: { gte: dayStartUtc, lt: lessonStart } },
+      })
+      const freeAfter   = await tx.availability.count({
+        where: { isBooked: false, isBlocked: false, startTime: { gte: lessonEnd, lt: dayEndUtc } },
+      })
+      if ((freeBefore > 0 && freeBefore < 3) || (freeAfter > 0 && freeAfter < 3)) {
+        throw new Error('EDGE_GAP')
+      }
+
       // Enforce isRestricted: lesson must not end in the last 20 min of that day's availability
       const studentUser = await tx.user.findUnique({ where: { id: studentId }, select: { isRestricted: true } })
       if (studentUser?.isRestricted) {
@@ -129,6 +147,9 @@ export async function POST(req: NextRequest) {
     }
     if (err.message === 'WEEKLY_LIMIT') {
       return NextResponse.json({ error: 'לא ניתן לקבוע יותר משיעור כפול אחד בשבוע' }, { status: 400 })
+    }
+    if (err.message === 'EDGE_GAP') {
+      return NextResponse.json({ error: 'לא ניתן להשאיר פחות משעה פנויה בתחילת היום או בסופו' }, { status: 400 })
     }
     throw err
   }

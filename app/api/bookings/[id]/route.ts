@@ -71,10 +71,14 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     await deleteCalendarEvent((first as any).calendarEventId)
   }
 
-  // SMS + Push to instructor for late cancellations (24-96h window, only once per lesson)
-  if (role === 'STUDENT' && (first as any).calendarEventId) {
-    const hoursUntil = (lessonStart.getTime() - Date.now()) / (1000 * 60 * 60)
-    if (hoursUntil <= 96) {
+  // SMS + Push to instructor for cancellations within current week or next week up to Friday
+  if (role === 'STUDENT') {
+    const now = new Date()
+    const daysToNextSunday = now.getUTCDay() === 0 ? 7 : 7 - now.getUTCDay()
+    const smsCutoff = new Date(now)
+    smsCutoff.setUTCDate(now.getUTCDate() + daysToNextSunday + 5)
+    smsCutoff.setUTCHours(23, 59, 59, 999)
+    if (lessonStart > now && lessonStart <= smsCutoff) {
       const israelLocal = new Date(lessonStart.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }))
       const dateStr = format(israelLocal, "EEEE, d בMMMM", { locale: he })
       const timeStr = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' }).format(lessonStart)

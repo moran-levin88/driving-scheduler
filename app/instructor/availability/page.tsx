@@ -58,6 +58,7 @@ type BookModal = {
   notes: string
   submitting: boolean
   doneInfo: { studentName: string; phone: string | null; startTime: string; endTime: string } | null
+  bookSearch: string
 }
 
 const roundMin = (d: string | Date) => Math.round(new Date(d).getTime() / 60000) * 60000
@@ -114,7 +115,7 @@ export default function AvailabilityPage() {
   const [creating, setCreating] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [mode, setMode] = useState<'lesson' | 'block'>('lesson')
-  const [form, setForm] = useState({ date: '', startTime: '09:00', endTime: '17:00', blockNote: '' })
+  const [form, setForm] = useState({ date: '', startTime: '09:00', endTime: '17:00', blockNote: '', isTest: false, testStudentIds: [] as string[] })
   const [error, setError] = useState('')
   const [modal, setModal] = useState<LessonModal | null>(null)
   const [blockModal, setBlockModal] = useState<BlockModal | null>(null)
@@ -200,7 +201,7 @@ export default function AvailabilityPage() {
   }
 
   async function openBookModal(slot: Slot) {
-    setBookModal({ startSlot: slot, studentId: '', lessonType: null, pickupAddress: '', notes: '', submitting: false, doneInfo: null })
+    setBookModal({ startSlot: slot, studentId: '', lessonType: null, pickupAddress: '', notes: '', submitting: false, doneInfo: null, bookSearch: '' })
     if (bookStudents.length === 0) {
       const res = await fetch('/api/students')
       const data = await res.json()
@@ -391,12 +392,19 @@ export default function AvailabilityPage() {
     if (endTime <= startTime) { setError('שעת הסיום חייבת להיות אחרי שעת ההתחלה'); setSubmitting(false); return }
     const res = await fetch('/api/availability', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ startTime: startTime.toISOString(), endTime: endTime.toISOString(), isBlocked: mode === 'block', blockNote: form.blockNote || null }),
+      body: JSON.stringify({
+        startTime: startTime.toISOString(), endTime: endTime.toISOString(), isBlocked: mode === 'block',
+        blockNote: mode === 'block'
+          ? (form.isTest
+              ? `טסט${form.testStudentIds.length > 0 ? ': ' + form.testStudentIds.map(id => bookStudents.find(s => s.id === id)?.name ?? '').filter(Boolean).join(', ') : ''}`
+              : form.blockNote || null)
+          : null,
+      }),
     })
     setSubmitting(false)
     let data: any = {}
     try { const text = await res.text(); if (text) data = JSON.parse(text) } catch {}
-    if (res.ok) { setCreating(false); setForm({ date: '', startTime: '09:00', endTime: '17:00', blockNote: '' }); fetchSlots() }
+    if (res.ok) { setCreating(false); setForm({ date: '', startTime: '09:00', endTime: '17:00', blockNote: '', isTest: false, testStudentIds: [] }); fetchSlots() }
     else setError(data.error || `שגיאה (${res.status})`)
   }
 
@@ -767,14 +775,26 @@ export default function AvailabilityPage() {
                   </p>
                 )}
 
-                {/* Student */}
+                {/* Student search */}
                 <div className="mb-3">
                   <label className="block text-xs font-medium text-gray-600 mb-1">תלמיד</label>
-                  <select value={bookModal.studentId} onChange={e => setBookModal(m => m ? { ...m, studentId: e.target.value } : m)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500">
-                    <option value="">— בחר תלמיד —</option>
-                    {bookStudents.map(s => <option key={s.id} value={s.id}>{s.name}{s.phone ? ` (${s.phone})` : ''}</option>)}
-                  </select>
+                  <input type="text" placeholder="חיפוש תלמיד..." value={bookModal.bookSearch}
+                    onChange={e => setBookModal(m => m ? { ...m, bookSearch: e.target.value, studentId: '' } : m)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 mb-1" />
+                  <div className="space-y-1 max-h-40 overflow-y-auto border rounded-lg p-1.5 bg-gray-50">
+                    {bookStudents
+                      .filter(s => !bookModal.bookSearch || s.name.includes(bookModal.bookSearch) || (s.phone ?? '').includes(bookModal.bookSearch))
+                      .map(s => (
+                        <button key={s.id} type="button"
+                          onClick={() => setBookModal(m => m ? { ...m, studentId: s.id, bookSearch: s.name } : m)}
+                          className={`w-full text-right px-2 py-1.5 rounded text-sm transition ${
+                            bookModal.studentId === s.id ? 'bg-blue-100 font-medium text-blue-800' : 'hover:bg-white'
+                          }`}>
+                          {s.name}{s.phone && <span className="text-gray-400 text-xs mr-2">{s.phone}</span>}
+                        </button>
+                      ))}
+                    {bookStudents.length === 0 && <p className="text-xs text-gray-400 text-center py-2">טוען...</p>}
+                  </div>
                 </div>
 
                 <div className="mb-3">
@@ -943,9 +963,50 @@ export default function AvailabilityPage() {
               )}
               {mode === 'block' && (
                 <div>
-                  <label className="block text-sm font-medium mb-1">סיבה (אופציונלי)</label>
-                  <input type="text" value={form.blockNote} onChange={e => setForm({ ...form, blockNote: e.target.value })}
-                    placeholder="לדוגמא: טסט עם תלמיד" className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500" />
+                  <div className="flex items-center gap-3 mb-2">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input type="checkbox" checked={form.isTest}
+                        onChange={e => {
+                          const isTest = e.target.checked
+                          setForm(f => ({ ...f, isTest, testStudentIds: [], blockNote: '' }))
+                          if (isTest && bookStudents.length === 0) {
+                            fetch('/api/students').then(r => r.json()).then(d => Array.isArray(d) && setBookStudents(d.map((s: any) => ({ id: s.id, name: s.name, phone: s.phone ?? null }))))
+                          }
+                        }}
+                        className="w-4 h-4 accent-red-500" />
+                      <span className="text-sm font-medium">טסט עם תלמיד</span>
+                    </label>
+                  </div>
+                  {form.isTest ? (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">בחר עד 2 תלמידים</p>
+                      <div className="space-y-1 max-h-48 overflow-y-auto border rounded-lg p-2 bg-gray-50">
+                        {bookStudents.length === 0
+                          ? <p className="text-xs text-gray-400 text-center py-2">טוען...</p>
+                          : bookStudents.map(s => {
+                              const checked = form.testStudentIds.includes(s.id)
+                              const disabled = !checked && form.testStudentIds.length >= 2
+                              return (
+                                <label key={s.id} className={`flex items-center gap-2 cursor-pointer rounded px-2 py-1 hover:bg-white transition ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                                  <input type="checkbox" checked={checked} disabled={disabled}
+                                    onChange={e => setForm(f => ({
+                                      ...f,
+                                      testStudentIds: e.target.checked
+                                        ? [...f.testStudentIds, s.id]
+                                        : f.testStudentIds.filter(id => id !== s.id),
+                                    }))}
+                                    className="w-4 h-4 accent-red-500" />
+                                  <span className="text-sm">{s.name}</span>
+                                  {s.phone && <span className="text-xs text-gray-400">{s.phone}</span>}
+                                </label>
+                              )
+                            })}
+                      </div>
+                    </div>
+                  ) : (
+                    <input type="text" value={form.blockNote} onChange={e => setForm({ ...form, blockNote: e.target.value })}
+                      placeholder="לדוגמא: פגישה, בדיקת רכב" className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500" />
+                  )}
                 </div>
               )}
               {error && <p className="text-red-600 text-sm">{error}</p>}
