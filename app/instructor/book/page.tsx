@@ -25,6 +25,8 @@ export default function InstructorBookPage() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
 
+  const [studentSearch, setStudentSearch] = useState('')
+
   // New student form state
   const [showNewStudent, setShowNewStudent] = useState(false)
   const [newStudent, setNewStudent] = useState({ name: '', phone: '', email: '' })
@@ -217,13 +219,32 @@ export default function InstructorBookPage() {
               </button>
             </div>
           ) : (
-            <select value={studentId} onChange={e => setStudentId(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-              <option value="">— בחר תלמיד —</option>
-              {students.map(s => (
-                <option key={s.id} value={s.id}>{s.name}{s.phone ? ` (${s.phone})` : ''}</option>
-              ))}
-            </select>
+            <div>
+              <input
+                type="text"
+                placeholder="חיפוש לפי שם או טלפון..."
+                value={studentSearch}
+                onChange={e => { setStudentSearch(e.target.value); setStudentId('') }}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-1"
+              />
+              <div className="border border-gray-200 rounded-lg overflow-hidden max-h-44 overflow-y-auto">
+                {students
+                  .filter(s => !studentSearch || s.name.includes(studentSearch) || (s.phone ?? '').includes(studentSearch))
+                  .map(s => (
+                    <button key={s.id} type="button"
+                      onClick={() => { setStudentId(s.id); setStudentSearch(s.name) }}
+                      className={`w-full text-right px-3 py-2 text-sm transition border-b last:border-b-0 ${
+                        studentId === s.id ? 'bg-blue-50 font-medium text-blue-800' : 'bg-white hover:bg-gray-50 text-gray-700'
+                      }`}>
+                      {s.name}
+                      {s.phone && <span className="text-gray-400 text-xs mr-2">{s.phone}</span>}
+                    </button>
+                  ))}
+                {students.filter(s => !studentSearch || s.name.includes(studentSearch) || (s.phone ?? '').includes(studentSearch)).length === 0 && (
+                  <p className="text-center text-gray-400 text-sm py-3">לא נמצאו תלמידים</p>
+                )}
+              </div>
+            </div>
           )}
         </div>
 

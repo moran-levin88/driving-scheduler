@@ -452,7 +452,16 @@ export default function BookPage() {
             )}
           </div>
 
-          {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
+          {error && (
+            error.includes('פחות משעה פנויה') ? (
+              <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 mb-3 text-center" dir="rtl">
+                <p className="text-amber-900 font-bold text-base mb-1">⚠️ לא ניתן לקבוע שיעור זה</p>
+                <p className="text-amber-800 text-sm leading-relaxed">{error}</p>
+              </div>
+            ) : (
+              <p className="text-red-600 text-sm mb-3">{error}</p>
+            )
+          )}
           <div className="flex gap-3">
             <button onClick={submitBooking} disabled={submitting || !lessonType || !canBook[lessonType!] || !!hasGap}
               className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
