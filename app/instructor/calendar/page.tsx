@@ -377,6 +377,9 @@ export default function CalendarPage() {
                         {height >= 36 && (
                           <p className="text-xs opacity-90">{format(lesson.startTime, 'HH:mm')}–{format(lesson.endTime, 'HH:mm')}</p>
                         )}
+                        {height >= 56 && lesson.pickupAddress && (
+                          <p className="text-xs opacity-80 truncate mt-0.5">📍 {lesson.pickupAddress}</p>
+                        )}
                       </div>
                     )
                   })}

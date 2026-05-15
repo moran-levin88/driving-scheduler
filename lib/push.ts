@@ -22,13 +22,15 @@ export async function sendPushToInstructor(title: string, body: string, url = '/
     const sub = JSON.parse(instructor.pushSubscription)
     await webpush.sendNotification(sub, JSON.stringify({ title, body, url }))
   } catch (err: any) {
-    // Subscription expired or invalid — clear it
-    if (err.statusCode === 410 || err.statusCode === 404) {
+    const status = err.statusCode ?? err.response?.statusCode
+    // Clear stale subscription on any delivery failure so the next registerPush
+    // call from the client will force a fresh subscription and re-sync.
+    if (status === 410 || status === 404 || status === 401 || status === 403) {
       await prisma.user.updateMany({
         where: { role: 'INSTRUCTOR' },
         data: { pushSubscription: null },
       })
     }
-    console.error('Push failed:', err.message)
+    console.error('Push failed:', err.message ?? err)
   }
 }
