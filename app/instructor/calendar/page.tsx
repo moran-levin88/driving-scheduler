@@ -371,14 +371,14 @@ export default function CalendarPage() {
                           ${!isSwapSource && !isSwapTarget ? 'bg-green-500 hover:bg-green-600' : ''}`}>
                         <div className="flex items-start justify-between">
                           <p className="text-xs font-semibold leading-tight truncate flex-1">{lesson.studentName}</p>
-                          {hasAlts && !isSwapSource && <span className="text-xs opacity-75 shrink-0 mr-0.5">🔄</span>}
-                          {isSwapSource && <span className="text-xs shrink-0">⇄</span>}
+                          <div className="flex items-center shrink-0 gap-0.5 mr-0.5">
+                            {lesson.pickupAddress && <span className="text-xs opacity-90">📍</span>}
+                            {hasAlts && !isSwapSource && <span className="text-xs opacity-75">🔄</span>}
+                            {isSwapSource && <span className="text-xs">⇄</span>}
+                          </div>
                         </div>
                         {height >= 36 && (
                           <p className="text-xs opacity-90">{format(lesson.startTime, 'HH:mm')}–{format(lesson.endTime, 'HH:mm')}</p>
-                        )}
-                        {height >= 48 && lesson.pickupAddress && (
-                          <p className="text-xs opacity-80 truncate leading-tight">{lesson.pickupAddress}</p>
                         )}
                       </div>
                     )
@@ -395,9 +395,13 @@ export default function CalendarPage() {
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" onClick={() => setActionModal(null)}>
           <div className="bg-white rounded-xl p-5 w-full max-w-sm max-h-[90vh] overflow-y-auto" dir="rtl" onClick={e => e.stopPropagation()}>
             <p className="font-bold text-lg">{actionModal.lesson.studentName}</p>
-            <p className="text-gray-500 text-sm mb-4">
+            <p className="text-gray-500 text-sm">
               {format(actionModal.lesson.startTime, "EEEE, d בMMMM", { locale: he })} | {format(actionModal.lesson.startTime, 'HH:mm')}–{format(actionModal.lesson.endTime, 'HH:mm')}
             </p>
+            {actionModal.lesson.pickupAddress && (
+              <p className="text-sm text-gray-700 mt-1 mb-4">📍 {actionModal.lesson.pickupAddress}</p>
+            )}
+            {!actionModal.lesson.pickupAddress && <div className="mb-4" />}
 
             {/* Shifted success */}
             {actionModal.shiftedInfo && (() => {
