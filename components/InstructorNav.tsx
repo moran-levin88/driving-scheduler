@@ -35,18 +35,23 @@ export default function InstructorNav() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
     if (Notification.permission !== 'granted') return
     try {
+      // Fetch key from server — eliminates hardcoded key / env-var mismatch
+      const keyRes = await fetch('/api/push/key')
+      const { key } = await keyRes.json()
+      if (!key) return
+
       const reg = await navigator.serviceWorker.ready
+      let sub = await reg.pushManager.getSubscription()
 
-      // Always unsubscribe and create a fresh subscription.
-      // This ensures the DB always holds a valid endpoint even if the previous
-      // one expired or was cleared server-side after a delivery failure.
-      const old = await reg.pushManager.getSubscription()
-      if (old) await old.unsubscribe()
+      // Only create a new subscription if one doesn't exist in the browser.
+      // Always sync to server — handles the case where server cleared the DB entry.
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(key),
+        })
+      }
 
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      })
       await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
