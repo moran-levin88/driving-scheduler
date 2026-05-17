@@ -51,13 +51,25 @@ model User {
   role          Role      @default(STUDENT)
   password         String?
   isRestricted     Boolean   @default(false)
-  pushSubscription String?   // JSON: Web Push subscription object
+  pushSubscription String?   // legacy single-device field (kept for reference)
   createdAt        DateTime  @default(now())
 
-  accounts     Account[]
-  sessions     Session[]
-  bookings     Booking[] @relation("StudentBookings")
-  availability Availability[]
+  accounts          Account[]
+  sessions          Session[]
+  bookings          Booking[] @relation("StudentBookings")
+  availability      Availability[]
+  pushSubscriptions PushSubscription[]
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  payload   Json
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 enum Role {

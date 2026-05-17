@@ -10,19 +10,18 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const instructor = await prisma.user.findFirst({
-    where: { role: 'INSTRUCTOR' },
-    select: { pushSubscription: true },
+  const subscriptions = await prisma.pushSubscription.findMany({
+    where: { user: { role: 'INSTRUCTOR' } },
+    select: { id: true, endpoint: true, createdAt: true },
   })
 
-  const hasSubscription = !!instructor?.pushSubscription
-  const endpoint = instructor?.pushSubscription
-    ? JSON.parse(instructor.pushSubscription).endpoint?.slice(0, 60) + '...'
-    : null
-
   return NextResponse.json({
-    hasSubscription,
-    endpoint,
+    count: subscriptions.length,
+    devices: subscriptions.map(s => ({
+      id: s.id,
+      endpoint: s.endpoint.slice(0, 60) + '...',
+      createdAt: s.createdAt,
+    })),
     vapidConfigured: !!process.env.VAPID_PUBLIC_KEY && !!process.env.VAPID_PRIVATE_KEY,
   })
 }

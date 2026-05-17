@@ -14,9 +14,11 @@ export async function POST(req: NextRequest) {
   const subscription = await req.json()
   const userId = (session.user as any).id
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: { pushSubscription: JSON.stringify(subscription) },
+  // Upsert by endpoint — each device/browser keeps its own subscription row
+  await prisma.pushSubscription.upsert({
+    where: { endpoint: subscription.endpoint },
+    create: { userId, endpoint: subscription.endpoint, payload: subscription },
+    update: { payload: subscription },
   })
 
   return NextResponse.json({ ok: true })
@@ -29,6 +31,6 @@ export async function DELETE(req: NextRequest) {
   }
 
   const userId = (session.user as any).id
-  await prisma.user.update({ where: { id: userId }, data: { pushSubscription: null } })
+  await prisma.pushSubscription.deleteMany({ where: { userId } })
   return NextResponse.json({ ok: true })
 }
