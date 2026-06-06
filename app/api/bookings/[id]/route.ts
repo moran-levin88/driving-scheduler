@@ -71,20 +71,18 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     await deleteCalendarEvent((first as any).calendarEventId)
   }
 
-  // SMS + Push to instructor for cancellations within current week or next week up to Friday
+  // SMS + Push to instructor for cancellations up to 2 weeks before the lesson
   if (role === 'STUDENT') {
     const now = new Date()
-    const daysToNextSunday = now.getUTCDay() === 0 ? 7 : 7 - now.getUTCDay()
-    const smsCutoff = new Date(now)
-    smsCutoff.setUTCDate(now.getUTCDate() + daysToNextSunday + 5)
-    smsCutoff.setUTCHours(23, 59, 59, 999)
+    const smsCutoff = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
     if (lessonStart > now && lessonStart <= smsCutoff) {
       const israelLocal = new Date(lessonStart.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }))
       const dateStr = format(israelLocal, "EEEE, d בMMMM", { locale: he })
       const timeStr = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' }).format(lessonStart)
-      const msg = `שיעור נהיגה התפנה ב${dateStr} בשעה ${timeStr}. מי מעוניין? היכנסו למערכת וקבעו שיעור 🚗`
+      const studentName = (booking as any).student?.name ?? ''
+      const msg = `שיעור נהיגה התפנה ב${dateStr} בשעה ${timeStr}. מי מעוניין? היכנסו למערכת וקבעו שיעור 🚗\nביטל: ${studentName}`
       sendSmsToInstructor(msg).catch(console.error)
-      sendPushToInstructor('שיעור התפנה', `${(booking as any).student?.name} ביטל — ${dateStr} ${timeStr}`).catch(console.error)
+      sendPushToInstructor('שיעור התפנה', `${studentName} ביטל — ${dateStr} ${timeStr}`).catch(console.error)
     }
   }
 

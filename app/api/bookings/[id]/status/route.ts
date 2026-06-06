@@ -102,15 +102,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   else if (status === 'CANCELLED') {
     sendBookingCancelled(bookingForEmail as any).catch(err => console.error('Email failed:', err))
     const now = new Date()
-    const daysToNextSunday = now.getUTCDay() === 0 ? 7 : 7 - now.getUTCDay()
-    const smsCutoff = new Date(now)
-    smsCutoff.setUTCDate(now.getUTCDate() + daysToNextSunday + 5)
-    smsCutoff.setUTCHours(23, 59, 59, 999)
+    const smsCutoff = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
     if (first.availability.startTime > now && first.availability.startTime <= smsCutoff) {
       const israelLocal = new Date(first.availability.startTime.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }))
       const dateStr = format(israelLocal, "EEEE, d בMMMM", { locale: he })
       const timeStr = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' }).format(first.availability.startTime)
-      const msg = `שיעור נהיגה התפנה ב${dateStr} בשעה ${timeStr}. מי מעוניין? היכנסו למערכת וקבעו שיעור 🚗`
+      const msg = `שיעור נהיגה התפנה ב${dateStr} בשעה ${timeStr}. מי מעוניין? היכנסו למערכת וקבעו שיעור 🚗\nביטל: ${first.student.name}`
       sendSmsToInstructor(msg).catch(console.error)
       sendPushToInstructor('שיעור התפנה', `${first.student.name} — שיעור ב${dateStr} ${timeStr} בוטל`).catch(console.error)
     }
