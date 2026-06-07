@@ -27,9 +27,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'minutes and direction required for bulk shift' }, { status: 400 })
   }
 
+  const now = new Date()
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
   tomorrow.setHours(0, 0, 0, 0)
+
+  // Precise single-lesson shifts (from the calendar) may target lessons later today;
+  // bulk shifts only apply from tomorrow onwards.
+  const cutoff = usePrecise ? now : tomorrow
 
   const bookings = await prisma.booking.findMany({
     where: { id: { in: bookingIds }, status: 'APPROVED' },
@@ -43,7 +48,7 @@ export async function POST(req: NextRequest) {
   const groups: Group[] = []
 
   for (const b of bookings) {
-    if (new Date(b.availability.startTime) < tomorrow) continue
+    if (new Date(b.availability.startTime) < cutoff) continue
     const last = groups[groups.length - 1]
     const prev = last?.bookings[last.bookings.length - 1]
     if (
@@ -123,6 +128,10 @@ export async function POST(req: NextRequest) {
     sendBookingShifted(emailBooking as any, oldStart, oldEnd).catch(err =>
       console.error('Shift email failed:', err)
     )
+  }
+
+  if (groups.length === 0) {
+    return NextResponse.json({ error: 'לא נמצא שיעור מתאים להזזה' }, { status: 400 })
   }
 
   return NextResponse.json({ ok: true, shifted: groups.length })
