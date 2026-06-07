@@ -12,13 +12,36 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const { id } = await params
-  const { isRestricted } = await req.json()
+  const body = await req.json()
 
-  const student = await prisma.user.update({
-    where: { id, role: 'STUDENT' },
-    data: { isRestricted: !!isRestricted },
-    select: { id: true, isRestricted: true },
-  })
+  const data: { isRestricted?: boolean; name?: string; email?: string; phone?: string | null } = {}
+  if ('isRestricted' in body) data.isRestricted = !!body.isRestricted
+  if ('name' in body) {
+    const name = String(body.name ?? '').trim()
+    if (!name) return NextResponse.json({ error: 'שם לא יכול להיות ריק' }, { status: 400 })
+    data.name = name
+  }
+  if ('email' in body) {
+    const email = String(body.email ?? '').trim().toLowerCase()
+    if (!email) return NextResponse.json({ error: 'אימייל לא יכול להיות ריק' }, { status: 400 })
+    data.email = email
+  }
+  if ('phone' in body) {
+    const phone = String(body.phone ?? '').trim()
+    data.phone = phone || null
+  }
 
-  return NextResponse.json(student)
+  try {
+    const student = await prisma.user.update({
+      where: { id, role: 'STUDENT' },
+      data,
+      select: { id: true, name: true, email: true, phone: true, isRestricted: true },
+    })
+    return NextResponse.json(student)
+  } catch (err: any) {
+    if (err.code === 'P2002') {
+      return NextResponse.json({ error: 'כתובת האימייל כבר בשימוש על ידי משתמש אחר' }, { status: 409 })
+    }
+    throw err
+  }
 }

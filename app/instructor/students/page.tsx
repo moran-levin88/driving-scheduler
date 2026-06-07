@@ -21,6 +21,36 @@ export default function StudentsPage() {
   const [resetResult, setResetResult] = useState<ResetResult | null>(null)
   const [search, setSearch] = useState('')
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null)
+  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '' })
+  const [editError, setEditError] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  function openEdit(s: Student) {
+    setEditingStudent(s)
+    setEditForm({ name: s.name, email: s.email, phone: s.phone || '' })
+    setEditError('')
+  }
+
+  async function saveEdit() {
+    if (!editingStudent) return
+    setSavingEdit(true)
+    setEditError('')
+    const res = await fetch(`/api/students/${editingStudent.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editForm.name, email: editForm.email, phone: editForm.phone }),
+    })
+    setSavingEdit(false)
+    if (res.ok) {
+      const updated = await res.json()
+      setStudents(prev => prev.map(s => s.id === updated.id ? { ...s, ...updated } : s))
+      setEditingStudent(null)
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setEditError(d.error || 'שגיאה בשמירה')
+    }
+  }
 
   async function fetchStudents() {
     const res = await fetch('/api/students')
@@ -79,6 +109,55 @@ export default function StudentsPage() {
           className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 w-64"
         />
       </div>
+
+      {/* Edit student modal */}
+      {editingStudent && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-xl" dir="rtl">
+            <h2 className="text-lg font-bold mb-4">✏️ עריכת פרטי תלמיד</h2>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">שם</label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">אימייל</label>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">טלפון</label>
+                <input
+                  type="tel"
+                  value={editForm.phone}
+                  onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            {editError && <p className="text-red-600 text-sm mb-3">{editError}</p>}
+            <div className="flex gap-2">
+              <button onClick={saveEdit} disabled={savingEdit}
+                className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50">
+                {savingEdit ? 'שומר...' : 'שמירה'}
+              </button>
+              <button onClick={() => setEditingStudent(null)}
+                className="flex-1 border py-2 rounded-lg hover:bg-gray-50 transition">
+                ביטול
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Password reset result modal */}
       {resetResult && (
@@ -161,6 +240,10 @@ export default function StudentsPage() {
                       className="text-sm text-center bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition">
                       היסטוריה
                     </Link>
+                    <button onClick={() => openEdit(s)}
+                      className="text-sm text-center bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition">
+                      ✏️ עריכת פרטים
+                    </button>
                     <button onClick={() => resetPassword(s.id)} disabled={resettingId === s.id}
                       className="text-sm bg-yellow-50 text-yellow-700 px-3 py-1.5 rounded-lg hover:bg-yellow-100 transition disabled:opacity-50">
                       {resettingId === s.id ? '...' : '🔑 איפוס סיסמה'}
