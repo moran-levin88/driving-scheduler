@@ -2,6 +2,8 @@ export type Lang = 'he' | 'ru'
 
 const translations = {
   he: {
+    homeTitle: 'שיעורי נהיגה',
+    homeTagline: 'קובעים שיעור נהיגה בקליק',
     loginTitle: 'כניסה למערכת קביעת שיעורי נהיגה',
     withAlex: 'עם אלכס לוין',
     email: 'אימייל',
@@ -84,6 +86,8 @@ const translations = {
     dateFormatShort: "d בMMMM yyyy",
   },
   ru: {
+    homeTitle: 'Уроки вождения',
+    homeTagline: 'Записывайтесь на урок вождения в один клик',
     loginTitle: 'Запись на уроки вождения',
     withAlex: 'с Алексом Левиным',
     email: 'Email',
