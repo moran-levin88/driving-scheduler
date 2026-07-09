@@ -358,28 +358,19 @@ export default function CalendarPage() {
                   {dayLessons.map(lesson => {
                     const top = getTop(lesson.startTime)
                     const height = getHeight(lesson.startTime, lesson.endTime)
-                    const hasAlts = lesson.alternativeSlots.length > 0
                     const isSwapSource = swapSource?.firstId === lesson.firstId
                     const isSwapTarget = !!swapSource && !isSwapSource
                     return (
                       <div key={lesson.firstId}
                         style={{ position: 'absolute', top: `${top}px`, height: `${height}px`, left: '2px', right: '2px', zIndex: 5 }}
                         onClick={() => handleLessonClick(lesson)}
-                        className={`rounded-lg px-1.5 py-1 cursor-pointer overflow-hidden select-none transition text-white
+                        className={`rounded-lg px-0.5 cursor-pointer overflow-hidden select-none transition text-white flex items-center justify-center
                           ${isSwapSource ? 'bg-amber-500 ring-2 ring-amber-300 ring-offset-1 animate-pulse' : ''}
                           ${isSwapTarget ? 'bg-blue-500 hover:bg-blue-600' : ''}
                           ${!isSwapSource && !isSwapTarget ? 'bg-green-500 hover:bg-green-600' : ''}`}>
-                        <div className="flex items-start justify-between">
-                          <p className="text-xs font-semibold leading-tight truncate flex-1">{lesson.studentName}</p>
-                          <div className="flex items-center shrink-0 gap-0.5 mr-0.5">
-                            {lesson.pickupAddress && <span className="text-xs opacity-90">📍</span>}
-                            {hasAlts && !isSwapSource && <span className="text-xs opacity-75">🔄</span>}
-                            {isSwapSource && <span className="text-xs">⇄</span>}
-                          </div>
-                        </div>
-                        {height >= 36 && (
-                          <p className="text-xs opacity-90">{format(lesson.startTime, 'HH:mm')}–{format(lesson.endTime, 'HH:mm')}</p>
-                        )}
+                        <p className={`font-bold leading-tight text-center break-words ${height >= 44 ? 'text-sm line-clamp-2' : 'text-xs line-clamp-1'}`}>
+                          {isSwapSource && '⇄ '}{lesson.studentName}
+                        </p>
                       </div>
                     )
                   })}
