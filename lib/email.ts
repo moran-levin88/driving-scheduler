@@ -123,6 +123,24 @@ export async function sendBookingShifted(
   )
 }
 
+export async function sendPasswordReset(user: { name: string; email: string }, resetUrl: string) {
+  await send(
+    user.email,
+    'איפוס סיסמה למערכת שיעורי הנהיגה',
+    `
+      <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>איפוס סיסמה</h2>
+        <p>שלום ${user.name.trim()},</p>
+        <p>קיבלנו בקשה לאיפוס הסיסמה שלך. לחצו על הכפתור למטה כדי לבחור סיסמה חדשה:</p>
+        <p style="margin: 24px 0;">
+          <a href="${resetUrl}" style="background:#2563eb;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;">איפוס סיסמה</a>
+        </p>
+        <p>הקישור תקף לשעה אחת. אם לא ביקשתם לאפס את הסיסמה, אפשר להתעלם מהודעה זו.</p>
+      </div>
+    `
+  )
+}
+
 export async function sendLessonReminder(booking: BookingWithRelations) {
   await send(
     booking.student.email,
