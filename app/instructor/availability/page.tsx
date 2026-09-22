@@ -10,6 +10,7 @@ type Slot = {
   isBooked: boolean
   isBlocked: boolean
   blockNote?: string | null
+  publishAt?: string | null
   booking?: {
     id: string
     status: string
@@ -46,6 +47,14 @@ type BlockModal = {
   endTime: string
   blockNote: string
   saving: boolean
+  deleting: boolean
+  result: string
+}
+
+type DeleteRangeModal = {
+  date: string
+  startTime: string
+  endTime: string
   deleting: boolean
   result: string
 }
@@ -115,10 +124,14 @@ export default function AvailabilityPage() {
   const [creating, setCreating] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [mode, setMode] = useState<'lesson' | 'block'>('lesson')
-  const [form, setForm] = useState({ date: '', startTime: '09:00', endTime: '17:00', blockNote: '', isTest: false, testStudentIds: [] as string[] })
+  const [form, setForm] = useState({
+    date: '', startTime: '09:00', endTime: '17:00', blockNote: '', isTest: false, testStudentIds: [] as string[],
+    publishMode: 'now' as 'now' | 'scheduled', publishDate: '', publishTime: '20:00',
+  })
   const [error, setError] = useState('')
   const [modal, setModal] = useState<LessonModal | null>(null)
   const [blockModal, setBlockModal] = useState<BlockModal | null>(null)
+  const [deleteRangeModal, setDeleteRangeModal] = useState<DeleteRangeModal | null>(null)
   const [bookModal, setBookModal] = useState<BookModal | null>(null)
   const [bookStudents, setBookStudents] = useState<Student[]>([])
   const [broadcastSlot, setBroadcastSlot] = useState<Slot | null>(null)
@@ -376,6 +389,32 @@ export default function AvailabilityPage() {
     fetchSlots()
   }
 
+  function openDeleteRangeModal() {
+    setDeleteRangeModal({ date: format(mobileDay, 'yyyy-MM-dd'), startTime: '09:00', endTime: '17:00', deleting: false, result: '' })
+  }
+
+  async function handleDeleteRangeSubmit() {
+    if (!deleteRangeModal) return
+    const startTime = new Date(`${deleteRangeModal.date}T${deleteRangeModal.startTime}:00`)
+    const endTime = new Date(`${deleteRangeModal.date}T${deleteRangeModal.endTime}:00`)
+    if (endTime <= startTime) {
+      setDeleteRangeModal(m => m ? { ...m, result: 'שעת הסיום חייבת להיות אחרי שעת ההתחלה' } : m)
+      return
+    }
+    setDeleteRangeModal(m => m ? { ...m, deleting: true, result: '' } : m)
+    const res = await fetch('/api/availability', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startTime: startTime.toISOString(), endTime: endTime.toISOString() }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) {
+      setDeleteRangeModal(m => m ? { ...m, deleting: false, result: `✓ נמחקו ${data.deleted} שעות פנויות` } : m)
+      fetchSlots()
+    } else {
+      setDeleteRangeModal(m => m ? { ...m, deleting: false, result: data.error || 'שגיאה במחיקה' } : m)
+    }
+  }
+
   function calcLessons() {
     if (!form.startTime || !form.endTime) return 0
     const [sh, sm] = form.startTime.split(':').map(Number); const [eh, em] = form.endTime.split(':').map(Number)
@@ -390,6 +429,9 @@ export default function AvailabilityPage() {
     const startTime = new Date(`${form.date}T${form.startTime}:00`)
     const endTime = new Date(`${form.date}T${form.endTime}:00`)
     if (endTime <= startTime) { setError('שעת הסיום חייבת להיות אחרי שעת ההתחלה'); setSubmitting(false); return }
+    const publishAt = mode === 'lesson' && form.publishMode === 'scheduled' && form.publishDate && form.publishTime
+      ? new Date(`${form.publishDate}T${form.publishTime}:00`).toISOString()
+      : null
     const res = await fetch('/api/availability', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -399,12 +441,17 @@ export default function AvailabilityPage() {
               ? `טסט${form.testStudentIds.length > 0 ? ': ' + form.testStudentIds.map(id => bookStudents.find(s => s.id === id)?.name ?? '').filter(Boolean).join(', ') : ''}`
               : form.blockNote || null)
           : null,
+        publishAt,
       }),
     })
     setSubmitting(false)
     let data: any = {}
     try { const text = await res.text(); if (text) data = JSON.parse(text) } catch {}
-    if (res.ok) { setCreating(false); setForm({ date: '', startTime: '09:00', endTime: '17:00', blockNote: '', isTest: false, testStudentIds: [] }); fetchSlots() }
+    if (res.ok) {
+      setCreating(false)
+      setForm(f => ({ ...f, date: '', startTime: '09:00', endTime: '17:00', blockNote: '', isTest: false, testStudentIds: [] }))
+      fetchSlots()
+    }
     else setError(data.error || `שגיאה (${res.status})`)
   }
 
@@ -412,12 +459,14 @@ export default function AvailabilityPage() {
     const isBlock = slot.isBlocked
     const isBooked = slot.isBooked && slot.booking && !['CANCELLED', 'REJECTED'].includes(slot.booking.status)
     const isFree = !slot.isBooked && !isBlock
+    const isPendingPublish = isFree && !!slot.publishAt && new Date(slot.publishAt) > new Date()
     return (
       <div
         onClick={isBlock ? () => openBlockModal(slot) : isBooked ? () => openLessonModal(slot) : undefined}
         className={`rounded-lg transition ${compact ? 'text-xs p-1.5' : 'p-3'} ${
           isBlock ? 'bg-red-100 text-red-800 cursor-pointer hover:bg-red-200 active:bg-red-300' :
           isBooked ? 'bg-orange-100 text-orange-800 cursor-pointer hover:bg-orange-200 active:bg-orange-300' :
+          isPendingPublish ? 'bg-purple-50 text-purple-800' :
           'bg-blue-50 text-blue-800'
         }`}>
         <div className="flex justify-between items-start">
@@ -431,6 +480,10 @@ export default function AvailabilityPage() {
               <span className="text-xs mr-1 truncate block max-w-[60px]">{slot.booking!.student.name.split(' ')[0]}</span>
             )}
             {isBlock && <p className="text-xs text-red-700 mt-0.5 truncate">{slot.blockNote || 'חסום'}</p>}
+            {isPendingPublish && !compact && (
+              <p className="text-xs text-purple-600 mt-0.5">⏳ יתפרסם {format(new Date(slot.publishAt!), 'd/M HH:mm')}</p>
+            )}
+            {isPendingPublish && compact && <span className="text-xs mr-1">⏳</span>}
           </div>
           {isFree && (
             <div className="flex items-center gap-1">
@@ -460,6 +513,9 @@ export default function AvailabilityPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-900">ניהול זמינות</h1>
         <div className="flex gap-2">
+          <button onClick={openDeleteRangeModal} className="bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600 transition text-sm">
+            🗑 מחק טווח
+          </button>
           <button onClick={openBulkShift} className="bg-orange-500 text-white px-3 py-2 rounded-lg hover:bg-orange-600 transition text-sm">
             ↔ הזז
           </button>
@@ -470,8 +526,9 @@ export default function AvailabilityPage() {
       </div>
 
       {/* Legend */}
-      <div className="flex gap-3 mb-4 text-xs">
+      <div className="flex gap-3 mb-4 text-xs flex-wrap">
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-200 inline-block"></span>פנוי</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-purple-200 inline-block"></span>ממתין לפרסום</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-200 inline-block"></span>מוזמן (לחץ)</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-200 inline-block"></span>חסום</span>
       </div>
@@ -870,6 +927,49 @@ export default function AvailabilityPage() {
         </div>
       )}
 
+      {/* ── Delete range modal ── */}
+      {deleteRangeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" onClick={() => setDeleteRangeModal(null)}>
+          <div className="bg-white rounded-xl p-5 w-full max-w-sm" dir="rtl" onClick={e => e.stopPropagation()}>
+            <p className="font-bold text-lg text-red-700 mb-1">מחיקת זמינות בטווח</p>
+            <p className="text-gray-500 text-sm mb-4">כל השעות הפנויות (שלא נקבעו ולא נחסמו) בטווח שתבחר יימחקו בבת אחת.</p>
+
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">תאריך</label>
+                <input type="date" value={deleteRangeModal.date}
+                  onChange={e => setDeleteRangeModal(m => m ? { ...m, date: e.target.value } : m)}
+                  className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-400 text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">משעה</label>
+                  <input type="time" value={deleteRangeModal.startTime}
+                    onChange={e => setDeleteRangeModal(m => m ? { ...m, startTime: e.target.value } : m)}
+                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-400 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">עד שעה</label>
+                  <input type="time" value={deleteRangeModal.endTime}
+                    onChange={e => setDeleteRangeModal(m => m ? { ...m, endTime: e.target.value } : m)}
+                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-400 text-sm" />
+                </div>
+              </div>
+            </div>
+
+            {deleteRangeModal.result && (
+              <p className={`text-sm mb-2 ${deleteRangeModal.result.startsWith('✓') ? 'text-green-700' : 'text-red-500'}`}>{deleteRangeModal.result}</p>
+            )}
+
+            <button onClick={handleDeleteRangeSubmit} disabled={deleteRangeModal.deleting}
+              className="w-full bg-red-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition mb-2">
+              {deleteRangeModal.deleting ? 'מוחק...' : 'מחק טווח'}
+            </button>
+            <button onClick={() => setDeleteRangeModal(null)} className="w-full text-gray-400 text-sm py-1 hover:text-gray-600">סגור</button>
+          </div>
+        </div>
+      )}
+
       {/* ── Bulk shift modal ── */}
       {shiftOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
@@ -960,6 +1060,38 @@ export default function AvailabilityPage() {
               </div>
               {mode === 'lesson' && calcLessons() > 0 && (
                 <p className="text-sm text-blue-600 bg-blue-50 rounded-lg px-3 py-2">יווצרו {calcLessons()} שיעורים של 40 דקות</p>
+              )}
+              {mode === 'lesson' && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">פרסום לתלמידים</label>
+                  <div className="flex rounded-lg border overflow-hidden mb-2">
+                    <button type="button" onClick={() => setForm(f => ({ ...f, publishMode: 'now' }))}
+                      className={`flex-1 py-2 text-sm font-medium transition ${form.publishMode === 'now' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600'}`}>
+                      מיד
+                    </button>
+                    <button type="button" onClick={() => setForm(f => ({ ...f, publishMode: 'scheduled' }))}
+                      className={`flex-1 py-2 text-sm font-medium transition ${form.publishMode === 'scheduled' ? 'bg-purple-600 text-white' : 'bg-white text-gray-600'}`}>
+                      במועד מסוים
+                    </button>
+                  </div>
+                  {form.publishMode === 'scheduled' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">תאריך פרסום</label>
+                        <input type="date" value={form.publishDate} onChange={e => setForm(f => ({ ...f, publishDate: e.target.value }))}
+                          min={format(new Date(), 'yyyy-MM-dd')} required={form.publishMode === 'scheduled'}
+                          className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">שעת פרסום</label>
+                        <input type="time" value={form.publishTime} onChange={e => setForm(f => ({ ...f, publishTime: e.target.value }))}
+                          required={form.publishMode === 'scheduled'}
+                          className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500" />
+                      </div>
+                      <p className="col-span-2 text-xs text-gray-400">השעות יישארו מוסתרות מהתלמידים עד למועד שנבחר — גם אם מוסיפים ימים נוספים בנפרד, ניתן להשאיר את אותו מועד פרסום.</p>
+                    </div>
+                  )}
+                </div>
               )}
               {mode === 'block' && (
                 <div>

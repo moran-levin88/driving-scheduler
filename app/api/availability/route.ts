@@ -33,7 +33,11 @@ export async function GET(req: NextRequest) {
 
   const [slots, blockedRanges] = await Promise.all([
     prisma.availability.findMany({
-      where: { isBlocked: false, startTime: { gte: now } },
+      where: {
+        isBlocked: false,
+        startTime: { gte: now },
+        OR: [{ isBooked: true }, { publishAt: null }, { publishAt: { lte: now } }],
+      },
       include: { booking: { select: { status: true, studentId: true } } },
       orderBy: { startTime: 'asc' },
     }),
@@ -112,9 +116,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { startTime, endTime, isBlocked, blockNote } = await req.json()
+  const { startTime, endTime, isBlocked, blockNote, publishAt } = await req.json()
   const start = new Date(startTime)
   const end = new Date(endTime)
+  const publishAtDate = publishAt ? new Date(publishAt) : null
   const instructorId = (session.user as any).id
 
   // If blocking: create one block covering the entire range
@@ -144,7 +149,7 @@ export async function POST(req: NextRequest) {
   while (cursor < end) {
     const slotEnd = new Date(cursor.getTime() + SLOT_MINUTES * 60 * 1000)
     if (slotEnd > end) break
-    slots.push({ instructorId, startTime: new Date(cursor), endTime: new Date(slotEnd) })
+    slots.push({ instructorId, startTime: new Date(cursor), endTime: new Date(slotEnd), publishAt: publishAtDate })
     cursor.setTime(cursor.getTime() + SLOT_MINUTES * 60 * 1000)
   }
 
@@ -164,4 +169,29 @@ export async function POST(req: NextRequest) {
     await prisma.availability.createMany({ data: newSlots })
   }
   return NextResponse.json({ created: newSlots.length, skipped: slots.length - newSlots.length }, { status: 201 })
+}
+
+// Bulk-delete free (unbooked, unblocked) availability slots inside a time range,
+// so the instructor doesn't have to remove each 20-minute slot one by one.
+export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session || (session.user as any).role !== 'INSTRUCTOR') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const { startTime, endTime } = await req.json()
+  const start = new Date(startTime)
+  const end = new Date(endTime)
+  if (!(end > start)) return NextResponse.json({ error: 'טווח לא תקין' }, { status: 400 })
+
+  const toDelete = await prisma.availability.findMany({
+    where: { isBooked: false, isBlocked: false, startTime: { gte: start }, endTime: { lte: end } },
+    select: { id: true },
+  })
+
+  if (toDelete.length > 0) {
+    await prisma.availability.deleteMany({ where: { id: { in: toDelete.map(s => s.id) } } })
+  }
+
+  return NextResponse.json({ deleted: toDelete.length })
 }

@@ -100,6 +100,7 @@ model Availability {
   isBlocked       Boolean  @default(false)
   blockNote       String?
   calendarEventId String?
+  publishAt       DateTime?
   createdAt       DateTime @default(now())
 
   booking Booking?
