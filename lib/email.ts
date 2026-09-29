@@ -123,6 +123,24 @@ export async function sendBookingShifted(
   )
 }
 
+export async function sendCancellationAlertToInstructor(studentName: string, startTime: Date, endTime: Date) {
+  const instructorEmail = process.env.INSTRUCTOR_EMAIL
+  if (!instructorEmail) return
+  await send(
+    instructorEmail,
+    `שיעור התפנה — ${studentName} ביטל`,
+    `
+      <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>שיעור נהיגה התפנה</h2>
+        <p><strong>${studentName}</strong> ביטל/ה שיעור:</p>
+        <p><strong>תאריך:</strong> ${formatDate(startTime)}</p>
+        <p><strong>שעה:</strong> ${formatTime(startTime)} - ${formatTime(endTime)}</p>
+        <p>כנסו למערכת כדי לפנות את השעה לתלמיד אחר.</p>
+      </div>
+    `
+  )
+}
+
 export async function sendPasswordReset(user: { name: string; email: string }, resetUrl: string) {
   await send(
     user.email,

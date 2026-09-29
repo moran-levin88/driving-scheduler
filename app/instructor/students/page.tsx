@@ -1,6 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { format, startOfWeek, addDays, addWeeks, subWeeks } from 'date-fns'
+import { he } from 'date-fns/locale'
 
 type Student = {
   id: string
@@ -8,7 +10,7 @@ type Student = {
   email: string
   phone: string | null
   isRestricted: boolean
-  bookings: { status: string }[]
+  bookings: { status: string; availability: { startTime: string } }[]
 }
 
 type ResetResult = { name: string; email: string; tempPassword: string }
@@ -25,6 +27,7 @@ export default function StudentsPage() {
   const [editForm, setEditForm] = useState({ name: '', email: '', phone: '' })
   const [editError, setEditError] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
+  const [weekOffset, setWeekOffset] = useState(1)
 
   function openEdit(s: Student) {
     setEditingStudent(s)
@@ -109,6 +112,60 @@ export default function StudentsPage() {
           className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 w-64"
         />
       </div>
+
+      {/* Weekly check — who hasn't booked yet */}
+      {(() => {
+        const weekStart = addWeeks(startOfWeek(new Date(), { weekStartsOn: 0 }), weekOffset)
+        const weekEnd = addDays(weekStart, 6) // exclusive — covers Sunday through Friday
+        const hasBookingThatWeek = (s: Student) => s.bookings.some(b => {
+          if (!['PENDING', 'APPROVED'].includes(b.status)) return false
+          const t = new Date(b.availability.startTime)
+          return t >= weekStart && t < weekEnd
+        })
+        const notBooked = students.filter(s => !hasBookingThatWeek(s))
+        const rangeLabel = `${format(weekStart, 'd/M', { locale: he })}–${format(addDays(weekStart, 5), 'd/M', { locale: he })}`
+
+        return (
+          <div className="bg-white rounded-xl shadow p-4 mb-6">
+            <div className="flex items-center gap-3 mb-3">
+              <h2 className="font-bold text-gray-900">מי עוד לא קבע שיעור</h2>
+              <div className="flex items-center gap-1 mr-auto text-sm">
+                <button onClick={() => setWeekOffset(w => w - 1)} className="p-1.5 hover:bg-gray-100 rounded">&rarr;</button>
+                <span className="font-medium text-gray-600">{rangeLabel}</span>
+                <button onClick={() => setWeekOffset(w => w + 1)} className="p-1.5 hover:bg-gray-100 rounded">&larr;</button>
+              </div>
+            </div>
+            {weekOffset === 1 && <p className="text-xs text-gray-400 mb-3">שבוע הבא</p>}
+
+            {students.length === 0 ? (
+              <p className="text-sm text-gray-400 py-2">טוען...</p>
+            ) : notBooked.length === 0 ? (
+              <p className="text-sm text-green-700 py-2">✓ כל התלמידים קבעו שיעור לשבוע הזה</p>
+            ) : (
+              <div className="space-y-1.5">
+                <p className="text-xs text-gray-500 mb-2">{notBooked.length} מתוך {students.length} תלמידים עדיין לא קבעו:</p>
+                {notBooked.map(s => {
+                  const waPhone = s.phone?.replace(/\D/g, '').replace(/^0/, '972')
+                  const waText = encodeURIComponent(`היי ${s.name.trim()}, שמנו לב שעוד לא קבעת שיעור נהיגה לשבוע הבא (${rangeLabel}). רוצה לקבוע? היכנסו למערכת 🚗`)
+                  return (
+                    <div key={s.id} className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+                      <span className="text-sm font-medium text-gray-800 truncate">{s.name}</span>
+                      {waPhone ? (
+                        <a href={`https://wa.me/${waPhone}?text=${waText}`} target="_blank" rel="noreferrer"
+                          className="shrink-0 text-xs bg-green-500 text-white px-2.5 py-1 rounded-full hover:bg-green-600 transition">
+                          📲 תזכורת
+                        </a>
+                      ) : (
+                        <span className="shrink-0 text-xs text-gray-300">אין טלפון</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Edit student modal */}
       {editingStudent && (

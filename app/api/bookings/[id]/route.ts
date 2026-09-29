@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { deleteCalendarEvent } from '@/lib/calendar'
 import { sendSmsToInstructor } from '@/lib/sms'
 import { sendPushToInstructor } from '@/lib/push'
+import { sendCancellationAlertToInstructor } from '@/lib/email'
 import { format } from 'date-fns'
 import { he } from 'date-fns/locale'
 
@@ -60,7 +61,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   const ids      = chain.map(b => b.id)
   const first    = chain[0]
+  const last     = chain[chain.length - 1]
   const lessonStart = first.availability.startTime
+  const lessonEnd    = last.availability.endTime
 
   await prisma.$transaction([
     prisma.booking.updateMany({ where: { id: { in: ids } }, data: { status: 'CANCELLED' } }),
@@ -83,6 +86,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       const msg = `שיעור נהיגה התפנה ב${dateStr} בשעה ${timeStr}. מי מעוניין? היכנסו למערכת וקבעו שיעור 🚗\nביטל: ${studentName}`
       sendSmsToInstructor(msg).catch(console.error)
       sendPushToInstructor('שיעור התפנה', `${studentName} ביטל — ${dateStr} ${timeStr}`).catch(console.error)
+      // Email as a backup channel — SMS/push depend on Twilio config and an active
+      // push subscription, either of which can silently fail with no visible error.
+      sendCancellationAlertToInstructor(studentName, lessonStart, lessonEnd).catch(err => console.error('Cancellation email failed:', err))
     }
   }
 
