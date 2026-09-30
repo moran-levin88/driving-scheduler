@@ -21,11 +21,10 @@ export async function sendSmsToInstructor(message: string): Promise<void> {
   const rawTo = process.env.INSTRUCTOR_PHONE
   if (!t || !rawTo || !t.from) { console.log('SMS to instructor skipped — Twilio not configured'); return }
   const to = toE164Israel(rawTo)
-  try {
-    await t.client.messages.create({ from: t.from, to, body: message })
-  } catch (err) {
-    console.error('SMS to instructor failed:', err)
-  }
+  // Let failures propagate — every call site already wraps this in .catch(console.error),
+  // so swallowing errors here only hid them from anything (like a diagnostic route) that
+  // actually wants to know why a send failed.
+  await t.client.messages.create({ from: t.from, to, body: message })
 }
 
 type BookingForReminder = {
