@@ -84,6 +84,8 @@ type ActionModal = {
   shiftedInfo: { newStart: Date; newEnd: Date } | null
   confirmCancel: boolean
   cancelling: boolean
+  syncingCalendar: boolean
+  syncResult: string
 }
 
 type SwapModal = {
@@ -214,7 +216,26 @@ export default function CalendarPage() {
       shiftedInfo: null,
       confirmCancel: false,
       cancelling: false,
+      syncingCalendar: false,
+      syncResult: '',
     })
+  }
+
+  async function handleSyncCalendar() {
+    if (!actionModal) return
+    setActionModal(m => m ? { ...m, syncingCalendar: true, syncResult: '' } : m)
+    try {
+      const res = await fetch(`/api/bookings/${actionModal.lesson.firstId}/sync-calendar`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setLessons(prev => prev.map(l => l.firstId === actionModal.lesson.firstId ? { ...l, calendarEventId: 'synced' } : l))
+        setActionModal(m => m ? { ...m, syncingCalendar: false, syncResult: '✓ נוסף ליומן Google', lesson: { ...m.lesson, calendarEventId: 'synced' } } : m)
+      } else {
+        setActionModal(m => m ? { ...m, syncingCalendar: false, syncResult: data.error || 'שגיאה בסנכרון' } : m)
+      }
+    } catch {
+      setActionModal(m => m ? { ...m, syncingCalendar: false, syncResult: 'שגיאת רשת — נסה שוב' } : m)
+    }
   }
 
   async function handleCancel() {
@@ -371,6 +392,9 @@ export default function CalendarPage() {
                         <p className={`font-bold leading-tight text-center break-words ${height >= 44 ? 'text-sm line-clamp-2' : 'text-xs line-clamp-1'}`}>
                           {isSwapSource && '⇄ '}{lesson.studentName}
                         </p>
+                        {!lesson.calendarEventId && (
+                          <span title="לא סונכרן ל-Google Calendar" className="absolute top-0.5 left-0.5 text-xs leading-none">⚠️</span>
+                        )}
                       </div>
                     )
                   })}
@@ -393,6 +417,19 @@ export default function CalendarPage() {
               <p className="text-sm text-gray-700 mt-1 mb-4">📍 {actionModal.lesson.pickupAddress}</p>
             )}
             {!actionModal.lesson.pickupAddress && <div className="mb-4" />}
+
+            {!actionModal.lesson.calendarEventId && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3">
+                <p className="text-sm font-semibold text-amber-800 mb-2">⚠️ השיעור לא נוסף ל-Google Calendar</p>
+                {actionModal.syncResult && (
+                  <p className={`text-xs mb-2 ${actionModal.syncResult.startsWith('✓') ? 'text-green-700' : 'text-red-600'}`}>{actionModal.syncResult}</p>
+                )}
+                <button onClick={handleSyncCalendar} disabled={actionModal.syncingCalendar}
+                  className="w-full bg-amber-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50 transition">
+                  {actionModal.syncingCalendar ? 'מסנכרן...' : '📅 סנכרן ליומן Google'}
+                </button>
+              </div>
+            )}
 
             {/* Shifted success */}
             {actionModal.shiftedInfo && (() => {
