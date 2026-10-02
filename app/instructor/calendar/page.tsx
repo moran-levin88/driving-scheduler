@@ -86,6 +86,8 @@ type ActionModal = {
   cancelling: boolean
   syncingCalendar: boolean
   syncResult: string
+  changingDuration: boolean
+  durationResult: string
 }
 
 type SwapModal = {
@@ -218,7 +220,32 @@ export default function CalendarPage() {
       cancelling: false,
       syncingCalendar: false,
       syncResult: '',
+      changingDuration: false,
+      durationResult: '',
     })
+  }
+
+  async function handleChangeDuration(minutes: number) {
+    if (!actionModal) return
+    setActionModal(m => m ? { ...m, changingDuration: true, durationResult: '' } : m)
+    try {
+      const res = await fetch(`/api/bookings/${actionModal.lesson.firstId}/duration`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ minutes }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setActionModal(null)
+        fetch('/api/bookings').then(r => r.json()).then(d => {
+          if (Array.isArray(d)) setLessons(groupToLessons(d))
+        })
+      } else {
+        setActionModal(m => m ? { ...m, changingDuration: false, durationResult: data.error || 'שגיאה' } : m)
+      }
+    } catch {
+      setActionModal(m => m ? { ...m, changingDuration: false, durationResult: 'שגיאת רשת — נסה שוב' } : m)
+    }
   }
 
   async function handleSyncCalendar() {
@@ -483,6 +510,28 @@ export default function CalendarPage() {
                 className="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50 transition">
                 {actionModal.shifting ? 'מזיז...' : `הזז ל-${actionModal.targetTime} ב-${actionModal.targetDate.slice(8)}.${actionModal.targetDate.slice(5,7)}`}
               </button>
+            </div>
+
+            {/* Change duration */}
+            <div className="bg-purple-50 rounded-xl p-3 mb-3">
+              <p className="text-sm font-semibold text-purple-800 mb-2">שינוי משך שיעור</p>
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                {[40, 60, 80].map(min => {
+                  const currentMinutes = Math.round((actionModal.lesson.endTime.getTime() - actionModal.lesson.startTime.getTime()) / 60000)
+                  const active = currentMinutes === min
+                  return (
+                    <button key={min} type="button" disabled={active || actionModal.changingDuration}
+                      onClick={() => handleChangeDuration(min)}
+                      className={`py-2 rounded-lg text-sm font-medium border-2 transition disabled:opacity-60 ${
+                        active ? 'border-purple-600 bg-purple-100 text-purple-800' : 'border-gray-200 bg-white hover:border-purple-300'
+                      }`}>
+                      {min} דק׳
+                    </button>
+                  )
+                })}
+              </div>
+              {actionModal.changingDuration && <p className="text-xs text-purple-600">משנה משך...</p>}
+              {actionModal.durationResult && <p className="text-xs text-red-600">{actionModal.durationResult}</p>}
             </div>
 
             {/* Alternative slots */}
