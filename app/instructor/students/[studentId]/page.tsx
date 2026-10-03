@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import StudentPaymentsPanel from './StudentPaymentsPanel'
 import CancelLessonButton from './CancelLessonButton'
+import EditDurationButton from './EditDurationButton'
 import { getStudentPaymentsPanelData } from '@/lib/paymentsPanelData'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -40,7 +41,7 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
 
       <div className="bg-white rounded-xl shadow overflow-hidden mb-4">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[580px]">
+          <table className="w-full min-w-[680px]">
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">תאריך</th>
@@ -74,7 +75,12 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
                     })()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {l.status === 'APPROVED' && <CancelLessonButton bookingId={l.firstBookingId} />}
+                    {l.status === 'APPROVED' && (
+                      <div className="flex items-center gap-1">
+                        <EditDurationButton bookingId={l.firstBookingId} currentMinutes={Math.round((l.endTime.getTime() - l.startTime.getTime()) / 60000)} />
+                        <CancelLessonButton bookingId={l.firstBookingId} />
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
