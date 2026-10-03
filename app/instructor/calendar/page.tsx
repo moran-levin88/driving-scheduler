@@ -1,8 +1,19 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import Link from 'next/link'
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay } from 'date-fns'
 import { he } from 'date-fns/locale'
+import StudentPaymentsPanel from '../students/[studentId]/StudentPaymentsPanel'
+
+type PaymentsPanelData = {
+  student: { id: string; name: string; email: string; phone: string | null; pricePer20Min: number | null }
+  balance: number
+  payableLessons: { firstBookingId: string; startTime: string; endTime: string; paidSoFar: number }[]
+  invoices: {
+    id: string; amount: number; method: string; reference: string | null
+    paidAt: string; isDeposit: boolean; invoiceId: string | null; invoiceUrl: string | null
+    lessonCount: number
+  }[]
+}
 
 const HOUR_HEIGHT = 64
 const START_HOUR = 7
@@ -124,12 +135,38 @@ export default function CalendarPage() {
   const [swapSource, setSwapSource] = useState<Lesson | null>(null)
   const [swapModal, setSwapModal] = useState<SwapModal | null>(null)
   const [reassignModal, setReassignModal] = useState<ReassignModal | null>(null)
+  const [paymentsModal, setPaymentsModal] = useState<{ studentId: string; data: PaymentsPanelData | null; error: string } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
+  function refreshBookings() {
     fetch('/api/bookings').then(r => r.json()).then(data => {
       if (Array.isArray(data)) setLessons(groupToLessons(data))
     })
+  }
+
+  async function openPaymentsModal(studentId: string) {
+    setActionModal(null)
+    setPaymentsModal({ studentId, data: null, error: '' })
+    try {
+      const res = await fetch(`/api/students/${studentId}/payments-panel`)
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setPaymentsModal({ studentId, data, error: '' })
+      } else {
+        setPaymentsModal({ studentId, data: null, error: data.error || 'שגיאה בטעינה' })
+      }
+    } catch {
+      setPaymentsModal({ studentId, data: null, error: 'שגיאת רשת — נסה שוב' })
+    }
+  }
+
+  function closePaymentsModal() {
+    setPaymentsModal(null)
+    refreshBookings() // payment status may have changed — refresh the ₪ badges
+  }
+
+  useEffect(() => {
+    refreshBookings()
     fetch('/api/availability').then(r => r.json()).then((data: any[]) => {
       if (Array.isArray(data)) {
         setBlocks(data.filter(s => s.isBlocked).map(s => ({
@@ -553,7 +590,7 @@ export default function CalendarPage() {
               {actionModal.durationResult && <p className="text-xs text-red-600">{actionModal.durationResult}</p>}
             </div>
 
-            {/* Payment — status only; managed from the student's page */}
+            {/* Payment — status + opens the full payments panel in a modal */}
             {(() => {
               const slots = Math.round((actionModal.lesson.endTime.getTime() - actionModal.lesson.startTime.getTime()) / 60000 / 20)
               const price = actionModal.lesson.pricePer20Min != null ? actionModal.lesson.pricePer20Min * slots : null
@@ -567,10 +604,10 @@ export default function CalendarPage() {
               return (
                 <div className="bg-green-50 rounded-xl p-3 mb-3">
                   <p className="text-sm text-gray-700 mb-2">{statusText}</p>
-                  <Link href={`/instructor/students/${actionModal.lesson.studentId}`}
+                  <button type="button" onClick={() => openPaymentsModal(actionModal.lesson.studentId)}
                     className="block w-full text-center bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition">
                     💰 ניהול תשלום וחשבוניות
-                  </Link>
+                  </button>
                 </div>
               )
             })()}
@@ -743,6 +780,31 @@ export default function CalendarPage() {
                 ביטול
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payments modal — same panel as the student's History page, opened inline */}
+      {paymentsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" onClick={closePaymentsModal}>
+          <div className="bg-white rounded-xl p-5 w-full max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-bold text-lg">{paymentsModal.data?.student.name ?? 'תשלומים'}</p>
+              <button onClick={closePaymentsModal} className="text-gray-400 hover:text-gray-600 text-sm">סגור ✕</button>
+            </div>
+            {paymentsModal.error ? (
+              <p className="text-red-600 text-sm">{paymentsModal.error}</p>
+            ) : !paymentsModal.data ? (
+              <p className="text-gray-400 text-sm">טוען...</p>
+            ) : (
+              <StudentPaymentsPanel
+                studentId={paymentsModal.studentId}
+                pricePer20Min={paymentsModal.data.student.pricePer20Min}
+                payableLessons={paymentsModal.data.payableLessons}
+                invoices={paymentsModal.data.invoices}
+                initialBalance={paymentsModal.data.balance}
+              />
+            )}
           </div>
         </div>
       )}
