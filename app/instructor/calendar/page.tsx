@@ -707,7 +707,7 @@ export default function CalendarPage() {
                         <p className="font-bold leading-tight text-center break-words text-xs line-clamp-1">{charge.studentName}</p>
                         <p className="text-[10px] opacity-90 leading-tight">{CHARGE_TYPE_LABELS[charge.type]}</p>
                         <span title={charge.paid ? 'שולם' : 'טרם שולם'} className="absolute top-0.5 right-0.5 text-xs leading-none">
-                          {charge.paid ? '💰' : '🟡'}
+                          {charge.paid ? '✅' : '💰'}
                         </span>
                       </div>
                     )
@@ -736,11 +736,10 @@ export default function CalendarPage() {
                         {(() => {
                           const slots = Math.round((lesson.endTime.getTime() - lesson.startTime.getTime()) / 60000 / 20)
                           const price = lesson.pricePer20Min != null ? lesson.pricePer20Min * slots : null
-                          if (lesson.paidSoFar <= 0) return null
                           const fullyPaid = price != null && lesson.paidSoFar >= price
                           return (
-                            <span title={fullyPaid ? 'שולם' : 'שולם חלקית'} className="absolute top-0.5 right-0.5 text-xs leading-none">
-                              {fullyPaid ? '💰' : '🟡'}
+                            <span title={fullyPaid ? 'שולם' : 'טרם שולם'} className="absolute top-0.5 right-0.5 text-xs leading-none">
+                              {fullyPaid ? '✅' : '💰'}
                             </span>
                           )
                         })()}
