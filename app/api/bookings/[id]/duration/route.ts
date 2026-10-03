@@ -58,6 +58,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     await prisma.$transaction([
       ...extra.map(slot => prisma.availability.update({ where: { id: slot.id }, data: { isBooked: true } })),
+      // A slot that was previously booked and then cancelled/rejected keeps
+      // that Booking row for history (availabilityId is unique on Booking),
+      // so it has to be cleared before a new booking can claim the same slot.
+      prisma.booking.deleteMany({
+        where: { availabilityId: { in: extra.map(s => s.id) }, status: { in: ['CANCELLED', 'REJECTED'] } },
+      }),
       prisma.booking.createMany({
         data: extra.map(slot => ({
           studentId: booking.studentId,
