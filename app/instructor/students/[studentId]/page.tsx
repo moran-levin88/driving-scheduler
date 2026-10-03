@@ -82,36 +82,38 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
       </div>
 
       <div className="bg-white rounded-xl shadow overflow-hidden mb-4">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">תאריך</th>
-              <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">שעות</th>
-              <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">סטטוס</th>
-              <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">תשלום</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {lessons.map((l, i) => (
-              <tr key={i} className="hover:bg-gray-50">
-                <td className="px-6 py-4">{l.startTime.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</td>
-                <td className="px-6 py-4 text-gray-600">
-                  {l.startTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}
-                  {' - '}
-                  {l.endTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}
-                </td>
-                <td className="px-6 py-4">
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[l.status]}`}>
-                    {STATUS_LABELS[l.status]}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  {l.status === 'APPROVED' && (l.paid ? <span className="text-xs text-green-700">✓ שולם</span> : <span className="text-xs text-gray-400">טרם שולם</span>)}
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[480px]">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">תאריך</th>
+                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">שעות</th>
+                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">סטטוס</th>
+                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">תשלום</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y">
+              {lessons.map((l, i) => (
+                <tr key={i} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">{l.startTime.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</td>
+                  <td className="px-6 py-4 text-gray-600 whitespace-nowrap">
+                    {l.startTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}
+                    {' - '}
+                    {l.endTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[l.status]}`}>
+                      {STATUS_LABELS[l.status]}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {l.status === 'APPROVED' && (l.paid ? <span className="text-xs text-green-700">✓ שולם</span> : <span className="text-xs text-gray-400">טרם שולם</span>)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {lessons.length === 0 && (
           <div className="p-8 text-center text-gray-500">אין היסטוריית שיעורים</div>
         )}

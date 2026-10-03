@@ -28,7 +28,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'אמצעי תשלום לא תקין' }, { status: 400 })
   }
   for (const it of items) {
-    if (!it.bookingId || !Number.isFinite(it.amount) || it.amount <= 0) {
+    // EXTERNAL just records "already settled elsewhere" — no real amount required,
+    // since the instructor may be clearing out legacy rows with no price on file.
+    const amountOk = method === 'EXTERNAL' ? Number.isFinite(it.amount) && it.amount >= 0 : Number.isFinite(it.amount) && it.amount > 0
+    if (!it.bookingId || !amountOk) {
       return NextResponse.json({ error: 'סכום לא תקין' }, { status: 400 })
     }
   }

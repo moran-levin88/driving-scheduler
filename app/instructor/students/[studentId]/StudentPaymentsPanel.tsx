@@ -71,6 +71,36 @@ export default function StudentPaymentsPanel({
 
   const total = [...selected].reduce((sum, id) => sum + (Number(amounts[id]) || 0), 0)
 
+  const [dismissingId, setDismissingId] = useState<string | null>(null)
+
+  // One-click cleanup for legacy rows that were already settled on the
+  // previous platform — marks as EXTERNAL with no form, no Morning document.
+  async function handleQuickDismiss(l: UnpaidLesson) {
+    setDismissingId(l.firstBookingId)
+    try {
+      const amount = Number(suggestedAmount(l)) || 0
+      const res = await fetch('/api/bookings/group/payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: [{ bookingId: l.firstBookingId, amount }],
+          method: 'EXTERNAL', paidAt: new Date().toISOString(),
+        }),
+      })
+      if (res.ok) {
+        setPaidIds(prev => new Set([...prev, l.firstBookingId]))
+        setSelected(prev => { const n = new Set(prev); n.delete(l.firstBookingId); return n })
+      } else {
+        const data = await res.json().catch(() => ({}))
+        alert(data.error || 'שגיאה')
+      }
+    } catch {
+      alert('שגיאת רשת — נסה שוב')
+    } finally {
+      setDismissingId(null)
+    }
+  }
+
   async function handleDeposit() {
     const amount = Number(depositAmount)
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -104,7 +134,10 @@ export default function StudentPaymentsPanel({
   async function handlePay() {
     if (selected.size === 0) return
     for (const id of selected) {
-      if (!Number.isFinite(Number(amounts[id])) || Number(amounts[id]) <= 0) {
+      const ok = method === 'EXTERNAL'
+        ? Number.isFinite(Number(amounts[id])) && Number(amounts[id]) >= 0
+        : Number.isFinite(Number(amounts[id])) && Number(amounts[id]) > 0
+      if (!ok) {
         setPayResult('יש להזין סכום תקין לכל שיעור נבחר')
         return
       }
@@ -203,23 +236,28 @@ export default function StudentPaymentsPanel({
         ) : (
           <div className="space-y-1.5 mb-3">
             {visibleUnpaid.map(l => (
-              <label key={l.firstBookingId} className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg cursor-pointer transition ${selected.has(l.firstBookingId) ? 'bg-green-50' : 'bg-gray-50 hover:bg-gray-100'}`}>
-                <span className="flex items-center gap-2">
-                  <input type="checkbox" checked={selected.has(l.firstBookingId)} onChange={() => toggleSelect(l)} className="w-4 h-4 accent-green-600" />
+              <div key={l.firstBookingId} className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg transition ${selected.has(l.firstBookingId) ? 'bg-green-50' : 'bg-gray-50 hover:bg-gray-100'}`}>
+                <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                  <input type="checkbox" checked={selected.has(l.firstBookingId)} onChange={() => toggleSelect(l)} className="w-4 h-4 accent-green-600 shrink-0" />
                   <span className="text-sm">
                     {new Date(l.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}
                     {' '}
                     {new Date(l.startTime).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}
                     {' ('}{minutesBetween(l.startTime, l.endTime)} דק׳{')'}
                   </span>
-                </span>
-                {selected.has(l.firstBookingId) && (
+                </label>
+                {selected.has(l.firstBookingId) ? (
                   <input type="number" min={0} value={amounts[l.firstBookingId] ?? ''}
                     onChange={e => setAmounts(a => ({ ...a, [l.firstBookingId]: e.target.value }))}
-                    onClick={e => e.preventDefault()}
-                    className="w-20 border rounded-lg px-2 py-1 text-sm text-center" />
+                    className="w-20 border rounded-lg px-2 py-1 text-sm text-center shrink-0" />
+                ) : (
+                  <button type="button" onClick={() => handleQuickDismiss(l)} disabled={dismissingId === l.firstBookingId}
+                    title="שולם בפלטפורמה הקודמת — הסר מהרשימה"
+                    className="shrink-0 text-xs text-gray-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg transition disabled:opacity-50">
+                    {dismissingId === l.firstBookingId ? '...' : '🗑'}
+                  </button>
                 )}
-              </label>
+              </div>
             ))}
           </div>
         )}
@@ -265,38 +303,40 @@ export default function StudentPaymentsPanel({
       <div>
         <h2 className="text-xl font-bold text-gray-900 mb-3">חשבוניות</h2>
         <div className="bg-white rounded-xl shadow overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">תאריך</th>
-                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">סכום</th>
-                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">אמצעי</th>
-                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">כולל</th>
-                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">אסמכתא</th>
-                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">חשבונית</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {invoiceList.map(inv => (
-                <tr key={inv.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">{new Date(inv.paidAt).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</td>
-                  <td className="px-6 py-4 font-medium">₪{inv.amount}</td>
-                  <td className="px-6 py-4 text-gray-600">{METHOD_LABELS[inv.method]}</td>
-                  <td className="px-6 py-4 text-gray-600">{inv.isDeposit ? 'הפקדה' : `${inv.lessonCount} שיעורים`}</td>
-                  <td className="px-6 py-4 text-gray-600">{inv.reference || '—'}</td>
-                  <td className="px-6 py-4">
-                    {inv.invoiceUrl ? (
-                      <a href={inv.invoiceUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">📄 צפייה</a>
-                    ) : (
-                      <button onClick={() => handleRetry(inv.id)} className="text-xs bg-amber-500 text-white px-2 py-1 rounded-lg hover:bg-amber-600 transition">
-                        נסה שוב
-                      </button>
-                    )}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px]">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">תאריך</th>
+                  <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">סכום</th>
+                  <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">אמצעי</th>
+                  <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">כולל</th>
+                  <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">אסמכתא</th>
+                  <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">חשבונית</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y">
+                {invoiceList.map(inv => (
+                  <tr key={inv.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">{new Date(inv.paidAt).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</td>
+                    <td className="px-6 py-4 font-medium whitespace-nowrap">₪{inv.amount}</td>
+                    <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{METHOD_LABELS[inv.method]}</td>
+                    <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{inv.isDeposit ? 'הפקדה' : `${inv.lessonCount} שיעורים`}</td>
+                    <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{inv.reference || '—'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {inv.invoiceUrl ? (
+                        <a href={inv.invoiceUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">📄 צפייה</a>
+                      ) : (
+                        <button onClick={() => handleRetry(inv.id)} className="text-xs bg-amber-500 text-white px-2 py-1 rounded-lg hover:bg-amber-600 transition">
+                          נסה שוב
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {invoiceList.length === 0 && (
             <div className="p-8 text-center text-gray-500">אין חשבוניות</div>
           )}
