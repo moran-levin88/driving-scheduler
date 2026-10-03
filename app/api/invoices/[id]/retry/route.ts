@@ -7,8 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { findLessonChain } from '@/lib/lessonChain'
 import { createInvoice, type PaymentMethodForInvoice } from '@/lib/morning'
 import { sendInvoiceToStudent } from '@/lib/email'
-import { format } from 'date-fns'
-import { he } from 'date-fns/locale'
+import { formatIsraelDate, formatIsraelTime } from '@/lib/israelTime'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
@@ -32,8 +31,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     for (const payment of invoice.payments) {
       const result = await findLessonChain(payment.bookingId, 'APPROVED')
       if (!result) continue
-      const dateStr = format(result.first.availability.startTime, "d בMMMM yyyy", { locale: he })
-      const timeStr = format(result.first.availability.startTime, 'HH:mm')
+      const dateStr = formatIsraelDate(result.first.availability.startTime)
+      const timeStr = formatIsraelTime(result.first.availability.startTime)
       lines.push({ description: `שיעור נהיגה — ${dateStr} ${timeStr} (${result.chain.length * 20} דק')`, amount: payment.amount })
     }
     if (lines.length === 0) {

@@ -8,8 +8,7 @@ import { findLessonChain, type ChainBooking } from '@/lib/lessonChain'
 import { createInvoice, type PaymentMethodForInvoice } from '@/lib/morning'
 import { sendInvoiceToStudent } from '@/lib/email'
 import { getStudentBalance } from '@/lib/balance'
-import { format } from 'date-fns'
-import { he } from 'date-fns/locale'
+import { formatIsraelDate, formatIsraelTime } from '@/lib/israelTime'
 
 const METHODS = ['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'BALANCE', 'EXTERNAL'] as const
 
@@ -78,8 +77,8 @@ export async function POST(req: NextRequest) {
   }
 
   const lines = resolved.map(r => {
-    const dateStr = format(r.first.availability.startTime, "d בMMMM yyyy", { locale: he })
-    const timeStr = format(r.first.availability.startTime, 'HH:mm')
+    const dateStr = formatIsraelDate(r.first.availability.startTime)
+    const timeStr = formatIsraelTime(r.first.availability.startTime)
     return { description: `שיעור נהיגה — ${dateStr} ${timeStr} (${r.chainLength * 20} דק')`, amount: r.amount }
   })
 

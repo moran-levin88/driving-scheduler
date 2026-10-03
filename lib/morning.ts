@@ -90,5 +90,10 @@ export async function createInvoice(params: {
   }
 
   const data = await res.json()
-  return { id: data.id, number: data.number, url: data.url?.origin || data.url?.he || data.url }
+  // Morning returns `number` as a JSON integer (e.g. 60001), not a string —
+  // our `number: string` annotation above doesn't enforce that at runtime,
+  // and saving the raw int into Invoice.invoiceNumber (a String column)
+  // threw a Prisma type error, silently leaving our side thinking the
+  // document was never issued even though Morning had already created it.
+  return { id: data.id, number: String(data.number), url: data.url?.origin || data.url?.he || data.url }
 }
