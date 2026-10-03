@@ -16,7 +16,7 @@ export async function GET() {
 
   const [students, balances] = await Promise.all([
     prisma.user.findMany({
-      where: { role: 'STUDENT' },
+      where: { role: 'STUDENT', archivedAt: null },
       include: {
         bookings: {
           include: { availability: true, payments: { select: { amount: true } } },
@@ -108,21 +108,34 @@ export async function DELETE(req: NextRequest) {
 
   const { studentId } = await req.json()
 
-  // Cancel all bookings and free up slots
-  const bookings = await prisma.booking.findMany({
-    where: { studentId, status: { in: ['PENDING', 'APPROVED'] } },
+  // Free up and cancel only future pending/approved bookings — past lessons
+  // (whatever their status) are left untouched so they keep showing in the
+  // calendar/history for documentation after the student is archived.
+  const now = new Date()
+  const futureBookings = await prisma.booking.findMany({
+    where: {
+      studentId,
+      status: { in: ['PENDING', 'APPROVED'] },
+      availability: { startTime: { gt: now } },
+    },
   })
-  for (const b of bookings) {
+  for (const b of futureBookings) {
     await prisma.availability.update({
       where: { id: b.availabilityId },
       data: { isBooked: false },
     })
   }
+  if (futureBookings.length > 0) {
+    await prisma.booking.updateMany({
+      where: { id: { in: futureBookings.map(b => b.id) } },
+      data: { status: 'CANCELLED' },
+    })
+  }
 
-  await prisma.booking.deleteMany({ where: { studentId } })
-  await prisma.account.deleteMany({ where: { userId: studentId } })
+  // Archive, don't delete — keeps the User row (and all its Booking/Payment/
+  // Invoice history) intact, just hidden from the active roster.
   await prisma.session.deleteMany({ where: { userId: studentId } })
-  await prisma.user.delete({ where: { id: studentId } })
+  await prisma.user.update({ where: { id: studentId }, data: { archivedAt: new Date() } })
 
   return NextResponse.json({ success: true })
 }

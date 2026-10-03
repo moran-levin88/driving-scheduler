@@ -26,7 +26,7 @@ export default async function InstructorDashboard() {
       include: { student: { select: { name: true } }, availability: true },
       orderBy: { availability: { startTime: 'asc' } },
     }),
-    prisma.user.count({ where: { role: 'STUDENT' } }),
+    prisma.user.count({ where: { role: 'STUDENT', archivedAt: null } }),
   ])
 
   // Group consecutive bookings from the same student into lesson groups
