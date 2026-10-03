@@ -37,6 +37,15 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
 
   if (!student) notFound()
 
+  const payments = await prisma.payment.findMany({
+    where: { studentId },
+    orderBy: { paidAt: 'desc' },
+  })
+
+  const METHOD_LABELS: Record<string, string> = {
+    CASH: 'מזומן', BIT: 'ביט', PAYBOX: 'פייבוקס', BANK_TRANSFER: 'העברה בנקאית',
+  }
+
   // Group consecutive bookings into lessons
   type Booking = typeof student.bookings[0]
   type Lesson = { status: string; startTime: Date; endTime: Date }
@@ -99,6 +108,43 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
         </table>
         {lessons.length === 0 && (
           <div className="p-8 text-center text-gray-500">אין היסטוריית שיעורים</div>
+        )}
+      </div>
+
+      <h2 className="text-xl font-bold text-gray-900 mt-8 mb-3">תשלומים</h2>
+      <div className="bg-white rounded-xl shadow overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">תאריך</th>
+              <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">סכום</th>
+              <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">אמצעי</th>
+              <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">אסמכתא</th>
+              <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">חשבונית</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {payments.map(p => (
+              <tr key={p.id} className="hover:bg-gray-50">
+                <td className="px-6 py-4">{israelDate(p.paidAt)}</td>
+                <td className="px-6 py-4 font-medium">₪{p.amount}</td>
+                <td className="px-6 py-4 text-gray-600">{METHOD_LABELS[p.method]}</td>
+                <td className="px-6 py-4 text-gray-600">{p.reference || '—'}</td>
+                <td className="px-6 py-4">
+                  {p.invoiceUrl ? (
+                    <a href={p.invoiceUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                      📄 צפייה
+                    </a>
+                  ) : (
+                    <span className="text-xs text-red-500">לא הופקה</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {payments.length === 0 && (
+          <div className="p-8 text-center text-gray-500">אין היסטוריית תשלומים</div>
         )}
       </div>
     </div>

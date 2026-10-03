@@ -14,7 +14,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params
   const body = await req.json()
 
-  const data: { isRestricted?: boolean; name?: string; email?: string; phone?: string | null } = {}
+  const data: {
+    isRestricted?: boolean; name?: string; email?: string; phone?: string | null
+    pricePer20Min?: number | null; idNumber?: string | null; dateOfBirth?: Date | null
+  } = {}
   if ('isRestricted' in body) data.isRestricted = !!body.isRestricted
   if ('name' in body) {
     const name = String(body.name ?? '').trim()
@@ -30,12 +33,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const phone = String(body.phone ?? '').trim()
     data.phone = phone || null
   }
+  if ('pricePer20Min' in body) {
+    const price = body.pricePer20Min === null || body.pricePer20Min === '' ? null : Number(body.pricePer20Min)
+    if (price !== null && (!Number.isFinite(price) || price < 0)) {
+      return NextResponse.json({ error: 'מחיר לא תקין' }, { status: 400 })
+    }
+    data.pricePer20Min = price
+  }
+  if ('idNumber' in body) {
+    const idNumber = String(body.idNumber ?? '').trim()
+    data.idNumber = idNumber || null
+  }
+  if ('dateOfBirth' in body) {
+    data.dateOfBirth = body.dateOfBirth ? new Date(body.dateOfBirth) : null
+  }
 
   try {
     const student = await prisma.user.update({
       where: { id, role: 'STUDENT' },
       data,
-      select: { id: true, name: true, email: true, phone: true, isRestricted: true },
+      select: {
+        id: true, name: true, email: true, phone: true, isRestricted: true,
+        pricePer20Min: true, idNumber: true, dateOfBirth: true,
+      },
     })
     return NextResponse.json(student)
   } catch (err: any) {

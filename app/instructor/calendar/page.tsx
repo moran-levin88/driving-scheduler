@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay } from 'date-fns'
 import { he } from 'date-fns/locale'
 
@@ -8,16 +9,29 @@ const START_HOUR = 7
 const END_HOUR = 22
 const TOTAL_HEIGHT = (END_HOUR - START_HOUR) * HOUR_HEIGHT
 
+type PaymentInfo = {
+  amount: number
+  method: 'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER'
+  reference: string | null
+  paidAt: string
+  invoiceId: string | null
+  invoiceNumber: string | null
+  invoiceUrl: string | null
+}
+
 type Lesson = {
   ids: string[]          // all booking IDs in the group
   firstId: string
+  studentId: string
   studentName: string
   phone: string | null
+  pricePer20Min: number | null
   startTime: Date
   endTime: Date
   pickupAddress: string | null
   alternativeSlots: string[]  // ISO strings from student
   calendarEventId: string | null
+  payment: PaymentInfo | null
 }
 
 type Block = { id: string; startTime: Date; endTime: Date; blockNote: string | null }
@@ -30,8 +44,9 @@ type CalendarBooking = {
   notes?: string | null
   calendarEventId?: string | null
   alternativeSlots?: string[] | null
-  student: { name: string; phone?: string | null }
+  student: { name: string; phone?: string | null; pricePer20Min?: number | null }
   availability: { startTime: string; endTime: string }
+  payment?: PaymentInfo | null
 }
 
 function groupToLessons(bookings: CalendarBooking[]): Lesson[] {
@@ -54,13 +69,16 @@ function groupToLessons(bookings: CalendarBooking[]): Lesson[] {
       lessons.push({
         ids: [b.id],
         firstId: b.id,
+        studentId: b.studentId,
         studentName: b.student.name,
         phone: b.student.phone ?? null,
+        pricePer20Min: b.student.pricePer20Min ?? null,
         startTime: new Date(b.availability.startTime),
         endTime: new Date(b.availability.endTime),
         pickupAddress: b.pickupAddress ?? null,
         alternativeSlots: Array.isArray(b.alternativeSlots) ? b.alternativeSlots : [],
         calendarEventId: b.calendarEventId ?? null,
+        payment: b.payment ?? null,
       })
     }
   }
@@ -88,6 +106,14 @@ type ActionModal = {
   syncResult: string
   changingDuration: boolean
   durationResult: string
+  paymentMethod: 'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER'
+  paymentAmount: string
+  paymentReference: string
+  paymentDate: string
+  loggingPayment: boolean
+  paymentResult: string
+  payment: PaymentInfo | null
+  retryingInvoice: boolean
 }
 
 type SwapModal = {
@@ -209,6 +235,8 @@ export default function CalendarPage() {
   }
 
   function openAction(lesson: Lesson) {
+    const slots = Math.round((lesson.endTime.getTime() - lesson.startTime.getTime()) / 60000 / 20)
+    const suggestedAmount = lesson.pricePer20Min != null ? lesson.pricePer20Min * slots : null
     setActionModal({
       lesson,
       targetDate: format(lesson.startTime, 'yyyy-MM-dd'),
@@ -222,7 +250,70 @@ export default function CalendarPage() {
       syncResult: '',
       changingDuration: false,
       durationResult: '',
+      paymentMethod: 'CASH',
+      paymentAmount: suggestedAmount != null ? String(suggestedAmount) : '',
+      paymentReference: '',
+      paymentDate: format(new Date(), 'yyyy-MM-dd'),
+      loggingPayment: false,
+      paymentResult: '',
+      payment: lesson.payment,
+      retryingInvoice: false,
     })
+  }
+
+  async function handleLogPayment() {
+    if (!actionModal) return
+    const amount = Number(actionModal.paymentAmount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setActionModal(m => m ? { ...m, paymentResult: 'סכום לא תקין' } : m)
+      return
+    }
+    setActionModal(m => m ? { ...m, loggingPayment: true, paymentResult: '' } : m)
+    try {
+      const res = await fetch(`/api/bookings/${actionModal.lesson.firstId}/payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
+          method: actionModal.paymentMethod,
+          reference: actionModal.paymentReference,
+          paidAt: new Date(actionModal.paymentDate).toISOString(),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok || res.status === 207) {
+        setActionModal(m => m ? {
+          ...m, loggingPayment: false, payment: data.payment,
+          paymentResult: data.invoiceError ? `✓ התשלום נרשם, אך ${data.invoiceError}` : '',
+        } : m)
+        fetch('/api/bookings').then(r => r.json()).then(d => {
+          if (Array.isArray(d)) setLessons(groupToLessons(d))
+        })
+      } else {
+        setActionModal(m => m ? { ...m, loggingPayment: false, paymentResult: data.error || 'שגיאה' } : m)
+      }
+    } catch {
+      setActionModal(m => m ? { ...m, loggingPayment: false, paymentResult: 'שגיאת רשת — נסה שוב' } : m)
+    }
+  }
+
+  async function handleRetryInvoice() {
+    if (!actionModal) return
+    setActionModal(m => m ? { ...m, retryingInvoice: true, paymentResult: '' } : m)
+    try {
+      const res = await fetch(`/api/bookings/${actionModal.lesson.firstId}/payment/retry-invoice`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setActionModal(m => m ? { ...m, retryingInvoice: false, payment: data.payment, paymentResult: '' } : m)
+        fetch('/api/bookings').then(r => r.json()).then(d => {
+          if (Array.isArray(d)) setLessons(groupToLessons(d))
+        })
+      } else {
+        setActionModal(m => m ? { ...m, retryingInvoice: false, paymentResult: data.error || 'שגיאה' } : m)
+      }
+    } catch {
+      setActionModal(m => m ? { ...m, retryingInvoice: false, paymentResult: 'שגיאת רשת — נסה שוב' } : m)
+    }
   }
 
   async function handleChangeDuration(minutes: number) {
@@ -422,6 +513,9 @@ export default function CalendarPage() {
                         {!lesson.calendarEventId && (
                           <span title="לא סונכרן ל-Google Calendar" className="absolute top-0.5 left-0.5 text-xs leading-none">⚠️</span>
                         )}
+                        {lesson.payment && (
+                          <span title="שולם" className="absolute top-0.5 right-0.5 text-xs leading-none">💰</span>
+                        )}
                       </div>
                     )
                   })}
@@ -532,6 +626,99 @@ export default function CalendarPage() {
               </div>
               {actionModal.changingDuration && <p className="text-xs text-purple-600">משנה משך...</p>}
               {actionModal.durationResult && <p className="text-xs text-red-600">{actionModal.durationResult}</p>}
+            </div>
+
+            {/* Payment */}
+            <div className="bg-green-50 rounded-xl p-3 mb-3">
+              <p className="text-sm font-semibold text-green-800 mb-2">💰 רישום תשלום</p>
+
+              {actionModal.payment ? (
+                <div className="text-sm space-y-1">
+                  <p><span className="text-gray-500">סכום:</span> ₪{actionModal.payment.amount}</p>
+                  <p><span className="text-gray-500">אמצעי:</span> {
+                    { CASH: 'מזומן', BIT: 'ביט', PAYBOX: 'פייבוקס', BANK_TRANSFER: 'העברה בנקאית' }[actionModal.payment.method]
+                  }</p>
+                  {actionModal.payment.reference && <p><span className="text-gray-500">אסמכתא:</span> {actionModal.payment.reference}</p>}
+                  <p><span className="text-gray-500">תאריך:</span> {format(new Date(actionModal.payment.paidAt), 'd/M/yyyy')}</p>
+                  {actionModal.payment.invoiceUrl ? (
+                    <a href={actionModal.payment.invoiceUrl} target="_blank" rel="noreferrer"
+                      className="block w-full text-center bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition mt-2">
+                      📄 פתח חשבונית
+                    </a>
+                  ) : (
+                    <div className="mt-2">
+                      <p className="text-xs text-red-600 mb-1">⚠️ החשבונית לא הופקה{actionModal.paymentResult ? `: ${actionModal.paymentResult}` : ''}</p>
+                      <button onClick={handleRetryInvoice} disabled={actionModal.retryingInvoice}
+                        className="w-full bg-amber-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50 transition">
+                        {actionModal.retryingInvoice ? 'מנסה...' : 'נסה שוב להפיק חשבונית'}
+                      </button>
+                    </div>
+                  )}
+                  {actionModal.payment.invoiceUrl && actionModal.lesson.phone && (() => {
+                    const phone = actionModal.lesson.phone!.replace(/\D/g, '').replace(/^0/, '972')
+                    const text = `שלום ${actionModal.lesson.studentName}, מצורף קישור לחשבונית על התשלום: ${actionModal.payment!.invoiceUrl}`
+                    return (
+                      <a href={`https://wa.me/${phone}?text=${encodeURIComponent(text)}`} target="_blank" rel="noreferrer"
+                        className="block w-full text-center bg-green-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-600 transition mt-2">
+                        📲 שלח ללקוח ב-WhatsApp
+                      </a>
+                    )
+                  })()}
+                </div>
+              ) : actionModal.lesson.pricePer20Min == null ? (
+                <p className="text-xs text-gray-500">
+                  לא הוגדר מחיר ל-20 דק׳ עבור {actionModal.lesson.studentName}. יש להגדיר מחיר בעמוד
+                  {' '}<Link href="/instructor/students" className="text-blue-600 hover:underline">תלמידים</Link> כדי לרשום תשלום.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {([
+                      { v: 'CASH', l: 'מזומן' },
+                      { v: 'BIT', l: 'ביט' },
+                      { v: 'PAYBOX', l: 'פייבוקס' },
+                      { v: 'BANK_TRANSFER', l: 'העברה' },
+                    ] as const).map(o => (
+                      <button key={o.v} type="button"
+                        onClick={() => setActionModal(m => m ? { ...m, paymentMethod: o.v } : m)}
+                        className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${
+                          actionModal.paymentMethod === o.v ? 'border-green-600 bg-green-100 text-green-800' : 'border-gray-200 bg-white hover:border-green-300'
+                        }`}>
+                        {o.l}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">סכום (₪)</label>
+                      <input type="number" min={0} value={actionModal.paymentAmount}
+                        onChange={e => setActionModal(m => m ? { ...m, paymentAmount: e.target.value } : m)}
+                        className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-400" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">תאריך תשלום</label>
+                      <input type="date" value={actionModal.paymentDate}
+                        onChange={e => setActionModal(m => m ? { ...m, paymentDate: e.target.value } : m)}
+                        className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-400" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">
+                      {actionModal.paymentMethod === 'BANK_TRANSFER' ? 'מספר אסמכתא / שם המעביר'
+                        : actionModal.paymentMethod === 'CASH' ? 'הערה (אופציונלי)'
+                        : 'מספר אישור / טלפון ששימש לתשלום'}
+                    </label>
+                    <input type="text" value={actionModal.paymentReference}
+                      onChange={e => setActionModal(m => m ? { ...m, paymentReference: e.target.value } : m)}
+                      className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-400" />
+                  </div>
+                  {actionModal.paymentResult && <p className="text-xs text-red-600">{actionModal.paymentResult}</p>}
+                  <button onClick={handleLogPayment} disabled={actionModal.loggingPayment}
+                    className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition">
+                    {actionModal.loggingPayment ? 'מפיק חשבונית...' : `אשר ₪${actionModal.paymentAmount || 0} והפק חשבונית`}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Alternative slots */}

@@ -10,6 +10,9 @@ type Student = {
   email: string
   phone: string | null
   isRestricted: boolean
+  pricePer20Min: number | null
+  idNumber: string | null
+  dateOfBirth: string | null
   bookings: { status: string; availability: { startTime: string } }[]
 }
 
@@ -24,14 +27,19 @@ export default function StudentsPage() {
   const [search, setSearch] = useState('')
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
-  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '' })
+  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', pricePer20Min: '', idNumber: '', dateOfBirth: '' })
   const [editError, setEditError] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [weekOffset, setWeekOffset] = useState(1)
 
   function openEdit(s: Student) {
     setEditingStudent(s)
-    setEditForm({ name: s.name, email: s.email, phone: s.phone || '' })
+    setEditForm({
+      name: s.name, email: s.email, phone: s.phone || '',
+      pricePer20Min: s.pricePer20Min != null ? String(s.pricePer20Min) : '',
+      idNumber: s.idNumber || '',
+      dateOfBirth: s.dateOfBirth ? s.dateOfBirth.slice(0, 10) : '',
+    })
     setEditError('')
   }
 
@@ -42,7 +50,12 @@ export default function StudentsPage() {
     const res = await fetch(`/api/students/${editingStudent.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: editForm.name, email: editForm.email, phone: editForm.phone }),
+      body: JSON.stringify({
+        name: editForm.name, email: editForm.email, phone: editForm.phone,
+        pricePer20Min: editForm.pricePer20Min === '' ? null : Number(editForm.pricePer20Min),
+        idNumber: editForm.idNumber,
+        dateOfBirth: editForm.dateOfBirth || null,
+      }),
     })
     setSavingEdit(false)
     if (res.ok) {
@@ -197,6 +210,35 @@ export default function StudentsPage() {
                   type="tel"
                   value={editForm.phone}
                   onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">מחיר ל-20 דק׳ (₪)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={editForm.pricePer20Min}
+                  onChange={e => setEditForm(f => ({ ...f, pricePer20Min: e.target.value }))}
+                  placeholder="לדוגמה: 50"
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">תעודת זהות</label>
+                <input
+                  type="text"
+                  value={editForm.idNumber}
+                  onChange={e => setEditForm(f => ({ ...f, idNumber: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">תאריך לידה</label>
+                <input
+                  type="date"
+                  value={editForm.dateOfBirth}
+                  onChange={e => setEditForm(f => ({ ...f, dateOfBirth: e.target.value }))}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
                 />
               </div>

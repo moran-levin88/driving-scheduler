@@ -5,11 +5,11 @@ import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 
 export async function POST(req: NextRequest) {
-  const { name, email: rawEmail, phone, password } = await req.json()
+  const { name, email: rawEmail, phone, password, idNumber, dateOfBirth } = await req.json()
   const email = rawEmail?.toLowerCase()
 
-  if (!name || !email || !password) {
-    return NextResponse.json({ error: 'Name, email and password required' }, { status: 400 })
+  if (!name || !email || !password || !idNumber || !dateOfBirth) {
+    return NextResponse.json({ error: 'יש למלא את כל השדות' }, { status: 400 })
   }
 
   if (password.length < 6) {
@@ -30,7 +30,10 @@ export async function POST(req: NextRequest) {
 
   const hash = await bcrypt.hash(password, 12)
   const user = await prisma.user.create({
-    data: { name, email, phone, role: 'STUDENT', password: hash },
+    data: {
+      name, email, phone, role: 'STUDENT', password: hash,
+      idNumber, dateOfBirth: new Date(dateOfBirth),
+    },
   })
 
   return NextResponse.json({ id: user.id, email: user.email }, { status: 201 })

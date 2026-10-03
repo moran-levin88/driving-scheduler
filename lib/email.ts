@@ -141,6 +141,26 @@ export async function sendCancellationAlertToInstructor(studentName: string, sta
   )
 }
 
+export async function sendInvoiceToStudent(
+  student: { name: string; email: string },
+  invoice: { amount: number; invoiceUrl: string; invoiceNumber: string },
+) {
+  await send(
+    student.email,
+    `חשבונית מס/קבלה #${invoice.invoiceNumber}`,
+    `
+      <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>תודה על התשלום!</h2>
+        <p>שלום ${student.name.trim()},</p>
+        <p>קיבלנו את התשלום שלך על סך <strong>₪${invoice.amount}</strong>. מצורפת חשבונית מס/קבלה.</p>
+        <p style="margin: 24px 0;">
+          <a href="${invoice.invoiceUrl}" style="background:#2563eb;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;">צפייה בחשבונית</a>
+        </p>
+      </div>
+    `
+  )
+}
+
 export async function sendPasswordReset(user: { name: string; email: string }, resetUrl: string) {
   await send(
     user.email,

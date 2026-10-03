@@ -52,6 +52,9 @@ model User {
   password         String?
   isRestricted     Boolean   @default(false)
   pushSubscription String?   // legacy single-device field (kept for reference)
+  pricePer20Min    Int?      // ₪ instructor sets per student; null = not priced yet
+  idNumber         String?   // ת"ז
+  dateOfBirth      DateTime?
   createdAt        DateTime  @default(now())
 
   accounts            Account[]
@@ -60,6 +63,7 @@ model User {
   availability        Availability[]
   pushSubscriptions   PushSubscription[]
   passwordResetTokens PasswordResetToken[]
+  payments            Payment[]
 }
 
 model PasswordResetToken {
@@ -124,6 +128,8 @@ model Booking {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
+  payment Payment?
+
   @@index([studentId, status])
   @@index([status, createdAt])
   @@index([reminderSent, status])
@@ -135,4 +141,29 @@ enum BookingStatus {
   REJECTED
   CANCELLED
   COMPLETED
+}
+
+enum PaymentMethod {
+  CASH
+  BIT
+  PAYBOX
+  BANK_TRANSFER
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  bookingId     String        @unique // first booking id of the lesson chain
+  booking       Booking       @relation(fields: [bookingId], references: [id])
+  studentId     String
+  student       User          @relation(fields: [studentId], references: [id])
+  amount        Int           // ₪ — what the instructor confirmed, may differ from the derived suggestion
+  method        PaymentMethod
+  reference     String?       // confirmation #, sender name, phone used for Bit/PayBox, etc.
+  paidAt        DateTime
+  invoiceId     String?       // Morning document id
+  invoiceNumber String?
+  invoiceUrl    String?
+  createdAt     DateTime      @default(now())
+
+  @@index([studentId])
 }

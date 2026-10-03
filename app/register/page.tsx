@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useLanguage } from '@/contexts/LanguageContext'
 
 export default function RegisterPage() {
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' })
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', idNumber: '', dateOfBirth: '' })
   const [confirm, setConfirm] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -90,6 +90,16 @@ export default function RegisterPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('phone')}</label>
             <input type="tel" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})}
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('idNumber')}</label>
+            <input type="text" value={form.idNumber} onChange={e => setForm({...form, idNumber: e.target.value})} required
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('dateOfBirth')}</label>
+            <input type="date" value={form.dateOfBirth} onChange={e => setForm({...form, dateOfBirth: e.target.value})} required
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>

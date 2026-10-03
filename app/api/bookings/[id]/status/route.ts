@@ -8,6 +8,7 @@ import { sendBookingApproved, sendBookingRejected, sendBookingCancelled } from '
 import { createCalendarEvent, deleteCalendarEvent } from '@/lib/calendar'
 import { sendSmsToInstructor } from '@/lib/sms'
 import { sendPushToInstructor } from '@/lib/push'
+import { findLessonChain } from '@/lib/lessonChain'
 import { format } from 'date-fns'
 import { he } from 'date-fns/locale'
 
@@ -23,43 +24,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const { id } = await params
-  const booking = await prisma.booking.findUnique({
-    where: { id },
-    include: { student: true, availability: true },
-  })
+  const booking = await prisma.booking.findUnique({ where: { id } })
   if (!booking) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Find all consecutive sibling bookings (same student, status, pickupAddress, notes)
   // so the whole lesson is processed and the calendar event covers the full duration
-  const siblings = await prisma.booking.findMany({
-    where: { studentId: booking.studentId, status: booking.status },
-    include: { student: true, availability: true },
-    orderBy: { availability: { startTime: 'asc' } },
-  })
-
-  // Build all consecutive chains, then find the one containing this booking
-  const allChains: (typeof siblings)[] = []
-  let current: typeof siblings = []
-  for (const b of siblings) {
-    const last = current[current.length - 1]
-    if (
-      last &&
-      (last.pickupAddress ?? null) === (b.pickupAddress ?? null) &&
-      (last.notes ?? null) === (b.notes ?? null) &&
-      new Date(last.availability.endTime).getTime() === new Date(b.availability.startTime).getTime()
-    ) {
-      current.push(b)
-    } else {
-      if (current.length) allChains.push(current)
-      current = [b]
-    }
-  }
-  if (current.length) allChains.push(current)
-  const chain = allChains.find(c => c.some(b => b.id === id)) ?? [booking as any]
+  const result = await findLessonChain(id, booking.status)
+  if (!result) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const { chain, first, last } = result
 
   const ids = chain.map(b => b.id)
-  const first = chain[0]
-  const last = chain[chain.length - 1]
 
   await prisma.booking.updateMany({ where: { id: { in: ids } }, data: { status } })
 

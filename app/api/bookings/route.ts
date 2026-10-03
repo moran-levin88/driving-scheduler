@@ -17,8 +17,9 @@ export async function GET(req: NextRequest) {
   if (role === 'INSTRUCTOR') {
     const bookings = await prisma.booking.findMany({
       include: {
-        student: { select: { name: true, email: true, phone: true } },
+        student: { select: { id: true, name: true, email: true, phone: true, pricePer20Min: true } },
         availability: true,
+        payment: true,
       },
       orderBy: { createdAt: 'desc' },
     })
