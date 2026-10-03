@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useLanguage } from '@/contexts/LanguageContext'
 
 export default function RegisterPage() {
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', idNumber: '', dateOfBirth: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', password: '', idNumber: '', dateOfBirth: '' })
   const [confirm, setConfirm] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -25,10 +25,11 @@ export default function RegisterPage() {
 
     setLoading(true)
 
+    const name = `${form.firstName.trim()} ${form.lastName.trim()}`.trim()
     const res = await fetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, name }),
     })
 
     if (!res.ok) {
@@ -46,7 +47,7 @@ export default function RegisterPage() {
       <main className="min-h-screen flex items-center justify-center bg-blue-50" dir={dir}>
         <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md text-center">
           <div className="text-6xl mb-4">🎉</div>
-          <h2 className="text-2xl font-bold text-blue-900 mb-2">{t('welcome')}, {form.name}!</h2>
+          <h2 className="text-2xl font-bold text-blue-900 mb-2">{t('welcome')}, {form.firstName}!</h2>
           <p className="text-gray-600 mb-2">{t('registrationSuccess')}</p>
           <p className="text-gray-500 text-sm mb-6">{t('registrationSuccessMsg')}</p>
           <Link href="/login"
@@ -75,15 +76,21 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <h1 className="text-2xl font-bold text-blue-900 mb-6">{t('registerTitle')}</h1>
+        <h1 className="text-2xl font-bold text-blue-900 mb-1">{t('registerTitle')}</h1>
+        <p className="text-xs text-gray-400 mb-5"><span className="text-red-500">*</span> {t('requiredField')}</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('fullName')}</label>
-            <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('firstName')} <span className="text-red-500">*</span></label>
+            <input type="text" value={form.firstName} onChange={e => setForm({...form, firstName: e.target.value})} required
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('email')}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('lastName')} <span className="text-red-500">*</span></label>
+            <input type="text" value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} required
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('email')} <span className="text-red-500">*</span></label>
             <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} required
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
@@ -93,18 +100,18 @@ export default function RegisterPage() {
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('idNumber')}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('idNumber')} <span className="text-red-500">*</span></label>
             <input type="text" value={form.idNumber} onChange={e => setForm({...form, idNumber: e.target.value})} required
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('dateOfBirth')}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('dateOfBirth')} <span className="text-red-500">*</span></label>
             <input type="date" value={form.dateOfBirth} onChange={e => setForm({...form, dateOfBirth: e.target.value})} required
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
             <div className="flex items-center gap-1 mb-1">
-              <label className="block text-sm font-medium text-gray-700">{t('password')}</label>
+              <label className="block text-sm font-medium text-gray-700">{t('password')} <span className="text-red-500">*</span></label>
               <div className="relative">
                 <button type="button" onClick={() => setShowTooltip(v => !v)} className="text-gray-400 text-sm">ⓘ</button>
                 {showTooltip && (
@@ -126,7 +133,7 @@ export default function RegisterPage() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t('confirmPassword')}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('confirmPassword')} <span className="text-red-500">*</span></label>
             <div className="relative">
               <input type={showConfirm ? 'text' : 'password'} value={confirm}
                 onChange={e => setConfirm(e.target.value)} required minLength={6}
