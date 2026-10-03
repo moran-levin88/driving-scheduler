@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import StudentPaymentsPanel from './StudentPaymentsPanel'
+import CancelLessonButton from './CancelLessonButton'
 import { getStudentPaymentsPanelData } from '@/lib/paymentsPanelData'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -39,13 +40,14 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
 
       <div className="bg-white rounded-xl shadow overflow-hidden mb-4">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[480px]">
+          <table className="w-full min-w-[580px]">
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">תאריך</th>
                 <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">שעות</th>
                 <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">סטטוס</th>
                 <th className="text-right px-6 py-3 text-sm font-medium text-gray-500">תשלום</th>
+                <th className="text-right px-6 py-3 text-sm font-medium text-gray-500"></th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -70,6 +72,9 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
                       if (l.paidSoFar > 0) return <span className="text-xs text-amber-600">שולם חלקית{price != null ? ` (₪${l.paidSoFar} מתוך ₪${price})` : ''}</span>
                       return <span className="text-xs text-gray-400">טרם שולם</span>
                     })()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {l.status === 'APPROVED' && <CancelLessonButton bookingId={l.firstBookingId} />}
                   </td>
                 </tr>
               ))}
