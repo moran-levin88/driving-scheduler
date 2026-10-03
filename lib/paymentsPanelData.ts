@@ -54,7 +54,10 @@ export async function getStudentPaymentsPanelData(studentId: string) {
 
   // A "lesson" is 40 min = two 20-min slots — count slots, not sessions, so a
   // double (80 min) or "שיעור וחצי" (60 min) lesson counts for more than one.
-  const completedSlots = student.bookings.filter(b => ['APPROVED', 'COMPLETED'].includes(b.status)).length
+  // Only lessons that have actually happened (ended already) count — a
+  // future approved booking isn't "taken" yet.
+  const now = new Date()
+  const completedSlots = student.bookings.filter(b => ['APPROVED', 'COMPLETED'].includes(b.status) && b.availability.endTime <= now).length
   const completedCount = Math.round(completedSlots / 2) + student.manualPriorLessons
 
   const payableLessons = lessons

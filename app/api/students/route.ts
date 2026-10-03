@@ -28,9 +28,12 @@ export async function GET() {
     getAllStudentBalances(),
   ])
 
+  const now = new Date()
   const withStats = students.map(s => {
     const lessons = groupBookingsIntoLessons(s.bookings)
-    const completedLessons = lessons.filter(l => ['APPROVED', 'COMPLETED'].includes(l.status))
+    // Only lessons that have actually happened (ended already) count toward
+    // the displayed lesson count — a future approved booking isn't "taken" yet.
+    const completedLessons = lessons.filter(l => ['APPROVED', 'COMPLETED'].includes(l.status) && l.endTime <= now)
     // Debt is the shortfall per approved lesson (price minus whatever's been
     // paid so far), not just lessons with zero payments — a partially-paid
     // lesson still owes the difference.
