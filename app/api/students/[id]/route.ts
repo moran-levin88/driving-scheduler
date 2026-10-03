@@ -17,6 +17,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const data: {
     isRestricted?: boolean; name?: string; email?: string; phone?: string | null
     pricePer20Min?: number | null; idNumber?: string | null; dateOfBirth?: Date | null
+    manualPriorLessons?: number
   } = {}
   if ('isRestricted' in body) data.isRestricted = !!body.isRestricted
   if ('name' in body) {
@@ -47,6 +48,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ('dateOfBirth' in body) {
     data.dateOfBirth = body.dateOfBirth ? new Date(body.dateOfBirth) : null
   }
+  if ('manualPriorLessons' in body) {
+    const count = Number(body.manualPriorLessons)
+    if (!Number.isInteger(count) || count < 0) {
+      return NextResponse.json({ error: 'מספר שיעורים לא תקין' }, { status: 400 })
+    }
+    data.manualPriorLessons = count
+  }
 
   try {
     const student = await prisma.user.update({
@@ -54,7 +62,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data,
       select: {
         id: true, name: true, email: true, phone: true, isRestricted: true,
-        pricePer20Min: true, idNumber: true, dateOfBirth: true,
+        pricePer20Min: true, idNumber: true, dateOfBirth: true, manualPriorLessons: true,
       },
     })
     return NextResponse.json(student)

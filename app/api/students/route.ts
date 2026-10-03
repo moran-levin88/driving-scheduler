@@ -5,6 +5,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { getAllStudentBalances } from '@/lib/balance'
+import { groupBookingsIntoLessons } from '@/lib/groupLessons'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -12,18 +14,36 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const students = await prisma.user.findMany({
-    where: { role: 'STUDENT' },
-    include: {
-      bookings: {
-        include: { availability: true },
-        orderBy: { createdAt: 'desc' },
+  const [students, balances] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: 'STUDENT' },
+      include: {
+        bookings: {
+          include: { availability: true, payment: { select: { id: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
       },
-    },
-    orderBy: { name: 'asc' },
+      orderBy: { name: 'asc' },
+    }),
+    getAllStudentBalances(),
+  ])
+
+  const withStats = students.map(s => {
+    const lessons = groupBookingsIntoLessons(s.bookings)
+    const completedLessons = lessons.filter(l => ['APPROVED', 'COMPLETED'].includes(l.status))
+    const unpaidLessons = lessons.filter(l => l.status === 'APPROVED' && !l.paid)
+    const debt = s.pricePer20Min != null
+      ? unpaidLessons.reduce((sum, l) => sum + s.pricePer20Min! * l.slots, 0)
+      : 0
+    return {
+      ...s,
+      lessonCount: completedLessons.length + s.manualPriorLessons,
+      debt,
+      balance: balances.get(s.id) ?? 0,
+    }
   })
 
-  return NextResponse.json(students)
+  return NextResponse.json(withStats)
 }
 
 export async function POST(req: NextRequest) {

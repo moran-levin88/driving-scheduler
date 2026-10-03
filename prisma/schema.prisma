@@ -52,10 +52,11 @@ model User {
   password         String?
   isRestricted     Boolean   @default(false)
   pushSubscription String?   // legacy single-device field (kept for reference)
-  pricePer20Min    Int?      // ₪ instructor sets per student; null = not priced yet
-  idNumber         String?   // ת"ז
-  dateOfBirth      DateTime?
-  createdAt        DateTime  @default(now())
+  pricePer20Min      Int?      // ₪ instructor sets per student; null = not priced yet
+  idNumber           String?   // ת"ז
+  dateOfBirth        DateTime?
+  manualPriorLessons Int       @default(0) // lessons completed before this platform, entered by the instructor
+  createdAt          DateTime  @default(now())
 
   accounts            Account[]
   sessions            Session[]

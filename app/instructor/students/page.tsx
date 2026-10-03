@@ -13,6 +13,10 @@ type Student = {
   pricePer20Min: number | null
   idNumber: string | null
   dateOfBirth: string | null
+  manualPriorLessons: number
+  lessonCount: number
+  debt: number
+  balance: number
   bookings: { status: string; availability: { startTime: string } }[]
 }
 
@@ -27,10 +31,12 @@ export default function StudentsPage() {
   const [search, setSearch] = useState('')
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
-  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', pricePer20Min: '', idNumber: '', dateOfBirth: '' })
+  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', pricePer20Min: '', idNumber: '', dateOfBirth: '', manualPriorLessons: '' })
   const [editError, setEditError] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [weekOffset, setWeekOffset] = useState(1)
+  const [showWeeklyCheck, setShowWeeklyCheck] = useState(false)
+  const [showStudentList, setShowStudentList] = useState(false)
 
   function openEdit(s: Student) {
     setEditingStudent(s)
@@ -39,6 +45,7 @@ export default function StudentsPage() {
       pricePer20Min: s.pricePer20Min != null ? String(s.pricePer20Min) : '',
       idNumber: s.idNumber || '',
       dateOfBirth: s.dateOfBirth ? s.dateOfBirth.slice(0, 10) : '',
+      manualPriorLessons: String(s.manualPriorLessons ?? 0),
     })
     setEditError('')
   }
@@ -55,13 +62,13 @@ export default function StudentsPage() {
         pricePer20Min: editForm.pricePer20Min === '' ? null : Number(editForm.pricePer20Min),
         idNumber: editForm.idNumber,
         dateOfBirth: editForm.dateOfBirth || null,
+        manualPriorLessons: editForm.manualPriorLessons === '' ? 0 : Number(editForm.manualPriorLessons),
       }),
     })
     setSavingEdit(false)
     if (res.ok) {
-      const updated = await res.json()
-      setStudents(prev => prev.map(s => s.id === updated.id ? { ...s, ...updated } : s))
       setEditingStudent(null)
+      fetchStudents() // refetch — lessonCount/debt/balance are server-computed
     } else {
       const d = await res.json().catch(() => ({}))
       setEditError(d.error || 'שגיאה בשמירה')
@@ -115,19 +122,35 @@ export default function StudentsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
         <h1 className="text-3xl font-bold text-gray-900">תלמידים</h1>
-        <input
-          type="text"
-          placeholder="חיפוש לפי שם, אימייל או טלפון..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 w-64"
-        />
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setShowWeeklyCheck(v => !v)}
+            title="מי עוד לא קבע שיעור"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
+              showWeeklyCheck ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+            }`}>
+            📋 מי לא קבע
+          </button>
+          <button onClick={() => setShowStudentList(v => !v)}
+            title="רשימת תלמידים"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
+              showStudentList ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+            }`}>
+            👥 רשימת תלמידים
+          </button>
+          <input
+            type="text"
+            placeholder="חיפוש לפי שם, אימייל או טלפון..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 w-64"
+          />
+        </div>
       </div>
 
       {/* Weekly check — who hasn't booked yet */}
-      {(() => {
+      {showWeeklyCheck && (() => {
         const weekStart = addWeeks(startOfWeek(new Date(), { weekStartsOn: 0 }), weekOffset)
         const weekEnd = addDays(weekStart, 6) // exclusive — covers Sunday through Friday
         const hasBookingThatWeek = (s: Student) => s.bookings.some(b => {
@@ -242,6 +265,18 @@ export default function StudentsPage() {
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">שיעורים שבוצעו לפני המערכת</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={editForm.manualPriorLessons}
+                  onChange={e => setEditForm(f => ({ ...f, manualPriorLessons: e.target.value }))}
+                  placeholder="0"
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">לתלמידים ותיקים — שיעורים שהתבצעו לפני שהתחלתם להשתמש במערכת</p>
+              </div>
             </div>
             {editError && <p className="text-red-600 text-sm mb-3">{editError}</p>}
             <div className="flex gap-2">
@@ -287,7 +322,7 @@ export default function StudentsPage() {
         </div>
       )}
 
-      {(() => {
+      {(showStudentList || search.trim().length > 0) && (() => {
         const q = search.trim().toLowerCase()
         const filtered = q
           ? students.filter(s =>
@@ -304,22 +339,34 @@ export default function StudentsPage() {
         return (
         <div className="space-y-3">
           {filtered.map(s => {
-            const lessonCount = Math.round(s.bookings.filter(b => ['APPROVED', 'COMPLETED'].includes(b.status)).length / 2)
             return (
               <div key={s.id} className="bg-white rounded-xl shadow p-4">
                 <div className="flex items-start justify-between gap-3">
                   {/* Student info */}
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 text-base">{s.name}</p>
-                    <p className="text-sm text-gray-500 truncate">{s.email}</p>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <p className="font-semibold text-gray-900 text-base">{s.name}</p>
+                      <span className="flex items-baseline gap-1 text-blue-700">
+                        <span className="text-2xl font-bold leading-none">{s.lessonCount}</span>
+                        <span className="text-xs text-blue-500">שיעורים</span>
+                      </span>
+                      {s.debt > 0 && (
+                        <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                          חוב: ₪{s.debt}
+                        </span>
+                      )}
+                      {s.balance > 0 && (
+                        <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                          יתרה: ₪{s.balance}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500 truncate mt-1">{s.email}</p>
                     {s.phone && (
                       <a href={`tel:${s.phone}`} className="text-sm text-blue-600 hover:underline block">
                         📞 {s.phone}
                       </a>
                     )}
-                    <span className="inline-block mt-1 bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium">
-                      {lessonCount} שיעורים
-                    </span>
                     <button
                       onClick={() => toggleRestriction(s.id, s.isRestricted)}
                       disabled={togglingId === s.id}
