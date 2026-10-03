@@ -4,9 +4,12 @@ import { useState } from 'react'
 type PayableLesson = { firstBookingId: string; startTime: string; endTime: string; paidSoFar: number }
 type InvoiceRow = {
   id: string; amount: number; method: string; reference: string | null
-  paidAt: string; isDeposit: boolean; invoiceId: string | null; invoiceUrl: string | null
+  paidAt: string; isDeposit: boolean; description: string | null
+  invoiceId: string | null; invoiceUrl: string | null
   lessonCount: number
 }
+
+const CHARGE_PRESETS = ['טסט פנימי', 'מבחן מעשי'] as const
 
 const METHOD_LABELS: Record<string, string> = {
   CASH: 'מזומן', BIT: 'ביט', PAYBOX: 'פייבוקס', BANK_TRANSFER: 'העברה בנקאית', BALANCE: 'יתרה',
@@ -38,6 +41,16 @@ export default function StudentPaymentsPanel({
   const [depositDate, setDepositDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [depositing, setDepositing] = useState(false)
   const [depositResult, setDepositResult] = useState('')
+
+  // One-off charge (e.g. test car provision) — not tied to a lesson
+  const [chargeOpen, setChargeOpen] = useState(false)
+  const [chargeDescription, setChargeDescription] = useState('')
+  const [chargeAmount, setChargeAmount] = useState('')
+  const [chargeMethod, setChargeMethod] = useState<'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER'>('CASH')
+  const [chargeReference, setChargeReference] = useState('')
+  const [chargeDate, setChargeDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [charging, setCharging] = useState(false)
+  const [chargeResult, setChargeResult] = useState('')
 
   // Batch payment form
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -130,6 +143,42 @@ export default function StudentPaymentsPanel({
       setDepositResult('שגיאת רשת — נסה שוב')
     } finally {
       setDepositing(false)
+    }
+  }
+
+  async function handleCharge() {
+    const amount = Number(chargeAmount)
+    if (!chargeDescription.trim()) {
+      setChargeResult('יש להזין תיאור')
+      return
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setChargeResult('סכום לא תקין')
+      return
+    }
+    setCharging(true)
+    setChargeResult('')
+    try {
+      const res = await fetch(`/api/students/${studentId}/charge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: chargeDescription, amount, method: chargeMethod,
+          reference: chargeReference, paidAt: new Date(chargeDate).toISOString(),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok || res.status === 207) {
+        if (data.invoice) setInvoiceList(prev => [data.invoice, ...prev])
+        setChargeResult(data.invoiceError ? `✓ החיוב נרשם, אך ${data.invoiceError}` : '')
+        if (!data.invoiceError) { setChargeOpen(false); setChargeDescription(''); setChargeAmount(''); setChargeReference('') }
+      } else {
+        setChargeResult(data.error || 'שגיאה')
+      }
+    } catch {
+      setChargeResult('שגיאת רשת — נסה שוב')
+    } finally {
+      setCharging(false)
     }
   }
 
@@ -232,6 +281,64 @@ export default function StudentPaymentsPanel({
         )}
       </div>
 
+      {/* One-off charge — not tied to a lesson (e.g. test car provision) */}
+      <div className="bg-white rounded-xl shadow p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-bold text-gray-900">חיוב חד-פעמי</h2>
+          <button onClick={() => setChargeOpen(v => !v)} className="text-sm bg-green-50 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-100 transition">
+            + חיוב חדש
+          </button>
+        </div>
+        {chargeOpen && (
+          <div className="bg-green-50 rounded-xl p-3 mt-2 space-y-2">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">תיאור</label>
+              <div className="flex gap-1.5 mb-1.5">
+                {CHARGE_PRESETS.map(p => (
+                  <button key={p} type="button" onClick={() => setChargeDescription(p)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-medium border-2 transition ${chargeDescription === p ? 'border-green-600 bg-green-100 text-green-800' : 'border-gray-200 bg-white hover:border-green-300'}`}>
+                    {p}
+                  </button>
+                ))}
+              </div>
+              <input type="text" value={chargeDescription} onChange={e => setChargeDescription(e.target.value)}
+                placeholder="תיאור החיוב"
+                className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-400" />
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER'] as const).map(m => (
+                <button key={m} type="button" onClick={() => setChargeMethod(m)}
+                  className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${chargeMethod === m ? 'border-green-600 bg-green-100 text-green-800' : 'border-gray-200 bg-white hover:border-green-300'}`}>
+                  {METHOD_LABELS[m]}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">סכום (₪)</label>
+                <input type="number" min={0} value={chargeAmount} onChange={e => setChargeAmount(e.target.value)}
+                  className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-400" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">תאריך</label>
+                <input type="date" value={chargeDate} onChange={e => setChargeDate(e.target.value)}
+                  className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-400" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">הערה / אסמכתא (אופציונלי)</label>
+              <input type="text" value={chargeReference} onChange={e => setChargeReference(e.target.value)}
+                className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-400" />
+            </div>
+            {chargeResult && <p className="text-xs text-red-600">{chargeResult}</p>}
+            <button onClick={handleCharge} disabled={charging}
+              className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition">
+              {charging ? 'מפיק חשבונית...' : `אשר ₪${chargeAmount || 0} והפק חשבונית`}
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Payable lessons (unpaid or partially paid) + batch payment */}
       <div className="bg-white rounded-xl shadow p-4">
         <h2 className="font-bold text-gray-900 mb-3">שיעורים עם יתרה לתשלום</h2>
@@ -326,7 +433,7 @@ export default function StudentPaymentsPanel({
                     <td className="px-6 py-4 whitespace-nowrap">{new Date(inv.paidAt).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</td>
                     <td className="px-6 py-4 font-medium whitespace-nowrap">₪{inv.amount}</td>
                     <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{METHOD_LABELS[inv.method]}</td>
-                    <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{inv.isDeposit ? 'הפקדה' : `${inv.lessonCount} שיעורים`}</td>
+                    <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{inv.isDeposit ? 'הפקדה' : inv.description || `${inv.lessonCount} שיעורים`}</td>
                     <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{inv.reference || '—'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {inv.invoiceUrl ? (

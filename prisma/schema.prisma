@@ -154,8 +154,10 @@ enum PaymentMethod {
   EXTERNAL // already paid/invoiced outside this system (e.g. the previous platform) — no new Morning document
 }
 
-// One Morning document. Covers 1+ lessons (a regular or batched invoice) or,
-// when isDeposit is true, a bare balance top-up with no lessons attached.
+// One Morning document. Covers 1+ lessons (a regular or batched invoice), a
+// bare balance top-up (isDeposit true, no lessons attached), or a one-off
+// charge unrelated to any lesson (e.g. test car provision — `description`
+// set, isDeposit false, no Payments attached either).
 model Invoice {
   id            String        @id @default(cuid())
   studentId     String
@@ -163,6 +165,7 @@ model Invoice {
   amount        Int           // ₪ total, what the instructor confirmed
   method        PaymentMethod // never BALANCE — a deposit/invoice is always real money in
   reference     String?       // confirmation #, sender name, phone used for Bit/PayBox, etc.
+  description   String?       // set for one-off charges not tied to a lesson; null = lesson invoice/deposit
   paidAt        DateTime
   isDeposit     Boolean       @default(false)
   invoiceId     String?       // Morning document id

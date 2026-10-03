@@ -10,7 +10,8 @@ type PaymentsPanelData = {
   payableLessons: { firstBookingId: string; startTime: string; endTime: string; paidSoFar: number }[]
   invoices: {
     id: string; amount: number; method: string; reference: string | null
-    paidAt: string; isDeposit: boolean; invoiceId: string | null; invoiceUrl: string | null
+    paidAt: string; isDeposit: boolean; description: string | null
+    invoiceId: string | null; invoiceUrl: string | null
     lessonCount: number
   }[]
 }

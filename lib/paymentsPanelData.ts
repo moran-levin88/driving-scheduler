@@ -78,7 +78,7 @@ export async function getStudentPaymentsPanelData(studentId: string) {
     payableLessons,
     invoices: invoices.map(inv => ({
       id: inv.id, amount: inv.amount, method: inv.method, reference: inv.reference,
-      paidAt: inv.paidAt.toISOString(), isDeposit: inv.isDeposit,
+      paidAt: inv.paidAt.toISOString(), isDeposit: inv.isDeposit, description: inv.description,
       invoiceId: inv.invoiceId, invoiceUrl: inv.invoiceUrl,
       lessonCount: inv.payments.length,
     })),
