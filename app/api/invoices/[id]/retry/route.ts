@@ -22,6 +22,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   })
   if (!invoice) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (invoice.invoiceId) return NextResponse.json({ error: 'כבר הופקה חשבונית' }, { status: 409 })
+  if (invoice.method === 'EXTERNAL') {
+    return NextResponse.json({ error: 'שולם בפלטפורמה הקודמת — אין להפיק חשבונית' }, { status: 400 })
+  }
 
   let lines: { description: string; amount: number }[]
   if (invoice.isDeposit) {

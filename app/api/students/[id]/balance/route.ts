@@ -8,7 +8,7 @@ import { getStudentBalance } from '@/lib/balance'
 import { createInvoice, type PaymentMethodForInvoice } from '@/lib/morning'
 import { sendInvoiceToStudent } from '@/lib/email'
 
-const DEPOSIT_METHODS: PaymentMethodForInvoice[] = ['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER']
+const DEPOSIT_METHODS = ['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'EXTERNAL'] as const
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
@@ -45,27 +45,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     data: { studentId: id, amount, method, reference: reference || null, paidAt: paidAtDate, isDeposit: true },
   })
 
+  // EXTERNAL means this money was already paid and already invoiced on the
+  // previous platform — just record the credit locally, no new Morning document.
   let invoiceError: string | null = null
-  try {
-    const created = await createInvoice({
-      student: { name: student.name, email: student.email },
-      lines: [{ description: 'הפקדה ליתרה', amount }],
-      method,
-      paidAt: paidAtDate,
-    })
-    await prisma.invoice.update({
-      where: { id: invoice.id },
-      data: { invoiceId: created.id, invoiceNumber: created.number, invoiceUrl: created.url },
-    })
-    if (student.email && !student.email.includes('@placeholder')) {
-      sendInvoiceToStudent(
-        { name: student.name, email: student.email },
-        { amount, invoiceUrl: created.url, invoiceNumber: created.number },
-      ).catch(err => console.error('Invoice email failed:', err))
+  if (method !== 'EXTERNAL') {
+    try {
+      const created = await createInvoice({
+        student: { name: student.name, email: student.email },
+        lines: [{ description: 'הפקדה ליתרה', amount }],
+        method: method as PaymentMethodForInvoice,
+        paidAt: paidAtDate,
+      })
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { invoiceId: created.id, invoiceNumber: created.number, invoiceUrl: created.url },
+      })
+      if (student.email && !student.email.includes('@placeholder')) {
+        sendInvoiceToStudent(
+          { name: student.name, email: student.email },
+          { amount, invoiceUrl: created.url, invoiceNumber: created.number },
+        ).catch(err => console.error('Invoice email failed:', err))
+      }
+    } catch (err: any) {
+      console.error('Morning deposit invoice failed:', err)
+      invoiceError = err.message || 'יצירת החשבונית נכשלה — ניתן לנסות שוב'
     }
-  } catch (err: any) {
-    console.error('Morning deposit invoice failed:', err)
-    invoiceError = err.message || 'יצירת החשבונית נכשלה — ניתן לנסות שוב'
   }
 
   const finalInvoice = await prisma.invoice.findUnique({ where: { id: invoice.id } })

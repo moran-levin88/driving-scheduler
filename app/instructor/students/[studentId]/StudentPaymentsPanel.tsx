@@ -36,7 +36,7 @@ export default function StudentPaymentsPanel({
   // Add balance form
   const [depositOpen, setDepositOpen] = useState(false)
   const [depositAmount, setDepositAmount] = useState('')
-  const [depositMethod, setDepositMethod] = useState<'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER'>('CASH')
+  const [depositMethod, setDepositMethod] = useState<'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER' | 'EXTERNAL'>('CASH')
   const [depositReference, setDepositReference] = useState('')
   const [depositDate, setDepositDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [depositing, setDepositing] = useState(false)
@@ -248,14 +248,17 @@ export default function StudentPaymentsPanel({
         </div>
         {depositOpen && (
           <div className="bg-green-50 rounded-xl p-3 mt-2 space-y-2">
-            <div className="grid grid-cols-4 gap-1.5">
-              {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER'] as const).map(m => (
+            <div className="grid grid-cols-5 gap-1.5">
+              {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'EXTERNAL'] as const).map(m => (
                 <button key={m} type="button" onClick={() => setDepositMethod(m)}
                   className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${depositMethod === m ? 'border-green-600 bg-green-100 text-green-800' : 'border-gray-200 bg-white hover:border-green-300'}`}>
                   {METHOD_LABELS[m]}
                 </button>
               ))}
             </div>
+            {depositMethod === 'EXTERNAL' && (
+              <p className="text-xs text-gray-500">היתרה תתעדכן בלי להפיק חשבונית — לכסף ששולם וכבר קיבל חשבונית בפלטפורמה הקודמת.</p>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-xs text-gray-600 mb-1">סכום (₪)</label>
@@ -276,7 +279,7 @@ export default function StudentPaymentsPanel({
             {depositResult && <p className="text-xs text-red-600">{depositResult}</p>}
             <button onClick={handleDeposit} disabled={depositing}
               className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition">
-              {depositing ? 'מפיק חשבונית...' : `אשר ₪${depositAmount || 0} והוסף ליתרה`}
+              {depositing ? (depositMethod === 'EXTERNAL' ? 'מעדכן...' : 'מפיק חשבונית...') : depositMethod === 'EXTERNAL' ? `אשר ₪${depositAmount || 0} והוסף ליתרה (בלי חשבונית)` : `אשר ₪${depositAmount || 0} והוסף ליתרה`}
             </button>
           </div>
         )}
@@ -445,6 +448,8 @@ export default function StudentPaymentsPanel({
                     <td className="px-6 py-4 whitespace-nowrap">
                       {inv.invoiceUrl ? (
                         <a href={inv.invoiceUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">📄 צפייה</a>
+                      ) : inv.method === 'EXTERNAL' ? (
+                        <span className="text-xs text-gray-400">ללא חשבונית</span>
                       ) : (
                         <button onClick={() => handleRetry(inv.id)} className="text-xs bg-amber-500 text-white px-2 py-1 rounded-lg hover:bg-amber-600 transition">
                           נסה שוב
