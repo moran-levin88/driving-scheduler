@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-const OPTIONS = [40, 60, 80] as const
+const OPTIONS = [40, 60, 80, 100, 120] as const
 
 export default function EditDurationButton({ bookingId, currentMinutes }: { bookingId: string; currentMinutes: number }) {
   const router = useRouter()
@@ -43,7 +43,7 @@ export default function EditDurationButton({ bookingId, currentMinutes }: { book
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-xl shadow-lg border p-2 w-48" dir="rtl">
+          <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-xl shadow-lg border p-2 w-56" dir="rtl">
             <p className="text-xs text-gray-500 mb-1.5 px-1">משך בפועל:</p>
             <div className="grid grid-cols-3 gap-1">
               {OPTIONS.map(min => {
