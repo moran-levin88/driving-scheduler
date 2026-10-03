@@ -9,14 +9,19 @@ const START_HOUR = 7
 const END_HOUR = 22
 const TOTAL_HEIGHT = (END_HOUR - START_HOUR) * HOUR_HEIGHT
 
+type PaymentMethodValue = 'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER' | 'BALANCE'
+
 type PaymentInfo = {
   amount: number
-  method: 'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER'
-  reference: string | null
+  method: PaymentMethodValue
   paidAt: string
-  invoiceId: string | null
-  invoiceNumber: string | null
-  invoiceUrl: string | null
+  invoice: {
+    id: string
+    reference: string | null
+    invoiceId: string | null
+    invoiceNumber: string | null
+    invoiceUrl: string | null
+  } | null
 }
 
 type Lesson = {
@@ -106,7 +111,7 @@ type ActionModal = {
   syncResult: string
   changingDuration: boolean
   durationResult: string
-  paymentMethod: 'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER'
+  paymentMethod: PaymentMethodValue
   paymentAmount: string
   paymentReference: string
   paymentDate: string
@@ -114,6 +119,7 @@ type ActionModal = {
   paymentResult: string
   payment: PaymentInfo | null
   retryingInvoice: boolean
+  studentBalance: number | null
 }
 
 type SwapModal = {
@@ -258,7 +264,13 @@ export default function CalendarPage() {
       paymentResult: '',
       payment: lesson.payment,
       retryingInvoice: false,
+      studentBalance: null,
     })
+    if (!lesson.payment) {
+      fetch(`/api/students/${lesson.studentId}/balance`).then(r => r.json()).then(d => {
+        setActionModal(m => m ? { ...m, studentBalance: d.balance ?? 0 } : m)
+      }).catch(() => {})
+    }
   }
 
   async function handleLogPayment() {
@@ -270,11 +282,11 @@ export default function CalendarPage() {
     }
     setActionModal(m => m ? { ...m, loggingPayment: true, paymentResult: '' } : m)
     try {
-      const res = await fetch(`/api/bookings/${actionModal.lesson.firstId}/payment`, {
+      const res = await fetch('/api/bookings/group/payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount,
+          items: [{ bookingId: actionModal.lesson.firstId, amount }],
           method: actionModal.paymentMethod,
           reference: actionModal.paymentReference,
           paidAt: new Date(actionModal.paymentDate).toISOString(),
@@ -282,8 +294,17 @@ export default function CalendarPage() {
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok || res.status === 207) {
+        const payment: PaymentInfo = {
+          amount: data.payments?.[0]?.amount ?? amount,
+          method: actionModal.paymentMethod,
+          paidAt: data.payments?.[0]?.paidAt ?? new Date(actionModal.paymentDate).toISOString(),
+          invoice: data.invoice ? {
+            id: data.invoice.id, reference: data.invoice.reference,
+            invoiceId: data.invoice.invoiceId, invoiceNumber: data.invoice.invoiceNumber, invoiceUrl: data.invoice.invoiceUrl,
+          } : null,
+        }
         setActionModal(m => m ? {
-          ...m, loggingPayment: false, payment: data.payment,
+          ...m, loggingPayment: false, payment,
           paymentResult: data.invoiceError ? `✓ התשלום נרשם, אך ${data.invoiceError}` : '',
         } : m)
         fetch('/api/bookings').then(r => r.json()).then(d => {
@@ -298,13 +319,16 @@ export default function CalendarPage() {
   }
 
   async function handleRetryInvoice() {
-    if (!actionModal) return
+    if (!actionModal?.payment?.invoice) return
     setActionModal(m => m ? { ...m, retryingInvoice: true, paymentResult: '' } : m)
     try {
-      const res = await fetch(`/api/bookings/${actionModal.lesson.firstId}/payment/retry-invoice`, { method: 'POST' })
+      const res = await fetch(`/api/invoices/${actionModal.payment.invoice.id}/retry`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        setActionModal(m => m ? { ...m, retryingInvoice: false, payment: data.payment, paymentResult: '' } : m)
+        setActionModal(m => m ? {
+          ...m, retryingInvoice: false, paymentResult: '',
+          payment: m.payment ? { ...m.payment, invoice: { id: data.invoice.id, reference: data.invoice.reference, invoiceId: data.invoice.invoiceId, invoiceNumber: data.invoice.invoiceNumber, invoiceUrl: data.invoice.invoiceUrl } } : m.payment,
+        } : m)
         fetch('/api/bookings').then(r => r.json()).then(d => {
           if (Array.isArray(d)) setLessons(groupToLessons(d))
         })
@@ -636,12 +660,14 @@ export default function CalendarPage() {
                 <div className="text-sm space-y-1">
                   <p><span className="text-gray-500">סכום:</span> ₪{actionModal.payment.amount}</p>
                   <p><span className="text-gray-500">אמצעי:</span> {
-                    { CASH: 'מזומן', BIT: 'ביט', PAYBOX: 'פייבוקס', BANK_TRANSFER: 'העברה בנקאית' }[actionModal.payment.method]
+                    { CASH: 'מזומן', BIT: 'ביט', PAYBOX: 'פייבוקס', BANK_TRANSFER: 'העברה בנקאית', BALANCE: 'יתרה' }[actionModal.payment.method]
                   }</p>
-                  {actionModal.payment.reference && <p><span className="text-gray-500">אסמכתא:</span> {actionModal.payment.reference}</p>}
+                  {actionModal.payment.invoice?.reference && <p><span className="text-gray-500">אסמכתא:</span> {actionModal.payment.invoice.reference}</p>}
                   <p><span className="text-gray-500">תאריך:</span> {format(new Date(actionModal.payment.paidAt), 'd/M/yyyy')}</p>
-                  {actionModal.payment.invoiceUrl ? (
-                    <a href={actionModal.payment.invoiceUrl} target="_blank" rel="noreferrer"
+                  {actionModal.payment.method === 'BALANCE' ? (
+                    <p className="text-xs text-gray-500 mt-2">שולם מהיתרה — לא הופקה חשבונית חדשה</p>
+                  ) : actionModal.payment.invoice?.invoiceUrl ? (
+                    <a href={actionModal.payment.invoice.invoiceUrl} target="_blank" rel="noreferrer"
                       className="block w-full text-center bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition mt-2">
                       📄 פתח חשבונית
                     </a>
@@ -654,9 +680,9 @@ export default function CalendarPage() {
                       </button>
                     </div>
                   )}
-                  {actionModal.payment.invoiceUrl && actionModal.lesson.phone && (() => {
+                  {actionModal.payment.invoice?.invoiceUrl && actionModal.lesson.phone && (() => {
                     const phone = actionModal.lesson.phone!.replace(/\D/g, '').replace(/^0/, '972')
-                    const text = `שלום ${actionModal.lesson.studentName}, מצורף קישור לחשבונית על התשלום: ${actionModal.payment!.invoiceUrl}`
+                    const text = `שלום ${actionModal.lesson.studentName}, מצורף קישור לחשבונית על התשלום: ${actionModal.payment!.invoice!.invoiceUrl}`
                     return (
                       <a href={`https://wa.me/${phone}?text=${encodeURIComponent(text)}`} target="_blank" rel="noreferrer"
                         className="block w-full text-center bg-green-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-600 transition mt-2">
@@ -672,22 +698,30 @@ export default function CalendarPage() {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  <div className="grid grid-cols-4 gap-1.5">
+                  <div className="grid grid-cols-5 gap-1.5">
                     {([
                       { v: 'CASH', l: 'מזומן' },
                       { v: 'BIT', l: 'ביט' },
                       { v: 'PAYBOX', l: 'פייבוקס' },
                       { v: 'BANK_TRANSFER', l: 'העברה' },
-                    ] as const).map(o => (
-                      <button key={o.v} type="button"
-                        onClick={() => setActionModal(m => m ? { ...m, paymentMethod: o.v } : m)}
-                        className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${
-                          actionModal.paymentMethod === o.v ? 'border-green-600 bg-green-100 text-green-800' : 'border-gray-200 bg-white hover:border-green-300'
-                        }`}>
-                        {o.l}
-                      </button>
-                    ))}
+                      { v: 'BALANCE', l: 'יתרה' },
+                    ] as const).map(o => {
+                      const amount = Number(actionModal.paymentAmount) || 0
+                      const balanceInsufficient = o.v === 'BALANCE' && (actionModal.studentBalance == null || actionModal.studentBalance < amount)
+                      return (
+                        <button key={o.v} type="button" disabled={balanceInsufficient}
+                          onClick={() => setActionModal(m => m ? { ...m, paymentMethod: o.v } : m)}
+                          className={`py-1.5 rounded-lg text-xs font-medium border-2 transition disabled:opacity-40 ${
+                            actionModal.paymentMethod === o.v ? 'border-green-600 bg-green-100 text-green-800' : 'border-gray-200 bg-white hover:border-green-300'
+                          }`}>
+                          {o.l}
+                        </button>
+                      )
+                    })}
                   </div>
+                  {actionModal.paymentMethod === 'BALANCE' && (
+                    <p className="text-xs text-gray-500">יתרה זמינה: ₪{actionModal.studentBalance ?? '…'}</p>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-xs text-gray-600 mb-1">סכום (₪)</label>
@@ -702,20 +736,26 @@ export default function CalendarPage() {
                         className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-400" />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">
-                      {actionModal.paymentMethod === 'BANK_TRANSFER' ? 'מספר אסמכתא / שם המעביר'
-                        : actionModal.paymentMethod === 'CASH' ? 'הערה (אופציונלי)'
-                        : 'מספר אישור / טלפון ששימש לתשלום'}
-                    </label>
-                    <input type="text" value={actionModal.paymentReference}
-                      onChange={e => setActionModal(m => m ? { ...m, paymentReference: e.target.value } : m)}
-                      className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-400" />
-                  </div>
+                  {actionModal.paymentMethod !== 'BALANCE' && (
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">
+                        {actionModal.paymentMethod === 'BANK_TRANSFER' ? 'מספר אסמכתא / שם המעביר'
+                          : actionModal.paymentMethod === 'CASH' ? 'הערה (אופציונלי)'
+                          : 'מספר אישור / טלפון ששימש לתשלום'}
+                      </label>
+                      <input type="text" value={actionModal.paymentReference}
+                        onChange={e => setActionModal(m => m ? { ...m, paymentReference: e.target.value } : m)}
+                        className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-400" />
+                    </div>
+                  )}
                   {actionModal.paymentResult && <p className="text-xs text-red-600">{actionModal.paymentResult}</p>}
                   <button onClick={handleLogPayment} disabled={actionModal.loggingPayment}
                     className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition">
-                    {actionModal.loggingPayment ? 'מפיק חשבונית...' : `אשר ₪${actionModal.paymentAmount || 0} והפק חשבונית`}
+                    {actionModal.loggingPayment
+                      ? (actionModal.paymentMethod === 'BALANCE' ? 'מעבד...' : 'מפיק חשבונית...')
+                      : actionModal.paymentMethod === 'BALANCE'
+                        ? `אשר ניכוי ₪${actionModal.paymentAmount || 0} מהיתרה`
+                        : `אשר ₪${actionModal.paymentAmount || 0} והפק חשבונית`}
                   </button>
                 </div>
               )}

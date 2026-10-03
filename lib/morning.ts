@@ -21,7 +21,7 @@ async function getToken(): Promise<string> {
   const res = await fetch(`${BASE_URL}/account/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: apiKey, secret: apiSecret }),
+    body: JSON.stringify({ id: apiKey, secret: apiSecret, grant_type: 'client_credentials' }),
   })
   if (!res.ok) {
     throw new Error(`Morning auth failed (${res.status}): ${await res.text()}`)
@@ -43,12 +43,12 @@ const PAYMENT_TYPE_CODE: Record<PaymentMethodForInvoice, number> = {
 
 export async function createInvoice(params: {
   student: { name: string; email?: string | null }
-  description: string
-  amount: number
+  lines: { description: string; amount: number }[]
   method: PaymentMethodForInvoice
   paidAt: Date
 }): Promise<{ id: string; number: string; url: string }> {
   const token = await getToken()
+  const total = params.lines.reduce((sum, l) => sum + l.amount, 0)
 
   const res = await fetch(`${BASE_URL}/documents`, {
     method: 'POST',
@@ -65,18 +65,16 @@ export async function createInvoice(params: {
         name: params.student.name,
         emails: params.student.email ? [params.student.email] : [],
       },
-      income: [
-        {
-          description: params.description,
-          quantity: 1,
-          price: params.amount,
-          vatType: 0,
-        },
-      ],
+      income: params.lines.map(l => ({
+        description: l.description,
+        quantity: 1,
+        price: l.amount,
+        vatType: 0,
+      })),
       payment: [
         {
           type: PAYMENT_TYPE_CODE[params.method],
-          price: params.amount,
+          price: total,
           date: params.paidAt.toISOString().slice(0, 10),
         },
       ],

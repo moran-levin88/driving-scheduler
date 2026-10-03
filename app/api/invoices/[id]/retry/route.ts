@@ -1,0 +1,69 @@
+export const dynamic = 'force-dynamic'
+
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { findLessonChain } from '@/lib/lessonChain'
+import { createInvoice, type PaymentMethodForInvoice } from '@/lib/morning'
+import { sendInvoiceToStudent } from '@/lib/email'
+import { format } from 'date-fns'
+import { he } from 'date-fns/locale'
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions)
+  if (!session || (session.user as any).role !== 'INSTRUCTOR') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const { id } = await params
+  const invoice = await prisma.invoice.findUnique({
+    where: { id },
+    include: { student: true, payments: true },
+  })
+  if (!invoice) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (invoice.invoiceId) return NextResponse.json({ error: 'כבר הופקה חשבונית' }, { status: 409 })
+
+  let lines: { description: string; amount: number }[]
+  if (invoice.isDeposit) {
+    lines = [{ description: 'הפקדה ליתרה', amount: invoice.amount }]
+  } else {
+    lines = []
+    for (const payment of invoice.payments) {
+      const result = await findLessonChain(payment.bookingId, 'APPROVED')
+      if (!result) continue
+      const dateStr = format(result.first.availability.startTime, "d בMMMM yyyy", { locale: he })
+      const timeStr = format(result.first.availability.startTime, 'HH:mm')
+      lines.push({ description: `שיעור נהיגה — ${dateStr} ${timeStr} (${result.chain.length * 20} דק')`, amount: payment.amount })
+    }
+    if (lines.length === 0) {
+      return NextResponse.json({ error: 'לא נמצאו שיעורים לחשבונית זו' }, { status: 404 })
+    }
+  }
+
+  try {
+    const created = await createInvoice({
+      student: { name: invoice.student.name, email: invoice.student.email },
+      lines,
+      method: invoice.method as PaymentMethodForInvoice,
+      paidAt: invoice.paidAt,
+    })
+
+    const updated = await prisma.invoice.update({
+      where: { id: invoice.id },
+      data: { invoiceId: created.id, invoiceNumber: created.number, invoiceUrl: created.url },
+    })
+
+    if (invoice.student.email && !invoice.student.email.includes('@placeholder')) {
+      sendInvoiceToStudent(
+        { name: invoice.student.name, email: invoice.student.email },
+        { amount: invoice.amount, invoiceUrl: created.url, invoiceNumber: created.number },
+      ).catch(err => console.error('Invoice email failed:', err))
+    }
+
+    return NextResponse.json({ ok: true, invoice: updated })
+  } catch (err: any) {
+    console.error('Morning invoice retry failed:', err)
+    return NextResponse.json({ error: err.message || 'יצירת החשבונית נכשלה שוב' }, { status: 502 })
+  }
+}

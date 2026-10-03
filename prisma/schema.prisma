@@ -63,6 +63,7 @@ model User {
   availability        Availability[]
   pushSubscriptions   PushSubscription[]
   passwordResetTokens PasswordResetToken[]
+  invoices            Invoice[]
   payments            Payment[]
 }
 
@@ -148,22 +149,46 @@ enum PaymentMethod {
   BIT
   PAYBOX
   BANK_TRANSFER
+  BALANCE // settled from the student's prepaid credit — no new Morning document
 }
 
-model Payment {
+// One Morning document. Covers 1+ lessons (a regular or batched invoice) or,
+// when isDeposit is true, a bare balance top-up with no lessons attached.
+model Invoice {
   id            String        @id @default(cuid())
-  bookingId     String        @unique // first booking id of the lesson chain
-  booking       Booking       @relation(fields: [bookingId], references: [id])
   studentId     String
   student       User          @relation(fields: [studentId], references: [id])
-  amount        Int           // ₪ — what the instructor confirmed, may differ from the derived suggestion
-  method        PaymentMethod
+  amount        Int           // ₪ total, what the instructor confirmed
+  method        PaymentMethod // never BALANCE — a deposit/invoice is always real money in
   reference     String?       // confirmation #, sender name, phone used for Bit/PayBox, etc.
   paidAt        DateTime
+  isDeposit     Boolean       @default(false)
   invoiceId     String?       // Morning document id
   invoiceNumber String?
   invoiceUrl    String?
   createdAt     DateTime      @default(now())
 
+  payments Payment[]
+
   @@index([studentId])
+}
+
+// How one specific lesson got settled — linked to an Invoice, or (for
+// method = BALANCE) drawn straight from the student's prepaid credit with
+// no Invoice of its own, since that money was already invoiced at deposit time.
+model Payment {
+  id        String        @id @default(cuid())
+  bookingId String        @unique // first booking id of the lesson chain
+  booking   Booking       @relation(fields: [bookingId], references: [id])
+  studentId String
+  student   User          @relation(fields: [studentId], references: [id])
+  amount    Int           // ₪ — this lesson's confirmed share
+  method    PaymentMethod
+  invoiceId String?       // null only when method = BALANCE
+  invoice   Invoice?      @relation(fields: [invoiceId], references: [id])
+  paidAt    DateTime
+  createdAt DateTime      @default(now())
+
+  @@index([studentId])
+  @@index([invoiceId])
 }
