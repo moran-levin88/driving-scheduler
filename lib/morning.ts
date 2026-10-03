@@ -69,7 +69,11 @@ export async function createInvoice(params: {
         description: l.description,
         quantity: 1,
         price: l.amount,
-        vatType: 0,
+        // 1 = price already includes VAT (what the student actually paid).
+        // vatType 0 makes Morning add VAT on top, so the computed invoice
+        // total stops matching the flat `payment` total below — triggers
+        // Morning's "receipts vs. payments mismatch" error (code 2422).
+        vatType: 1,
       })),
       payment: [
         {

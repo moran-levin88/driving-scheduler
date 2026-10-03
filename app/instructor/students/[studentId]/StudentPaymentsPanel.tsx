@@ -158,7 +158,9 @@ export default function StudentPaymentsPanel({
         // The Payment rows are created either way — invoiceError only means the
         // Morning document itself failed, so clear selection regardless.
         setPaidIds(prev => new Set([...prev, ...selected]))
-        if (data.invoice) setInvoiceList(prev => [data.invoice, ...prev])
+        // data.invoice is the bare Invoice row (no `payments` relation included),
+        // so lessonCount has to be filled in here or the table shows "undefined".
+        if (data.invoice) setInvoiceList(prev => [{ ...data.invoice, lessonCount: selected.size }, ...prev])
         if (method === 'BALANCE') setBalance(b => b - total)
         setPayResult(data.invoiceError ? `✓ התשלום נרשם, אך ${data.invoiceError}` : '')
         setSelected(new Set()); setAmounts({}); setReference('')
