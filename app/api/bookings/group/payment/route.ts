@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { items, method, reference, paidAt } = await req.json()
+  const { items, method, reference, paidAt, note } = await req.json()
 
   if (!Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: 'לא נבחרו שיעורים' }, { status: 400 })
@@ -89,16 +89,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, payments })
   }
 
+  const noteText = typeof note === 'string' ? note.trim() : ''
+
   const lines = resolved.map(r => {
     const dateStr = formatIsraelDate(r.first.availability.startTime)
     const timeStr = formatIsraelTime(r.first.availability.startTime)
-    return { description: `שיעור נהיגה — ${dateStr} ${timeStr} (${r.chainLength * 20} דק')`, amount: r.amount }
+    const base = `שיעור נהיגה — ${dateStr} ${timeStr} (${r.chainLength * 20} דק')`
+    return { description: noteText ? `${base} — ${noteText}` : base, amount: r.amount }
   })
 
   // Always create the Invoice row (even if the Morning call below fails) so
   // the money is on record and retryable via /api/invoices/[id]/retry.
+  // The note (e.g. "paying off a partial-price debt from the previous
+  // platform") is saved as the invoice description so both the app and the
+  // actual Morning document explain an amount that doesn't match the full price.
   const invoice = await prisma.invoice.create({
-    data: { studentId, amount: total, method, reference: reference || null, paidAt: paidAtDate },
+    data: { studentId, amount: total, method, reference: reference || null, paidAt: paidAtDate, description: noteText || null },
   })
 
   let invoiceError: string | null = null

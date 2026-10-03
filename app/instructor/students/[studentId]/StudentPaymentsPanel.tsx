@@ -57,6 +57,7 @@ export default function StudentPaymentsPanel({
   const [amounts, setAmounts] = useState<Record<string, string>>({})
   const [method, setMethod] = useState<'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER' | 'BALANCE' | 'EXTERNAL'>('CASH')
   const [reference, setReference] = useState('')
+  const [payNote, setPayNote] = useState('')
   const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [paying, setPaying] = useState(false)
   const [payResult, setPayResult] = useState('')
@@ -201,7 +202,7 @@ export default function StudentPaymentsPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: [...selected].map(id => ({ bookingId: id, amount: Number(amounts[id]) })),
-          method, reference, paidAt: new Date(payDate).toISOString(),
+          method, reference, paidAt: new Date(payDate).toISOString(), note: payNote,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -214,7 +215,7 @@ export default function StudentPaymentsPanel({
         if (data.invoice) setInvoiceList(prev => [{ ...data.invoice, lessonCount: selected.size }, ...prev])
         if (method === 'BALANCE') setBalance(b => b - total)
         setPayResult(data.invoiceError ? `✓ התשלום נרשם, אך ${data.invoiceError}` : '')
-        setSelected(new Set()); setAmounts({}); setReference('')
+        setSelected(new Set()); setAmounts({}); setReference(''); setPayNote('')
       } else {
         setPayResult(data.error || 'שגיאה')
       }
@@ -398,6 +399,12 @@ export default function StudentPaymentsPanel({
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">אסמכתא (אופציונלי)</label>
                   <input type="text" value={reference} onChange={e => setReference(e.target.value)}
+                    className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-400" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">הסבר לסכום (למשל: יתרת חוב מהפלטפורמה הקודמת) — אופציונלי</label>
+                  <input type="text" value={payNote} onChange={e => setPayNote(e.target.value)}
+                    placeholder="יופיע על גבי החשבונית"
                     className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-400" />
                 </div>
               </>
