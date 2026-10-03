@@ -55,7 +55,7 @@ model User {
   pricePer20Min      Int?      // ₪ instructor sets per student; null = not priced yet
   idNumber           String?   // ת"ז
   dateOfBirth        DateTime?
-  manualPriorLessons Int       @default(0) // lessons completed before this platform, entered by the instructor
+  manualPriorLessons Float     @default(0) // lessons completed before this platform (quarter-lesson precision), entered by the instructor
   createdAt          DateTime  @default(now())
 
   accounts            Account[]

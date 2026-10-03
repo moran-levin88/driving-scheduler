@@ -270,12 +270,13 @@ export default function StudentsPage() {
                 <input
                   type="number"
                   min={0}
+                  step={0.25}
                   value={editForm.manualPriorLessons}
                   onChange={e => setEditForm(f => ({ ...f, manualPriorLessons: e.target.value }))}
                   placeholder="0"
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
                 />
-                <p className="text-xs text-gray-400 mt-1">לתלמידים ותיקים — שיעורים שהתבצעו לפני שהתחלתם להשתמש במערכת</p>
+                <p className="text-xs text-gray-400 mt-1">לתלמידים ותיקים — שיעורים שהתבצעו לפני שהתחלתם להשתמש במערכת. ניתן להזין גם חצאי ורבעי שיעור (למשל 9.5 או 9.25)</p>
               </div>
             </div>
             {editError && <p className="text-red-600 text-sm mb-3">{editError}</p>}

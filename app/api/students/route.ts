@@ -44,10 +44,12 @@ export async function GET() {
       : 0
     // A "lesson" is 40 min = two 20-min slots (a "שיעור וחצי" is 1.5, "כפול" is 2,
     // etc.) — count total slots, not sessions, so longer lessons count for more.
+    // No rounding: a 60-min lesson alone is already a fractional 1.5, and
+    // manualPriorLessons can carry its own quarter-lesson fraction too.
     const completedSlots = completedLessons.reduce((sum, l) => sum + l.slots, 0)
     return {
       ...s,
-      lessonCount: Math.round(completedSlots / 2) + s.manualPriorLessons,
+      lessonCount: completedSlots / 2 + s.manualPriorLessons,
       debt,
       balance: balances.get(s.id) ?? 0,
     }

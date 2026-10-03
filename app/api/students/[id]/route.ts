@@ -49,11 +49,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.dateOfBirth = body.dateOfBirth ? new Date(body.dateOfBirth) : null
   }
   if ('manualPriorLessons' in body) {
-    const count = Number(body.manualPriorLessons)
-    if (!Number.isInteger(count) || count < 0) {
+    const raw = Number(body.manualPriorLessons)
+    if (!Number.isFinite(raw) || raw < 0) {
       return NextResponse.json({ error: 'מספר שיעורים לא תקין' }, { status: 400 })
     }
-    data.manualPriorLessons = count
+    // Quarter-lesson precision (10 min, a quarter of the standard 40-min
+    // lesson) — round here so totals stay exact when added to the
+    // real-booking count elsewhere, which is always a multiple of 0.5.
+    data.manualPriorLessons = Math.round(raw * 4) / 4
   }
 
   try {

@@ -57,8 +57,10 @@ export async function getStudentPaymentsPanelData(studentId: string) {
   // Only lessons that have actually happened (ended already) count — a
   // future approved booking isn't "taken" yet.
   const now = new Date()
+  // No rounding — a lone 60-min lesson is already a fractional 1.5, and
+  // manualPriorLessons can carry its own quarter-lesson fraction too.
   const completedSlots = student.bookings.filter(b => ['APPROVED', 'COMPLETED'].includes(b.status) && b.availability.endTime <= now).length
-  const completedCount = Math.round(completedSlots / 2) + student.manualPriorLessons
+  const completedCount = completedSlots / 2 + student.manualPriorLessons
 
   const payableLessons = lessons
     .filter(l => {
