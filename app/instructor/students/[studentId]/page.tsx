@@ -59,7 +59,10 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
   }
   lessons.sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
 
-  const completedCount = lessons.filter(l => ['APPROVED', 'COMPLETED'].includes(l.status)).length
+  // A "lesson" is 40 min = two 20-min slots — count slots, not sessions, so a
+  // double (80 min) or "שיעור וחצי" (60 min) lesson counts for more than one.
+  const completedSlots = student.bookings.filter(b => ['APPROVED', 'COMPLETED'].includes(b.status)).length
+  const completedCount = Math.round(completedSlots / 2) + student.manualPriorLessons
 
   return (
     <div>

@@ -35,9 +35,12 @@ export async function GET() {
     const debt = s.pricePer20Min != null
       ? unpaidLessons.reduce((sum, l) => sum + s.pricePer20Min! * l.slots, 0)
       : 0
+    // A "lesson" is 40 min = two 20-min slots (a "שיעור וחצי" is 1.5, "כפול" is 2,
+    // etc.) — count total slots, not sessions, so longer lessons count for more.
+    const completedSlots = completedLessons.reduce((sum, l) => sum + l.slots, 0)
     return {
       ...s,
-      lessonCount: completedLessons.length + s.manualPriorLessons,
+      lessonCount: Math.round(completedSlots / 2) + s.manualPriorLessons,
       debt,
       balance: balances.get(s.id) ?? 0,
     }
