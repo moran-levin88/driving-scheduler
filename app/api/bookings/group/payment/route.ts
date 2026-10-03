@@ -48,13 +48,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'כל השיעורים חייבים להיות של אותו תלמיד' }, { status: 400 })
   }
 
+  const student = resolved[0].first.student
+
+  // A lesson can be settled across more than one payment (e.g. partial now,
+  // the rest later) — only block when it's already fully paid. With no
+  // price on file there's no way to know "fully paid", so don't block.
   const firstIds = resolved.map(r => r.first.id)
   const existing = await prisma.payment.findMany({ where: { bookingId: { in: firstIds } } })
-  if (existing.length > 0) {
-    return NextResponse.json({ error: 'אחד השיעורים כבר שולם' }, { status: 409 })
+  const paidByBooking = new Map<string, number>()
+  for (const p of existing) paidByBooking.set(p.bookingId, (paidByBooking.get(p.bookingId) ?? 0) + p.amount)
+
+  if (student.pricePer20Min != null) {
+    for (const r of resolved) {
+      const price = student.pricePer20Min * r.chainLength
+      const paidSoFar = paidByBooking.get(r.first.id) ?? 0
+      if (price - paidSoFar <= 0) {
+        return NextResponse.json({ error: 'אחד השיעורים כבר שולם במלואו' }, { status: 409 })
+      }
+    }
   }
 
-  const student = resolved[0].first.student
   const total = resolved.reduce((sum, r) => sum + r.amount, 0)
   const paidAtDate = paidAt ? new Date(paidAt) : new Date()
 

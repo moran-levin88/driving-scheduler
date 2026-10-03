@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 
-type UnpaidLesson = { firstBookingId: string; startTime: string; endTime: string }
+type PayableLesson = { firstBookingId: string; startTime: string; endTime: string; paidSoFar: number }
 type InvoiceRow = {
   id: string; amount: number; method: string; reference: string | null
   paidAt: string; isDeposit: boolean; invoiceId: string | null; invoiceUrl: string | null
@@ -18,11 +18,11 @@ function minutesBetween(startIso: string, endIso: string) {
 }
 
 export default function StudentPaymentsPanel({
-  studentId, pricePer20Min, unpaidLessons, invoices, initialBalance,
+  studentId, pricePer20Min, payableLessons, invoices, initialBalance,
 }: {
   studentId: string
   pricePer20Min: number | null
-  unpaidLessons: UnpaidLesson[]
+  payableLessons: PayableLesson[]
   invoices: InvoiceRow[]
   initialBalance: number
 }) {
@@ -48,15 +48,17 @@ export default function StudentPaymentsPanel({
   const [paying, setPaying] = useState(false)
   const [payResult, setPayResult] = useState('')
 
-  const visibleUnpaid = unpaidLessons.filter(l => !paidIds.has(l.firstBookingId))
+  const visibleUnpaid = payableLessons.filter(l => !paidIds.has(l.firstBookingId))
 
-  function suggestedAmount(l: UnpaidLesson) {
+  // The amount still owed on this lesson — full price if nothing's been
+  // paid yet, or just the remainder if it was partially paid before.
+  function suggestedAmount(l: PayableLesson) {
     if (pricePer20Min == null) return ''
     const slots = minutesBetween(l.startTime, l.endTime) / 20
-    return String(pricePer20Min * slots)
+    return String(Math.max(0, pricePer20Min * slots - l.paidSoFar))
   }
 
-  function toggleSelect(l: UnpaidLesson) {
+  function toggleSelect(l: PayableLesson) {
     setSelected(prev => {
       const next = new Set(prev)
       if (next.has(l.firstBookingId)) {
@@ -75,7 +77,7 @@ export default function StudentPaymentsPanel({
 
   // One-click cleanup for legacy rows that were already settled on the
   // previous platform — marks as EXTERNAL with no form, no Morning document.
-  async function handleQuickDismiss(l: UnpaidLesson) {
+  async function handleQuickDismiss(l: PayableLesson) {
     setDismissingId(l.firstBookingId)
     try {
       const amount = Number(suggestedAmount(l)) || 0
@@ -230,11 +232,11 @@ export default function StudentPaymentsPanel({
         )}
       </div>
 
-      {/* Unpaid lessons + batch payment */}
+      {/* Payable lessons (unpaid or partially paid) + batch payment */}
       <div className="bg-white rounded-xl shadow p-4">
-        <h2 className="font-bold text-gray-900 mb-3">שיעורים שטרם שולמו</h2>
+        <h2 className="font-bold text-gray-900 mb-3">שיעורים עם יתרה לתשלום</h2>
         {visibleUnpaid.length === 0 ? (
-          <p className="text-sm text-gray-400">אין שיעורים שטרם שולמו</p>
+          <p className="text-sm text-gray-400">אין שיעורים עם יתרה לתשלום</p>
         ) : (
           <div className="space-y-1.5 mb-3">
             {visibleUnpaid.map(l => (
@@ -246,6 +248,7 @@ export default function StudentPaymentsPanel({
                     {' '}
                     {new Date(l.startTime).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}
                     {' ('}{minutesBetween(l.startTime, l.endTime)} דק׳{')'}
+                    {l.paidSoFar > 0 && <span className="text-amber-600"> — שולם ₪{l.paidSoFar} חלקית</span>}
                   </span>
                 </label>
                 {selected.has(l.firstBookingId) ? (

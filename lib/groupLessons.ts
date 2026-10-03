@@ -8,7 +8,7 @@ type BookingLike = {
   pickupAddress?: string | null
   notes?: string | null
   availability: { startTime: Date | string; endTime: Date | string }
-  payment?: { id: string } | null
+  payments?: { amount: number }[]
 }
 
 export type GroupedLesson = {
@@ -17,7 +17,7 @@ export type GroupedLesson = {
   startTime: Date
   endTime: Date
   slots: number
-  paid: boolean
+  paidSoFar: number // sum of this lesson's Payment amounts — may be partial
 }
 
 export function groupBookingsIntoLessons<T extends BookingLike>(bookings: T[]): GroupedLesson[] {
@@ -45,7 +45,7 @@ export function groupBookingsIntoLessons<T extends BookingLike>(bookings: T[]): 
         startTime: new Date(b.availability.startTime),
         endTime: new Date(b.availability.endTime),
         slots: 1,
-        paid: !!b.payment,
+        paidSoFar: (b.payments ?? []).reduce((sum, p) => sum + p.amount, 0),
         pickupAddress: b.pickupAddress ?? null,
         notes: b.notes ?? null,
       })

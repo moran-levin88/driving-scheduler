@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       include: {
         student: { select: { id: true, name: true, email: true, phone: true, pricePer20Min: true } },
         availability: true,
-        payment: { include: { invoice: true } },
+        payments: { select: { amount: true } },
       },
       orderBy: { createdAt: 'desc' },
     })

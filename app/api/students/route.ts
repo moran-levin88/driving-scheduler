@@ -19,7 +19,7 @@ export async function GET() {
       where: { role: 'STUDENT' },
       include: {
         bookings: {
-          include: { availability: true, payment: { select: { id: true } } },
+          include: { availability: true, payments: { select: { amount: true } } },
           orderBy: { createdAt: 'desc' },
         },
       },
@@ -31,9 +31,12 @@ export async function GET() {
   const withStats = students.map(s => {
     const lessons = groupBookingsIntoLessons(s.bookings)
     const completedLessons = lessons.filter(l => ['APPROVED', 'COMPLETED'].includes(l.status))
-    const unpaidLessons = lessons.filter(l => l.status === 'APPROVED' && !l.paid)
+    // Debt is the shortfall per approved lesson (price minus whatever's been
+    // paid so far), not just lessons with zero payments — a partially-paid
+    // lesson still owes the difference.
+    const approvedLessons = lessons.filter(l => l.status === 'APPROVED')
     const debt = s.pricePer20Min != null
-      ? unpaidLessons.reduce((sum, l) => sum + s.pricePer20Min! * l.slots, 0)
+      ? approvedLessons.reduce((sum, l) => sum + Math.max(0, s.pricePer20Min! * l.slots - l.paidSoFar), 0)
       : 0
     // A "lesson" is 40 min = two 20-min slots (a "שיעור וחצי" is 1.5, "כפול" is 2,
     // etc.) — count total slots, not sessions, so longer lessons count for more.

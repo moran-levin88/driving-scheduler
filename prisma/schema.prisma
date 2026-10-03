@@ -130,7 +130,7 @@ model Booking {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  payment Payment?
+  payments Payment[]
 
   @@index([studentId, status])
   @@index([status, createdAt])
@@ -180,7 +180,9 @@ model Invoice {
 // no Invoice of its own, since that money was already invoiced at deposit time.
 model Payment {
   id        String        @id @default(cuid())
-  bookingId String        @unique // first booking id of the lesson chain
+  bookingId String        // first booking id of the lesson chain — not unique:
+                          // a lesson can be settled across multiple partial
+                          // payments, so may have more than one Payment row
   booking   Booking       @relation(fields: [bookingId], references: [id])
   studentId String
   student   User          @relation(fields: [studentId], references: [id])
@@ -193,4 +195,5 @@ model Payment {
 
   @@index([studentId])
   @@index([invoiceId])
+  @@index([bookingId])
 }

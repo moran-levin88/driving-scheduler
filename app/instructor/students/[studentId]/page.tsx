@@ -18,7 +18,7 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
     where: { id: studentId, role: 'STUDENT' },
     include: {
       bookings: {
-        include: { availability: true, payment: true },
+        include: { availability: true, payments: true },
         orderBy: { availability: { startTime: 'asc' } },
       },
     },
@@ -36,8 +36,9 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
   ])
 
   // Group consecutive bookings into lessons, keeping the first booking's id
-  // (that's what a lesson's Payment, if any, is keyed on)
-  type Lesson = { firstBookingId: string; status: string; startTime: Date; endTime: Date; paid: boolean }
+  // (that's what a lesson's Payments, if any, are keyed on) and its total
+  // paid-so-far — a lesson can be settled across more than one payment.
+  type Lesson = { firstBookingId: string; status: string; startTime: Date; endTime: Date; slots: number; paidSoFar: number }
   const lessons: Lesson[] = []
   for (const b of student.bookings) {
     const last = lessons[lessons.length - 1]
@@ -47,13 +48,15 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
       last.endTime.getTime() === b.availability.startTime.getTime()
     ) {
       last.endTime = b.availability.endTime
+      last.slots += 1
     } else {
       lessons.push({
         firstBookingId: b.id,
         status: b.status,
         startTime: b.availability.startTime,
         endTime: b.availability.endTime,
-        paid: !!b.payment,
+        slots: 1,
+        paidSoFar: b.payments.reduce((sum, p) => sum + p.amount, 0),
       })
     }
   }
@@ -110,7 +113,13 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {l.status === 'APPROVED' && (l.paid ? <span className="text-xs text-green-700">✓ שולם</span> : <span className="text-xs text-gray-400">טרם שולם</span>)}
+                    {l.status === 'APPROVED' && (() => {
+                      const price = student.pricePer20Min != null ? student.pricePer20Min * l.slots : null
+                      const remaining = price != null ? price - l.paidSoFar : null
+                      if (remaining != null && remaining <= 0) return <span className="text-xs text-green-700">✓ שולם</span>
+                      if (l.paidSoFar > 0) return <span className="text-xs text-amber-600">שולם חלקית{price != null ? ` (₪${l.paidSoFar} מתוך ₪${price})` : ''}</span>
+                      return <span className="text-xs text-gray-400">טרם שולם</span>
+                    })()}
                   </td>
                 </tr>
               ))}
@@ -125,11 +134,18 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
       <StudentPaymentsPanel
         studentId={studentId}
         pricePer20Min={student.pricePer20Min}
-        unpaidLessons={lessons.filter(l => l.status === 'APPROVED' && !l.paid).map(l => ({
-          firstBookingId: l.firstBookingId,
-          startTime: l.startTime.toISOString(),
-          endTime: l.endTime.toISOString(),
-        }))}
+        payableLessons={lessons
+          .filter(l => {
+            if (l.status !== 'APPROVED') return false
+            const price = student.pricePer20Min != null ? student.pricePer20Min * l.slots : null
+            return price == null || price - l.paidSoFar > 0
+          })
+          .map(l => ({
+            firstBookingId: l.firstBookingId,
+            startTime: l.startTime.toISOString(),
+            endTime: l.endTime.toISOString(),
+            paidSoFar: l.paidSoFar,
+          }))}
         invoices={invoices.map(inv => ({
           id: inv.id, amount: inv.amount, method: inv.method, reference: inv.reference,
           paidAt: inv.paidAt.toISOString(), isDeposit: inv.isDeposit,
