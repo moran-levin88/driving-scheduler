@@ -16,13 +16,20 @@ export async function getStudentPaymentsPanelData(studentId: string) {
   })
   if (!student) return null
 
-  const [invoices, balance] = await Promise.all([
+  const [invoices, balance, pendingCharges] = await Promise.all([
     prisma.invoice.findMany({
       where: { studentId },
       include: { payments: true },
       orderBy: { paidAt: 'desc' },
     }),
     getStudentBalance(studentId),
+    // Practical/internal tests booked from the calendar that haven't been
+    // paid yet — once paid they get a normal Invoice (with a description)
+    // and show up in the invoices list below like any other charge.
+    prisma.charge.findMany({
+      where: { studentId, invoiceId: null },
+      orderBy: { startTime: 'desc' },
+    }),
   ])
 
   // Group consecutive bookings into lessons, keeping the first booking's id
@@ -75,12 +82,20 @@ export async function getStudentPaymentsPanelData(studentId: string) {
       paidSoFar: l.paidSoFar,
     }))
 
+  const CHARGE_LABELS: Record<string, string> = { PRACTICAL_TEST: 'מבחן מעשי', INTERNAL_TEST: 'טסט פנימי' }
+
   return {
     student: { id: student.id, name: student.name, email: student.email, phone: student.phone, pricePer20Min: student.pricePer20Min },
     lessons,
     completedCount,
     balance,
     payableLessons,
+    pendingCharges: pendingCharges.map(c => ({
+      id: c.id,
+      label: CHARGE_LABELS[c.type] ?? c.type,
+      startTime: c.startTime.toISOString(),
+      amount: c.amount,
+    })),
     invoices: invoices.map(inv => ({
       id: inv.id, amount: inv.amount, method: inv.method, reference: inv.reference,
       paidAt: inv.paidAt.toISOString(), isDeposit: inv.isDeposit, description: inv.description,

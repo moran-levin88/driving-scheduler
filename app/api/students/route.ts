@@ -14,7 +14,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const [students, balances] = await Promise.all([
+  const [students, balances, unpaidCharges] = await Promise.all([
     prisma.user.findMany({
       where: { role: 'STUDENT', archivedAt: null },
       include: {
@@ -26,7 +26,9 @@ export async function GET() {
       orderBy: { name: 'asc' },
     }),
     getAllStudentBalances(),
+    prisma.charge.groupBy({ by: ['studentId'], where: { invoiceId: null }, _sum: { amount: true } }),
   ])
+  const unpaidChargeByStudent = new Map(unpaidCharges.map(c => [c.studentId, c._sum.amount ?? 0]))
 
   const now = new Date()
   const withStats = students.map(s => {
@@ -37,11 +39,12 @@ export async function GET() {
     // Debt is the shortfall per approved lesson that's already happened
     // (price minus whatever's been paid so far) — a future booked lesson
     // isn't owed yet, and a partially-paid past lesson still owes the
-    // difference, not just lessons with zero payments.
+    // difference, not just lessons with zero payments. Unpaid practical/
+    // internal tests (Charges with no linked invoice yet) add to this too.
     const approvedLessons = lessons.filter(l => l.status === 'APPROVED' && l.endTime <= now)
-    const debt = s.pricePer20Min != null
+    const debt = (s.pricePer20Min != null
       ? approvedLessons.reduce((sum, l) => sum + Math.max(0, s.pricePer20Min! * l.slots - l.paidSoFar), 0)
-      : 0
+      : 0) + (unpaidChargeByStudent.get(s.id) ?? 0)
     // A "lesson" is 40 min = two 20-min slots (a "שיעור וחצי" is 1.5, "כפול" is 2,
     // etc.) — count total slots, not sessions, so longer lessons count for more.
     // No rounding: a 60-min lesson alone is already a fractional 1.5, and

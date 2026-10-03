@@ -8,6 +8,7 @@ type PaymentsPanelData = {
   student: { id: string; name: string; email: string; phone: string | null; pricePer20Min: number | null }
   balance: number
   payableLessons: { firstBookingId: string; startTime: string; endTime: string; paidSoFar: number }[]
+  pendingCharges: { id: string; label: string; startTime: string; amount: number }[]
   invoices: {
     id: string; amount: number; method: string; reference: string | null
     paidAt: string; isDeposit: boolean; description: string | null
@@ -37,6 +38,24 @@ type Lesson = {
 }
 
 type Block = { id: string; startTime: Date; endTime: Date; blockNote: string | null }
+
+type ChargeType = 'PRACTICAL_TEST' | 'INTERNAL_TEST'
+const CHARGE_TYPE_LABELS: Record<ChargeType, string> = { PRACTICAL_TEST: 'מבחן מעשי', INTERNAL_TEST: 'טסט פנימי' }
+const CHARGE_TYPE_DEFAULT_AMOUNT: Record<ChargeType, number> = { PRACTICAL_TEST: 230, INTERNAL_TEST: 200 }
+const DURATION_OPTIONS = [40, 60, 80, 100, 120] as const
+
+type ChargeItem = {
+  id: string
+  type: ChargeType
+  studentId: string
+  studentName: string
+  phone: string | null
+  startTime: Date
+  endTime: Date
+  amount: number
+  invoiceUrl: string | null
+  paid: boolean
+}
 
 type CalendarBooking = {
   id: string
@@ -128,20 +147,71 @@ type ReassignModal = {
   result: string
 }
 
+type NewEventStep = 'choose' | 'test' | 'lesson'
+type NewEventModal = {
+  date: string
+  time: string
+  step: NewEventStep
+  chargeType: ChargeType
+  minutes: number
+  amount: string
+  studentId: string
+  studentSearch: string
+  students: Student[]
+  paidNow: boolean
+  method: 'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER'
+  reference: string
+  pickupAddress: string
+  notes: string
+  submitting: boolean
+  error: string
+}
+
+type ChargeModal = {
+  charge: ChargeItem
+  method: 'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER'
+  reference: string
+  paying: boolean
+  deleting: boolean
+  result: string
+}
+
 export default function CalendarPage() {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }))
   const [lessons, setLessons] = useState<Lesson[]>([])
   const [blocks, setBlocks] = useState<Block[]>([])
+  const [charges, setCharges] = useState<ChargeItem[]>([])
   const [actionModal, setActionModal] = useState<ActionModal | null>(null)
   const [swapSource, setSwapSource] = useState<Lesson | null>(null)
   const [swapModal, setSwapModal] = useState<SwapModal | null>(null)
   const [reassignModal, setReassignModal] = useState<ReassignModal | null>(null)
   const [paymentsModal, setPaymentsModal] = useState<{ studentId: string; data: PaymentsPanelData | null; error: string } | null>(null)
+  const [newEventModal, setNewEventModal] = useState<NewEventModal | null>(null)
+  const [chargeModal, setChargeModal] = useState<ChargeModal | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   function refreshBookings() {
     fetch('/api/bookings').then(r => r.json()).then(data => {
       if (Array.isArray(data)) setLessons(groupToLessons(data))
+    })
+  }
+
+  function refreshCharges() {
+    fetch('/api/charges').then(r => r.json()).then((data: any[]) => {
+      if (Array.isArray(data)) {
+        setCharges(data.map(c => ({
+          id: c.id,
+          type: c.type,
+          studentId: c.studentId,
+          studentName: c.student.name,
+          phone: c.student.phone ?? null,
+          startTime: new Date(c.startTime),
+          endTime: new Date(c.endTime),
+          amount: c.amount,
+          invoiceUrl: c.invoice?.invoiceUrl ?? null,
+          paid: !!c.invoice,
+        })))
+      }
     })
   }
 
@@ -168,6 +238,7 @@ export default function CalendarPage() {
 
   useEffect(() => {
     refreshBookings()
+    refreshCharges()
     fetch('/api/availability').then(r => r.json()).then((data: any[]) => {
       if (Array.isArray(data)) {
         setBlocks(data.filter(s => s.isBlocked).map(s => ({
@@ -214,6 +285,175 @@ export default function CalendarPage() {
       }
     } catch {
       setReassignModal(m => m ? { ...m, reassigning: false, result: 'שגיאת רשת — נסה שוב' } : m)
+    }
+  }
+
+  async function openNewEvent(start: Date) {
+    setNewEventModal({
+      date: format(start, 'yyyy-MM-dd'),
+      time: format(start, 'HH:mm'),
+      step: 'choose',
+      chargeType: 'PRACTICAL_TEST',
+      minutes: 40,
+      amount: String(CHARGE_TYPE_DEFAULT_AMOUNT.PRACTICAL_TEST),
+      studentId: '',
+      studentSearch: '',
+      students: [],
+      paidNow: false,
+      method: 'CASH',
+      reference: '',
+      pickupAddress: '',
+      notes: '',
+      submitting: false,
+      error: '',
+    })
+    const res = await fetch('/api/students')
+    if (res.ok) {
+      const data = await res.json()
+      setNewEventModal(m => m ? { ...m, students: data.map((s: any) => ({ id: s.id, name: s.name, phone: s.phone ?? null })) } : m)
+    }
+  }
+
+  function handleGridClick(day: Date, e: React.MouseEvent<HTMLDivElement>) {
+    if (swapSource) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const y = e.clientY - rect.top
+    const totalMinutes = START_HOUR * 60 + (y / HOUR_HEIGHT) * 60
+    const snapped = Math.max(START_HOUR * 60, Math.floor(totalMinutes / 20) * 20)
+    const start = new Date(day)
+    start.setHours(Math.floor(snapped / 60), snapped % 60, 0, 0)
+    openNewEvent(start)
+  }
+
+  function chooseEventType(step: NewEventStep, chargeType?: ChargeType) {
+    setNewEventModal(m => {
+      if (!m) return m
+      return {
+        ...m,
+        step,
+        chargeType: chargeType ?? m.chargeType,
+        amount: chargeType ? String(CHARGE_TYPE_DEFAULT_AMOUNT[chargeType]) : m.amount,
+      }
+    })
+  }
+
+  async function handleCreateTest() {
+    if (!newEventModal) return
+    if (!newEventModal.studentId) {
+      setNewEventModal(m => m ? { ...m, error: 'יש לבחור תלמיד' } : m)
+      return
+    }
+    const amount = Number(newEventModal.amount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setNewEventModal(m => m ? { ...m, error: 'סכום לא תקין' } : m)
+      return
+    }
+    setNewEventModal(m => m ? { ...m, submitting: true, error: '' } : m)
+    try {
+      const startTime = new Date(`${newEventModal.date}T${newEventModal.time}:00`).toISOString()
+      const res = await fetch('/api/charges', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: newEventModal.studentId, type: newEventModal.chargeType,
+          startTime, minutes: newEventModal.minutes, amount,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setNewEventModal(m => m ? { ...m, submitting: false, error: data.error || 'שגיאה' } : m)
+        return
+      }
+      if (newEventModal.paidNow) {
+        await fetch(`/api/students/${newEventModal.studentId}/charge`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            description: CHARGE_TYPE_LABELS[newEventModal.chargeType], amount,
+            method: newEventModal.method, reference: newEventModal.reference,
+            paidAt: new Date().toISOString(), chargeId: data.id,
+          }),
+        }).catch(() => {})
+      }
+      setNewEventModal(null)
+      refreshCharges()
+    } catch {
+      setNewEventModal(m => m ? { ...m, submitting: false, error: 'שגיאת רשת — נסה שוב' } : m)
+    }
+  }
+
+  async function handleCreateLesson() {
+    if (!newEventModal) return
+    if (!newEventModal.studentId) {
+      setNewEventModal(m => m ? { ...m, error: 'יש לבחור תלמיד' } : m)
+      return
+    }
+    setNewEventModal(m => m ? { ...m, submitting: true, error: '' } : m)
+    try {
+      const startTime = new Date(`${newEventModal.date}T${newEventModal.time}:00`).toISOString()
+      const res = await fetch('/api/instructor/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: newEventModal.studentId, startTime, minutes: newEventModal.minutes,
+          pickupAddress: newEventModal.pickupAddress, notes: newEventModal.notes,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setNewEventModal(m => m ? { ...m, submitting: false, error: data.error || 'שגיאה' } : m)
+        return
+      }
+      setNewEventModal(null)
+      refreshBookings()
+    } catch {
+      setNewEventModal(m => m ? { ...m, submitting: false, error: 'שגיאת רשת — נסה שוב' } : m)
+    }
+  }
+
+  function openChargeModal(charge: ChargeItem) {
+    setChargeModal({ charge, method: 'CASH', reference: '', paying: false, deleting: false, result: '' })
+  }
+
+  async function handlePayCharge() {
+    if (!chargeModal) return
+    setChargeModal(m => m ? { ...m, paying: true, result: '' } : m)
+    try {
+      const res = await fetch(`/api/students/${chargeModal.charge.studentId}/charge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: CHARGE_TYPE_LABELS[chargeModal.charge.type], amount: chargeModal.charge.amount,
+          method: chargeModal.method, reference: chargeModal.reference,
+          paidAt: new Date().toISOString(), chargeId: chargeModal.charge.id,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok || res.status === 207) {
+        setChargeModal(null)
+        refreshCharges()
+      } else {
+        setChargeModal(m => m ? { ...m, paying: false, result: data.error || 'שגיאה' } : m)
+      }
+    } catch {
+      setChargeModal(m => m ? { ...m, paying: false, result: 'שגיאת רשת — נסה שוב' } : m)
+    }
+  }
+
+  async function handleDeleteCharge() {
+    if (!chargeModal) return
+    setChargeModal(m => m ? { ...m, deleting: true, result: '' } : m)
+    try {
+      const res = await fetch(`/api/charges/${chargeModal.charge.id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setChargeModal(null)
+        refreshCharges()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setChargeModal(m => m ? { ...m, deleting: false, result: data.error || 'שגיאה' } : m)
+      }
+    } catch {
+      setChargeModal(m => m ? { ...m, deleting: false, result: 'שגיאת רשת — נסה שוב' } : m)
     }
   }
 
@@ -422,8 +662,10 @@ export default function CalendarPage() {
             {days.map(day => {
               const dayLessons = lessons.filter(l => isSameDay(l.startTime, day))
               const dayBlocks  = blocks.filter(b => isSameDay(b.startTime, day))
+              const dayCharges = charges.filter(c => isSameDay(c.startTime, day))
               return (
-                <div key={day.toISOString()} className="flex-1 relative border-l last:border-l-0 min-w-0">
+                <div key={day.toISOString()} className="flex-1 relative border-l last:border-l-0 min-w-0 cursor-pointer"
+                  onClick={e => handleGridClick(day, e)}>
                   {hours.map(h => (
                     <div key={h} style={{ position: 'absolute', top: `${(h - START_HOUR) * HOUR_HEIGHT}px`, left: 0, right: 0 }}
                       className={`border-t ${h % 2 === 0 ? 'border-gray-200' : 'border-gray-100'}`} />
@@ -438,7 +680,7 @@ export default function CalendarPage() {
 
                   {/* Blocks — red */}
                   {dayBlocks.map(block => (
-                    <div key={block.id}
+                    <div key={block.id} onClick={e => e.stopPropagation()}
                       style={{ position: 'absolute', top: `${getTop(block.startTime)}px`, height: `${getHeight(block.startTime, block.endTime)}px`, left: '2px', right: '2px', zIndex: 4 }}
                       className="bg-red-500 text-white rounded-lg px-1.5 py-1 overflow-hidden opacity-80 select-none">
                       <p className="text-xs font-semibold truncate">{block.blockNote || 'חסום'}</p>
@@ -447,6 +689,25 @@ export default function CalendarPage() {
                       )}
                     </div>
                   ))}
+
+                  {/* Charges — practical/internal tests */}
+                  {dayCharges.map(charge => {
+                    const top = getTop(charge.startTime)
+                    const height = getHeight(charge.startTime, charge.endTime)
+                    const color = charge.type === 'PRACTICAL_TEST' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-orange-500 hover:bg-orange-600'
+                    return (
+                      <div key={charge.id}
+                        style={{ position: 'absolute', top: `${top}px`, height: `${height}px`, left: '2px', right: '2px', zIndex: 6 }}
+                        onClick={e => { e.stopPropagation(); openChargeModal(charge) }}
+                        className={`rounded-lg px-0.5 cursor-pointer overflow-hidden select-none transition text-white flex flex-col items-center justify-center ${color}`}>
+                        <p className="font-bold leading-tight text-center break-words text-xs line-clamp-1">{charge.studentName}</p>
+                        <p className="text-[10px] opacity-90 leading-tight">{CHARGE_TYPE_LABELS[charge.type]}</p>
+                        <span title={charge.paid ? 'שולם' : 'טרם שולם'} className="absolute top-0.5 right-0.5 text-xs leading-none">
+                          {charge.paid ? '💰' : '🟡'}
+                        </span>
+                      </div>
+                    )
+                  })}
 
                   {/* Lessons — clickable */}
                   {dayLessons.map(lesson => {
@@ -457,7 +718,7 @@ export default function CalendarPage() {
                     return (
                       <div key={lesson.firstId}
                         style={{ position: 'absolute', top: `${top}px`, height: `${height}px`, left: '2px', right: '2px', zIndex: 5 }}
-                        onClick={() => handleLessonClick(lesson)}
+                        onClick={e => { e.stopPropagation(); handleLessonClick(lesson) }}
                         className={`rounded-lg px-0.5 cursor-pointer overflow-hidden select-none transition text-white flex items-center justify-center
                           ${isSwapSource ? 'bg-amber-500 ring-2 ring-amber-300 ring-offset-1 animate-pulse' : ''}
                           ${isSwapTarget ? 'bg-blue-500 hover:bg-blue-600' : ''}
@@ -802,10 +1063,196 @@ export default function CalendarPage() {
                 studentId={paymentsModal.studentId}
                 pricePer20Min={paymentsModal.data.student.pricePer20Min}
                 payableLessons={paymentsModal.data.payableLessons}
+                pendingCharges={paymentsModal.data.pendingCharges}
                 invoices={paymentsModal.data.invoices}
                 initialBalance={paymentsModal.data.balance}
               />
             )}
+          </div>
+        </div>
+      )}
+
+      {/* New event — click an empty calendar slot */}
+      {newEventModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" onClick={() => setNewEventModal(null)}>
+          <div className="bg-white rounded-xl p-5 w-full max-w-sm max-h-[90vh] overflow-y-auto" dir="rtl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-bold text-lg">אירוע חדש</p>
+              <button onClick={() => setNewEventModal(null)} className="text-gray-400 hover:text-gray-600 text-sm">סגור ✕</button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">תאריך</label>
+                <input type="date" value={newEventModal.date}
+                  onChange={e => setNewEventModal(m => m ? { ...m, date: e.target.value } : m)}
+                  className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-400" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">שעה</label>
+                <input type="time" value={newEventModal.time}
+                  onChange={e => setNewEventModal(m => m ? { ...m, time: e.target.value } : m)}
+                  className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-400" />
+              </div>
+            </div>
+
+            {newEventModal.step === 'choose' && (
+              <div className="space-y-2">
+                <button type="button" onClick={() => chooseEventType('test', 'PRACTICAL_TEST')}
+                  className="w-full bg-blue-500 text-white py-2.5 rounded-xl font-medium hover:bg-blue-600 transition">
+                  🔵 מבחן מעשי
+                </button>
+                <button type="button" onClick={() => chooseEventType('test', 'INTERNAL_TEST')}
+                  className="w-full bg-orange-500 text-white py-2.5 rounded-xl font-medium hover:bg-orange-600 transition">
+                  🟠 טסט פנימי
+                </button>
+                <button type="button" onClick={() => chooseEventType('lesson')}
+                  className="w-full bg-green-600 text-white py-2.5 rounded-xl font-medium hover:bg-green-700 transition">
+                  🟢 קביעת שיעור לתלמיד
+                </button>
+              </div>
+            )}
+
+            {(newEventModal.step === 'test' || newEventModal.step === 'lesson') && (() => {
+              const m = newEventModal
+              const selectedStudent = m.students.find(s => s.id === m.studentId)
+              return (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">תלמיד</label>
+                    <input type="text" placeholder="חיפוש תלמיד..."
+                      value={selectedStudent ? selectedStudent.name : m.studentSearch}
+                      onChange={e => setNewEventModal(x => x ? { ...x, studentSearch: e.target.value, studentId: '' } : x)}
+                      className="w-full border rounded-lg px-3 py-2 text-sm mb-1.5 focus:ring-2 focus:ring-blue-400" />
+                    {!selectedStudent && m.studentSearch && (
+                      <div className="border rounded-lg overflow-hidden max-h-36 overflow-y-auto">
+                        {m.students.filter(s => s.name.includes(m.studentSearch)).map(s => (
+                          <button key={s.id} type="button"
+                            onClick={() => setNewEventModal(x => x ? { ...x, studentId: s.id, studentSearch: s.name } : x)}
+                            className="w-full text-right px-3 py-2 text-sm hover:bg-gray-50 border-b last:border-b-0">
+                            {s.name}{s.phone && <span className="text-gray-400 text-xs mr-2">{s.phone}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">משך</label>
+                    <div className="grid grid-cols-5 gap-1">
+                      {DURATION_OPTIONS.map(min => (
+                        <button key={min} type="button" onClick={() => setNewEventModal(x => x ? { ...x, minutes: min } : x)}
+                          className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${m.minutes === min ? 'border-blue-600 bg-blue-100 text-blue-800' : 'border-gray-200 bg-white hover:border-blue-300'}`}>
+                          {min} דק׳
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {m.step === 'test' ? (
+                    <>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">סכום (₪)</label>
+                        <input type="number" min={0} value={m.amount}
+                          onChange={e => setNewEventModal(x => x ? { ...x, amount: e.target.value } : x)}
+                          className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-400" />
+                      </div>
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" checked={m.paidNow} onChange={e => setNewEventModal(x => x ? { ...x, paidNow: e.target.checked } : x)}
+                          className="w-4 h-4 accent-blue-600" />
+                        שולם כבר עכשיו
+                      </label>
+                      {m.paidNow && (
+                        <>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER'] as const).map(mt => (
+                              <button key={mt} type="button" onClick={() => setNewEventModal(x => x ? { ...x, method: mt } : x)}
+                                className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${m.method === mt ? 'border-blue-600 bg-blue-100 text-blue-800' : 'border-gray-200 bg-white hover:border-blue-300'}`}>
+                                {{ CASH: 'מזומן', BIT: 'ביט', PAYBOX: 'פייבוקס', BANK_TRANSFER: 'העברה בנקאית' }[mt]}
+                              </button>
+                            ))}
+                          </div>
+                          <input type="text" placeholder="אסמכתא (אופציונלי)" value={m.reference}
+                            onChange={e => setNewEventModal(x => x ? { ...x, reference: e.target.value } : x)}
+                            className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-400" />
+                        </>
+                      )}
+                      {m.error && <p className="text-red-500 text-sm">{m.error}</p>}
+                      <button onClick={handleCreateTest} disabled={m.submitting}
+                        className="w-full bg-blue-600 text-white py-2.5 rounded-xl font-medium hover:bg-blue-700 disabled:opacity-50 transition">
+                        {m.submitting ? 'שומר...' : 'קבע אירוע'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <input type="text" placeholder="כתובת איסוף (אופציונלי)" value={m.pickupAddress}
+                        onChange={e => setNewEventModal(x => x ? { ...x, pickupAddress: e.target.value } : x)}
+                        className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-400" />
+                      <textarea placeholder="הערות (אופציונלי)" rows={2} value={m.notes}
+                        onChange={e => setNewEventModal(x => x ? { ...x, notes: e.target.value } : x)}
+                        className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-400 resize-none" />
+                      {m.error && <p className="text-red-500 text-sm">{m.error}</p>}
+                      <button onClick={handleCreateLesson} disabled={m.submitting}
+                        className="w-full bg-green-600 text-white py-2.5 rounded-xl font-medium hover:bg-green-700 disabled:opacity-50 transition">
+                        {m.submitting ? 'קובע...' : 'קבע שיעור'}
+                      </button>
+                    </>
+                  )}
+                  <button type="button" onClick={() => chooseEventType('choose')} className="w-full text-gray-400 text-sm py-1 hover:text-gray-600">
+                    ← חזרה
+                  </button>
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Charge detail — practical/internal test */}
+      {chargeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" onClick={() => setChargeModal(null)}>
+          <div className="bg-white rounded-xl p-5 w-full max-w-sm" dir="rtl" onClick={e => e.stopPropagation()}>
+            <p className="font-bold text-lg">{chargeModal.charge.studentName}</p>
+            <p className="text-gray-500 text-sm mb-3">
+              {CHARGE_TYPE_LABELS[chargeModal.charge.type]} | {format(chargeModal.charge.startTime, "EEEE, d בMMMM", { locale: he })} | {format(chargeModal.charge.startTime, 'HH:mm')}–{format(chargeModal.charge.endTime, 'HH:mm')}
+            </p>
+
+            {chargeModal.charge.paid ? (
+              <div className="bg-green-50 rounded-xl p-3 mb-3 text-sm text-green-800">
+                ✓ שולם (₪{chargeModal.charge.amount})
+                {chargeModal.charge.invoiceUrl && (
+                  <a href={chargeModal.charge.invoiceUrl} target="_blank" rel="noreferrer" className="block text-blue-600 hover:underline mt-1">📄 צפייה בחשבונית</a>
+                )}
+              </div>
+            ) : (
+              <div className="bg-blue-50 rounded-xl p-3 mb-3 space-y-2">
+                <p className="text-sm font-semibold text-blue-800">טרם שולם — ₪{chargeModal.charge.amount}</p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER'] as const).map(mt => (
+                    <button key={mt} type="button" onClick={() => setChargeModal(m => m ? { ...m, method: mt } : m)}
+                      className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${chargeModal.method === mt ? 'border-blue-600 bg-blue-100 text-blue-800' : 'border-gray-200 bg-white hover:border-blue-300'}`}>
+                      {{ CASH: 'מזומן', BIT: 'ביט', PAYBOX: 'פייבוקס', BANK_TRANSFER: 'העברה בנקאית' }[mt]}
+                    </button>
+                  ))}
+                </div>
+                <input type="text" placeholder="אסמכתא (אופציונלי)" value={chargeModal.reference}
+                  onChange={e => setChargeModal(m => m ? { ...m, reference: e.target.value } : m)}
+                  className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-400" />
+                {chargeModal.result && <p className="text-xs text-red-600">{chargeModal.result}</p>}
+                <button onClick={handlePayCharge} disabled={chargeModal.paying}
+                  className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition">
+                  {chargeModal.paying ? 'מפיק חשבונית...' : `אשר ₪${chargeModal.charge.amount} והפק חשבונית`}
+                </button>
+              </div>
+            )}
+
+            {!chargeModal.charge.paid && (
+              <button onClick={handleDeleteCharge} disabled={chargeModal.deleting}
+                className="w-full text-red-400 text-sm py-1.5 hover:text-red-600 disabled:opacity-50 mb-1">
+                {chargeModal.deleting ? 'מוחק...' : 'מחק אירוע'}
+              </button>
+            )}
+            <button onClick={() => setChargeModal(null)} className="w-full text-gray-400 text-sm py-1 hover:text-gray-600">סגור</button>
           </div>
         </div>
       )}

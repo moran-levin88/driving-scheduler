@@ -2,6 +2,7 @@
 import { useState } from 'react'
 
 type PayableLesson = { firstBookingId: string; startTime: string; endTime: string; paidSoFar: number }
+type PendingCharge = { id: string; label: string; startTime: string; amount: number }
 type InvoiceRow = {
   id: string; amount: number; method: string; reference: string | null
   paidAt: string; isDeposit: boolean; description: string | null
@@ -21,17 +22,20 @@ function minutesBetween(startIso: string, endIso: string) {
 }
 
 export default function StudentPaymentsPanel({
-  studentId, pricePer20Min, payableLessons, invoices, initialBalance,
+  studentId, pricePer20Min, payableLessons, pendingCharges, invoices, initialBalance,
 }: {
   studentId: string
   pricePer20Min: number | null
   payableLessons: PayableLesson[]
+  pendingCharges: PendingCharge[]
   invoices: InvoiceRow[]
   initialBalance: number
 }) {
   const [balance, setBalance] = useState(initialBalance)
   const [invoiceList, setInvoiceList] = useState(invoices)
   const [paidIds, setPaidIds] = useState<Set<string>>(new Set())
+  const [chargesList, setChargesList] = useState(pendingCharges)
+  const [activeChargeId, setActiveChargeId] = useState<string | null>(null)
 
   // Add balance form
   const [depositOpen, setDepositOpen] = useState(false)
@@ -147,6 +151,13 @@ export default function StudentPaymentsPanel({
     }
   }
 
+  function openChargeFor(c: PendingCharge) {
+    setActiveChargeId(c.id)
+    setChargeDescription(c.label)
+    setChargeAmount(String(c.amount))
+    setChargeOpen(true)
+  }
+
   async function handleCharge() {
     const amount = Number(chargeAmount)
     if (!chargeDescription.trim()) {
@@ -166,13 +177,15 @@ export default function StudentPaymentsPanel({
         body: JSON.stringify({
           description: chargeDescription, amount, method: chargeMethod,
           reference: chargeReference, paidAt: new Date(chargeDate).toISOString(),
+          chargeId: activeChargeId,
         }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok || res.status === 207) {
         if (data.invoice) setInvoiceList(prev => [data.invoice, ...prev])
+        if (activeChargeId) setChargesList(prev => prev.filter(c => c.id !== activeChargeId))
         setChargeResult(data.invoiceError ? `✓ החיוב נרשם, אך ${data.invoiceError}` : '')
-        if (!data.invoiceError) { setChargeOpen(false); setChargeDescription(''); setChargeAmount(''); setChargeReference('') }
+        if (!data.invoiceError) { setChargeOpen(false); setChargeDescription(''); setChargeAmount(''); setChargeReference(''); setActiveChargeId(null) }
       } else {
         setChargeResult(data.error || 'שגיאה')
       }
@@ -285,11 +298,31 @@ export default function StudentPaymentsPanel({
         )}
       </div>
 
+      {/* Practical/internal tests booked from the calendar, awaiting payment */}
+      {chargesList.length > 0 && (
+        <div className="bg-white rounded-xl shadow p-4">
+          <h2 className="font-bold text-gray-900 mb-3">אירועים ממתינים לתשלום</h2>
+          <div className="space-y-1.5">
+            {chargesList.map(c => (
+              <div key={c.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-gray-50">
+                <span className="text-sm">
+                  {c.label} — {new Date(c.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })} — ₪{c.amount}
+                </span>
+                <button type="button" onClick={() => openChargeFor(c)}
+                  className="shrink-0 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 transition">
+                  💰 סמן כשולם
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* One-off charge — not tied to a lesson (e.g. test car provision) */}
       <div className="bg-white rounded-xl shadow p-4">
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-bold text-gray-900">חיוב חד-פעמי</h2>
-          <button onClick={() => setChargeOpen(v => !v)} className="text-sm bg-green-50 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-100 transition">
+          <button onClick={() => { setChargeOpen(v => !v); setActiveChargeId(null) }} className="text-sm bg-green-50 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-100 transition">
             + חיוב חדש
           </button>
         </div>

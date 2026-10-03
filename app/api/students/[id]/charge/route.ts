@@ -19,7 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const { id } = await params
-  const { description, amount, method, reference, paidAt } = await req.json()
+  const { description, amount, method, reference, paidAt, chargeId } = await req.json()
 
   const desc = String(description ?? '').trim()
   if (!desc) {
@@ -35,11 +35,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const student = await prisma.user.findUnique({ where: { id, role: 'STUDENT' } })
   if (!student) return NextResponse.json({ error: 'תלמיד לא נמצא' }, { status: 404 })
 
+  if (chargeId) {
+    const charge = await prisma.charge.findUnique({ where: { id: chargeId } })
+    if (!charge || charge.studentId !== id) return NextResponse.json({ error: 'אירוע לא נמצא' }, { status: 404 })
+    if (charge.invoiceId) return NextResponse.json({ error: 'האירוע כבר שולם' }, { status: 409 })
+  }
+
   const paidAtDate = paidAt ? new Date(paidAt) : new Date()
 
   const invoice = await prisma.invoice.create({
     data: { studentId: id, amount, method, reference: reference || null, paidAt: paidAtDate, description: desc },
   })
+
+  if (chargeId) {
+    await prisma.charge.update({ where: { id: chargeId }, data: { invoiceId: invoice.id } })
+  }
 
   let invoiceError: string | null = null
   try {

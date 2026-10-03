@@ -51,14 +51,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     let cursor = chain[chain.length - 1].availability.endTime
     for (let i = 0; i < needed; i++) {
       const slotEnd = new Date(cursor.getTime() + SLOT_MINUTES * 60 * 1000)
-      const conflict = await prisma.booking.findFirst({
-        where: {
-          status: { in: ['PENDING', 'APPROVED'] },
-          availability: { instructorId: first.availability.instructorId, startTime: cursor },
-        },
-      })
-      if (conflict) {
-        return NextResponse.json({ error: 'השעה שאחרי השיעור כבר תפוסה בשיעור אחר' }, { status: 409 })
+      const [conflict, chargeConflict] = await Promise.all([
+        prisma.booking.findFirst({
+          where: {
+            status: { in: ['PENDING', 'APPROVED'] },
+            availability: { instructorId: first.availability.instructorId, startTime: cursor },
+          },
+        }),
+        prisma.charge.findFirst({ where: { startTime: { lt: slotEnd }, endTime: { gt: cursor } } }),
+      ])
+      if (conflict || chargeConflict) {
+        return NextResponse.json({ error: 'השעה שאחרי השיעור כבר תפוסה' }, { status: 409 })
       }
       let slot = await prisma.availability.findFirst({
         where: { instructorId: first.availability.instructorId, startTime: cursor },

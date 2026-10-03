@@ -89,7 +89,6 @@ export default function InstructorNav() {
     { href: '/instructor/availability', label: 'ניהול זמינות' },
     { href: '/instructor/calendar', label: 'קלנדר' },
     { href: '/instructor/bookings', label: 'הזמנות', badge: pendingCount },
-    { href: '/instructor/book', label: 'קביעת שיעור' },
     { href: '/instructor/students', label: 'תלמידים' },
   ]
 

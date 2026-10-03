@@ -67,6 +67,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   invoices            Invoice[]
   payments            Payment[]
+  charges             Charge[]
 }
 
 model PasswordResetToken {
@@ -175,6 +176,7 @@ model Invoice {
   createdAt     DateTime      @default(now())
 
   payments Payment[]
+  charge   Charge?
 
   @@index([studentId])
 }
@@ -200,4 +202,29 @@ model Payment {
   @@index([studentId])
   @@index([invoiceId])
   @@index([bookingId])
+}
+
+enum ChargeType {
+  PRACTICAL_TEST // מבחן מעשי
+  INTERNAL_TEST  // טסט פנימי
+}
+
+// A calendar event booked directly with a student that isn't a driving
+// lesson — a practical/internal test — with its own fixed cost. Shown on
+// the calendar in its own color; stays unpaid (contributing to the
+// student's debt) until the instructor links it to a real Invoice.
+model Charge {
+  id        String     @id @default(cuid())
+  studentId String
+  student   User       @relation(fields: [studentId], references: [id])
+  type      ChargeType
+  startTime DateTime
+  endTime   DateTime
+  amount    Int
+  invoiceId String?    @unique
+  invoice   Invoice?   @relation(fields: [invoiceId], references: [id])
+  createdAt DateTime   @default(now())
+
+  @@index([studentId])
+  @@index([startTime])
 }
