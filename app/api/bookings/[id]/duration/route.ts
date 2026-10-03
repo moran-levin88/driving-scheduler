@@ -41,19 +41,38 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   let newEndTime: Date
 
   if (targetSlots > currentSlots) {
-    // Extend — find enough consecutive free slots right after the lesson's current end
+    // Extend — walk forward 20 minutes at a time. A slot only blocks the
+    // extension if another active booking actually occupies it; whether an
+    // Availability row happens to exist there (e.g. it was never published,
+    // common for correcting a lesson that's already in the past) doesn't
+    // matter — one is created on the fly if needed.
     const needed = targetSlots - currentSlots
     const extra: (typeof first.availability)[] = []
     let cursor = chain[chain.length - 1].availability.endTime
     for (let i = 0; i < needed; i++) {
-      const next = await prisma.availability.findFirst({
-        where: { instructorId: first.availability.instructorId, startTime: cursor, isBooked: false, isBlocked: false },
+      const slotEnd = new Date(cursor.getTime() + SLOT_MINUTES * 60 * 1000)
+      const conflict = await prisma.booking.findFirst({
+        where: {
+          status: { in: ['PENDING', 'APPROVED'] },
+          availability: { instructorId: first.availability.instructorId, startTime: cursor },
+        },
       })
-      if (!next) {
-        return NextResponse.json({ error: 'אין מספיק זמינות פנויה בהמשך כדי להאריך את השיעור' }, { status: 409 })
+      if (conflict) {
+        return NextResponse.json({ error: 'השעה שאחרי השיעור כבר תפוסה בשיעור אחר' }, { status: 409 })
       }
-      extra.push(next)
-      cursor = next.endTime
+      let slot = await prisma.availability.findFirst({
+        where: { instructorId: first.availability.instructorId, startTime: cursor },
+      })
+      if (slot?.isBlocked) {
+        return NextResponse.json({ error: 'השעה שאחרי השיעור חסומה' }, { status: 409 })
+      }
+      if (!slot) {
+        slot = await prisma.availability.create({
+          data: { instructorId: first.availability.instructorId, startTime: cursor, endTime: slotEnd, isBooked: false },
+        })
+      }
+      extra.push(slot)
+      cursor = slot.endTime
     }
 
     await prisma.$transaction([
