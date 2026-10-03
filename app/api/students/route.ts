@@ -34,10 +34,11 @@ export async function GET() {
     // Only lessons that have actually happened (ended already) count toward
     // the displayed lesson count — a future approved booking isn't "taken" yet.
     const completedLessons = lessons.filter(l => ['APPROVED', 'COMPLETED'].includes(l.status) && l.endTime <= now)
-    // Debt is the shortfall per approved lesson (price minus whatever's been
-    // paid so far), not just lessons with zero payments — a partially-paid
-    // lesson still owes the difference.
-    const approvedLessons = lessons.filter(l => l.status === 'APPROVED')
+    // Debt is the shortfall per approved lesson that's already happened
+    // (price minus whatever's been paid so far) — a future booked lesson
+    // isn't owed yet, and a partially-paid past lesson still owes the
+    // difference, not just lessons with zero payments.
+    const approvedLessons = lessons.filter(l => l.status === 'APPROVED' && l.endTime <= now)
     const debt = s.pricePer20Min != null
       ? approvedLessons.reduce((sum, l) => sum + Math.max(0, s.pricePer20Min! * l.slots - l.paidSoFar), 0)
       : 0
