@@ -11,7 +11,7 @@ import { getStudentBalance } from '@/lib/balance'
 import { format } from 'date-fns'
 import { he } from 'date-fns/locale'
 
-const METHODS = ['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'BALANCE'] as const
+const METHODS = ['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'BALANCE', 'EXTERNAL'] as const
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -56,14 +56,19 @@ export async function POST(req: NextRequest) {
   const total = resolved.reduce((sum, r) => sum + r.amount, 0)
   const paidAtDate = paidAt ? new Date(paidAt) : new Date()
 
-  if (method === 'BALANCE') {
-    const balance = await getStudentBalance(studentId)
-    if (balance < total) {
-      return NextResponse.json({ error: `אין מספיק יתרה (יתרה זמינה: ₪${balance})` }, { status: 409 })
+  // BALANCE draws down the student's prepaid credit; EXTERNAL just records
+  // that a lesson was already settled outside this system (e.g. the
+  // previous platform) — neither creates a Morning document.
+  if (method === 'BALANCE' || method === 'EXTERNAL') {
+    if (method === 'BALANCE') {
+      const balance = await getStudentBalance(studentId)
+      if (balance < total) {
+        return NextResponse.json({ error: `אין מספיק יתרה (יתרה זמינה: ₪${balance})` }, { status: 409 })
+      }
     }
     const payments = await prisma.$transaction(
       resolved.map(r => prisma.payment.create({
-        data: { bookingId: r.first.id, studentId, amount: r.amount, method: 'BALANCE', paidAt: paidAtDate },
+        data: { bookingId: r.first.id, studentId, amount: r.amount, method, paidAt: paidAtDate },
       }))
     )
     return NextResponse.json({ ok: true, payments })

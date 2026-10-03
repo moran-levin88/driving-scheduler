@@ -10,6 +10,7 @@ type InvoiceRow = {
 
 const METHOD_LABELS: Record<string, string> = {
   CASH: 'מזומן', BIT: 'ביט', PAYBOX: 'פייבוקס', BANK_TRANSFER: 'העברה בנקאית', BALANCE: 'יתרה',
+  EXTERNAL: 'שולם בפלטפורמה הקודמת',
 }
 
 function minutesBetween(startIso: string, endIso: string) {
@@ -41,7 +42,7 @@ export default function StudentPaymentsPanel({
   // Batch payment form
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [amounts, setAmounts] = useState<Record<string, string>>({})
-  const [method, setMethod] = useState<'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER' | 'BALANCE'>('CASH')
+  const [method, setMethod] = useState<'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER' | 'BALANCE' | 'EXTERNAL'>('CASH')
   const [reference, setReference] = useState('')
   const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [paying, setPaying] = useState(false)
@@ -226,8 +227,8 @@ export default function StudentPaymentsPanel({
         {selected.size > 0 && (
           <div className="bg-green-50 rounded-xl p-3 space-y-2">
             <p className="text-sm font-semibold text-green-800">{selected.size} שיעורים נבחרו — סה"כ ₪{total}</p>
-            <div className="grid grid-cols-5 gap-1.5">
-              {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'BALANCE'] as const).map(m => (
+            <div className="grid grid-cols-3 gap-1.5">
+              {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'BALANCE', 'EXTERNAL'] as const).map(m => (
                 <button key={m} type="button" disabled={m === 'BALANCE' && balance < total}
                   onClick={() => setMethod(m)}
                   className={`py-1.5 rounded-lg text-xs font-medium border-2 transition disabled:opacity-40 ${method === m ? 'border-green-600 bg-green-100 text-green-800' : 'border-gray-200 bg-white hover:border-green-300'}`}>
@@ -236,7 +237,8 @@ export default function StudentPaymentsPanel({
               ))}
             </div>
             {method === 'BALANCE' && <p className="text-xs text-gray-500">יתרה זמינה: ₪{balance}</p>}
-            {method !== 'BALANCE' && (
+            {method === 'EXTERNAL' && <p className="text-xs text-gray-500">השיעורים יסומנו כשולמו בלי להפיק חשבונית חדשה.</p>}
+            {method !== 'BALANCE' && method !== 'EXTERNAL' && (
               <>
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">תאריך תשלום</label>
@@ -253,7 +255,7 @@ export default function StudentPaymentsPanel({
             {payResult && <p className="text-xs text-red-600">{payResult}</p>}
             <button onClick={handlePay} disabled={paying}
               className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition">
-              {paying ? 'מעבד...' : method === 'BALANCE' ? `אשר ניכוי ₪${total} מהיתרה` : `אשר ₪${total} והפק חשבונית`}
+              {paying ? 'מעבד...' : method === 'BALANCE' ? `אשר ניכוי ₪${total} מהיתרה` : method === 'EXTERNAL' ? `סמן ${selected.size} שיעורים כשולמו` : `אשר ₪${total} והפק חשבונית`}
             </button>
           </div>
         )}

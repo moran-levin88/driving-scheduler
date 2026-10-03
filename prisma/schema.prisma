@@ -149,7 +149,8 @@ enum PaymentMethod {
   BIT
   PAYBOX
   BANK_TRANSFER
-  BALANCE // settled from the student's prepaid credit — no new Morning document
+  BALANCE  // settled from the student's prepaid credit — no new Morning document
+  EXTERNAL // already paid/invoiced outside this system (e.g. the previous platform) — no new Morning document
 }
 
 // One Morning document. Covers 1+ lessons (a regular or batched invoice) or,

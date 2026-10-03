@@ -9,7 +9,7 @@ const START_HOUR = 7
 const END_HOUR = 22
 const TOTAL_HEIGHT = (END_HOUR - START_HOUR) * HOUR_HEIGHT
 
-type PaymentMethodValue = 'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER' | 'BALANCE'
+type PaymentMethodValue = 'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER' | 'BALANCE' | 'EXTERNAL'
 
 type PaymentInfo = {
   amount: number
@@ -660,12 +660,14 @@ export default function CalendarPage() {
                 <div className="text-sm space-y-1">
                   <p><span className="text-gray-500">סכום:</span> ₪{actionModal.payment.amount}</p>
                   <p><span className="text-gray-500">אמצעי:</span> {
-                    { CASH: 'מזומן', BIT: 'ביט', PAYBOX: 'פייבוקס', BANK_TRANSFER: 'העברה בנקאית', BALANCE: 'יתרה' }[actionModal.payment.method]
+                    { CASH: 'מזומן', BIT: 'ביט', PAYBOX: 'פייבוקס', BANK_TRANSFER: 'העברה בנקאית', BALANCE: 'יתרה', EXTERNAL: 'שולם בפלטפורמה הקודמת' }[actionModal.payment.method]
                   }</p>
                   {actionModal.payment.invoice?.reference && <p><span className="text-gray-500">אסמכתא:</span> {actionModal.payment.invoice.reference}</p>}
                   <p><span className="text-gray-500">תאריך:</span> {format(new Date(actionModal.payment.paidAt), 'd/M/yyyy')}</p>
                   {actionModal.payment.method === 'BALANCE' ? (
                     <p className="text-xs text-gray-500 mt-2">שולם מהיתרה — לא הופקה חשבונית חדשה</p>
+                  ) : actionModal.payment.method === 'EXTERNAL' ? (
+                    <p className="text-xs text-gray-500 mt-2">סומן כשולם בפלטפורמה הקודמת — לא הופקה חשבונית חדשה</p>
                   ) : actionModal.payment.invoice?.invoiceUrl ? (
                     <a href={actionModal.payment.invoice.invoiceUrl} target="_blank" rel="noreferrer"
                       className="block w-full text-center bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition mt-2">
@@ -698,13 +700,14 @@ export default function CalendarPage() {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  <div className="grid grid-cols-5 gap-1.5">
+                  <div className="grid grid-cols-3 gap-1.5">
                     {([
                       { v: 'CASH', l: 'מזומן' },
                       { v: 'BIT', l: 'ביט' },
                       { v: 'PAYBOX', l: 'פייבוקס' },
                       { v: 'BANK_TRANSFER', l: 'העברה' },
                       { v: 'BALANCE', l: 'יתרה' },
+                      { v: 'EXTERNAL', l: 'שולם קודם' },
                     ] as const).map(o => {
                       const amount = Number(actionModal.paymentAmount) || 0
                       const balanceInsufficient = o.v === 'BALANCE' && (actionModal.studentBalance == null || actionModal.studentBalance < amount)
@@ -722,6 +725,9 @@ export default function CalendarPage() {
                   {actionModal.paymentMethod === 'BALANCE' && (
                     <p className="text-xs text-gray-500">יתרה זמינה: ₪{actionModal.studentBalance ?? '…'}</p>
                   )}
+                  {actionModal.paymentMethod === 'EXTERNAL' && (
+                    <p className="text-xs text-gray-500">השיעור יסומן כשולם בלי להפיק חשבונית חדשה.</p>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-xs text-gray-600 mb-1">סכום (₪)</label>
@@ -736,7 +742,7 @@ export default function CalendarPage() {
                         className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-400" />
                     </div>
                   </div>
-                  {actionModal.paymentMethod !== 'BALANCE' && (
+                  {actionModal.paymentMethod !== 'BALANCE' && actionModal.paymentMethod !== 'EXTERNAL' && (
                     <div>
                       <label className="block text-xs text-gray-600 mb-1">
                         {actionModal.paymentMethod === 'BANK_TRANSFER' ? 'מספר אסמכתא / שם המעביר'
@@ -752,10 +758,12 @@ export default function CalendarPage() {
                   <button onClick={handleLogPayment} disabled={actionModal.loggingPayment}
                     className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition">
                     {actionModal.loggingPayment
-                      ? (actionModal.paymentMethod === 'BALANCE' ? 'מעבד...' : 'מפיק חשבונית...')
+                      ? (actionModal.paymentMethod === 'BALANCE' || actionModal.paymentMethod === 'EXTERNAL' ? 'מעבד...' : 'מפיק חשבונית...')
                       : actionModal.paymentMethod === 'BALANCE'
                         ? `אשר ניכוי ₪${actionModal.paymentAmount || 0} מהיתרה`
-                        : `אשר ₪${actionModal.paymentAmount || 0} והפק חשבונית`}
+                        : actionModal.paymentMethod === 'EXTERNAL'
+                          ? 'סמן כשולם'
+                          : `אשר ₪${actionModal.paymentAmount || 0} והפק חשבונית`}
                   </button>
                 </div>
               )}
