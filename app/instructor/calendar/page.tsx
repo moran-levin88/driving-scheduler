@@ -43,6 +43,7 @@ type ChargeType = 'PRACTICAL_TEST' | 'INTERNAL_TEST'
 const CHARGE_TYPE_LABELS: Record<ChargeType, string> = { PRACTICAL_TEST: 'מבחן מעשי', INTERNAL_TEST: 'טסט פנימי' }
 const CHARGE_TYPE_DEFAULT_AMOUNT: Record<ChargeType, number> = { PRACTICAL_TEST: 230, INTERNAL_TEST: 200 }
 const DURATION_OPTIONS = [40, 60, 80, 100, 120] as const
+const PRACTICAL_TEST_DURATION_OPTIONS = [20, 40] as const
 
 type ChargeItem = {
   id: string
@@ -333,6 +334,7 @@ export default function CalendarPage() {
         step,
         chargeType: chargeType ?? m.chargeType,
         amount: chargeType ? String(CHARGE_TYPE_DEFAULT_AMOUNT[chargeType]) : m.amount,
+        minutes: 40, // reset — the valid duration choices differ per type (test vs. lesson)
       }
     })
   }
@@ -678,11 +680,13 @@ export default function CalendarPage() {
                     </div>
                   )}
 
-                  {/* Blocks — red */}
+                  {/* Blocks — red. Not given their own onClick, so a click here
+                      bubbles up to the day column and can still open the new-
+                      event modal — backdating into a once-blocked slot is allowed. */}
                   {dayBlocks.map(block => (
-                    <div key={block.id} onClick={e => e.stopPropagation()}
+                    <div key={block.id}
                       style={{ position: 'absolute', top: `${getTop(block.startTime)}px`, height: `${getHeight(block.startTime, block.endTime)}px`, left: '2px', right: '2px', zIndex: 4 }}
-                      className="bg-red-500 text-white rounded-lg px-1.5 py-1 overflow-hidden opacity-80 select-none">
+                      className="bg-red-500 text-white rounded-lg px-1.5 py-1 overflow-hidden opacity-80 select-none cursor-pointer">
                       <p className="text-xs font-semibold truncate">{block.blockNote || 'חסום'}</p>
                       {getHeight(block.startTime, block.endTime) >= 36 && (
                         <p className="text-xs opacity-90">{format(block.startTime, 'HH:mm')}–{format(block.endTime, 'HH:mm')}</p>
@@ -1139,8 +1143,8 @@ export default function CalendarPage() {
 
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">משך</label>
-                    <div className="grid grid-cols-5 gap-1">
-                      {DURATION_OPTIONS.map(min => (
+                    <div className={m.step === 'test' && m.chargeType === 'PRACTICAL_TEST' ? 'grid grid-cols-2 gap-1' : 'grid grid-cols-5 gap-1'}>
+                      {(m.step === 'test' && m.chargeType === 'PRACTICAL_TEST' ? PRACTICAL_TEST_DURATION_OPTIONS : DURATION_OPTIONS).map(min => (
                         <button key={min} type="button" onClick={() => setNewEventModal(x => x ? { ...x, minutes: min } : x)}
                           className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${m.minutes === min ? 'border-blue-600 bg-blue-100 text-blue-800' : 'border-gray-200 bg-white hover:border-blue-300'}`}>
                           {min} דק׳

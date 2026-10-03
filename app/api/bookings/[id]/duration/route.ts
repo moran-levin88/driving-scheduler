@@ -66,7 +66,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       let slot = await prisma.availability.findFirst({
         where: { instructorId: first.availability.instructorId, startTime: cursor },
       })
-      if (slot?.isBlocked) {
+      // A block only matters for a future slot — backdating into one that
+      // was just marked blocked back then is fine.
+      if (slot?.isBlocked && cursor >= new Date()) {
         return NextResponse.json({ error: 'השעה שאחרי השיעור חסומה' }, { status: 409 })
       }
       if (!slot) {

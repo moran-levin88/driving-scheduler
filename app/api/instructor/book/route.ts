@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
         const resolved: string[] = []
         for (let i = 0; i < needed; i++) {
           const slotEnd = new Date(cursor.getTime() + SLOT_MINUTES * 60 * 1000)
+          const isPast = cursor < new Date()
           const [conflict, chargeConflict] = await Promise.all([
             tx.booking.findFirst({
               where: { status: { in: ['PENDING', 'APPROVED'] }, availability: { instructorId, startTime: cursor } },
@@ -52,7 +53,9 @@ export async function POST(req: NextRequest) {
           ])
           if (conflict || chargeConflict) throw new Error('SLOT_UNAVAILABLE')
           let slot = await tx.availability.findFirst({ where: { instructorId, startTime: cursor } })
-          if (slot?.isBlocked) throw new Error('SLOT_UNAVAILABLE')
+          // A "block" only matters for a future slot — backdating a lesson
+          // into one that was just marked blocked back then is fine.
+          if (slot?.isBlocked && !isPast) throw new Error('SLOT_UNAVAILABLE')
           if (!slot) {
             slot = await tx.availability.create({ data: { instructorId, startTime: cursor, endTime: slotEnd, isBooked: false } })
           }

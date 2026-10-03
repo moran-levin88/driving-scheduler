@@ -50,7 +50,10 @@ export async function POST(req: NextRequest) {
   if (!student) return NextResponse.json({ error: 'תלמיד לא נמצא' }, { status: 404 })
 
   // The instructor can only be in one place at a time — block the slot if a
-  // lesson, an explicit block, or another test is already there.
+  // lesson or another test is already there. An explicit "block" only
+  // matters for a future time — backdating a test into a slot that just
+  // happened to be marked blocked back then is fine, nothing real was there.
+  const isPast = start < new Date()
   const [bookingConflict, blockConflict, chargeConflict] = await Promise.all([
     prisma.booking.findFirst({
       where: {
@@ -58,7 +61,7 @@ export async function POST(req: NextRequest) {
         availability: { instructorId, startTime: { lt: end }, endTime: { gt: start } },
       },
     }),
-    prisma.availability.findFirst({
+    isPast ? null : prisma.availability.findFirst({
       where: { instructorId, isBlocked: true, startTime: { lt: end }, endTime: { gt: start } },
     }),
     prisma.charge.findFirst({ where: { startTime: { lt: end }, endTime: { gt: start } } }),
