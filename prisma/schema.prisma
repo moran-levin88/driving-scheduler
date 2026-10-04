@@ -56,6 +56,8 @@ model User {
   idNumber           String?   // ת"ז
   dateOfBirth        DateTime?
   manualPriorLessons Float     @default(0) // lessons completed before this platform (quarter-lesson precision), entered by the instructor
+  manualPriorPracticalTests Int @default(0) // מבחנים מעשיים done before this platform, for the student card report only
+  manualPriorInternalTests  Int @default(0) // טסטים פנימיים done before this platform, for the student card report only
   archivedAt         DateTime? // "deleted" students are archived, not removed — past lessons must stay in the calendar/history
   createdAt          DateTime  @default(now())
 

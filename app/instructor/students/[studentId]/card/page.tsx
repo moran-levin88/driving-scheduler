@@ -45,8 +45,8 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
   const manualTotal = student.manualLessonRecords.reduce((sum, r) => sum + r.lessons, 0)
   const totalLessons = completedSlots / 2 + student.manualPriorLessons + manualTotal
 
-  const practicalTestCount = student.charges.filter(c => c.type === 'PRACTICAL_TEST').length
-  const internalTestCount = student.charges.filter(c => c.type === 'INTERNAL_TEST').length
+  const practicalTestCount = student.charges.filter(c => c.type === 'PRACTICAL_TEST').length + student.manualPriorPracticalTests
+  const internalTestCount = student.charges.filter(c => c.type === 'INTERNAL_TEST').length + student.manualPriorInternalTests
   const totalPaid = allRows.reduce((sum, r) => sum + (r.amountPaid ?? 0), 0)
 
   return (

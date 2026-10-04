@@ -18,6 +18,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     isRestricted?: boolean; name?: string; email?: string; phone?: string | null
     pricePer20Min?: number | null; idNumber?: string | null; dateOfBirth?: Date | null
     manualPriorLessons?: number
+    manualPriorPracticalTests?: number; manualPriorInternalTests?: number
   } = {}
   if ('isRestricted' in body) data.isRestricted = !!body.isRestricted
   if ('name' in body) {
@@ -58,6 +59,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // real-booking count elsewhere, which is always a multiple of 0.5.
     data.manualPriorLessons = Math.round(raw * 4) / 4
   }
+  if ('manualPriorPracticalTests' in body) {
+    const raw = Number(body.manualPriorPracticalTests)
+    if (!Number.isFinite(raw) || raw < 0) {
+      return NextResponse.json({ error: 'כמות מבחנים מעשיים לא תקינה' }, { status: 400 })
+    }
+    data.manualPriorPracticalTests = Math.round(raw)
+  }
+  if ('manualPriorInternalTests' in body) {
+    const raw = Number(body.manualPriorInternalTests)
+    if (!Number.isFinite(raw) || raw < 0) {
+      return NextResponse.json({ error: 'כמות טסטים פנימיים לא תקינה' }, { status: 400 })
+    }
+    data.manualPriorInternalTests = Math.round(raw)
+  }
 
   try {
     const student = await prisma.user.update({
@@ -66,6 +81,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       select: {
         id: true, name: true, email: true, phone: true, isRestricted: true,
         pricePer20Min: true, idNumber: true, dateOfBirth: true, manualPriorLessons: true,
+        manualPriorPracticalTests: true, manualPriorInternalTests: true,
       },
     })
     return NextResponse.json(student)

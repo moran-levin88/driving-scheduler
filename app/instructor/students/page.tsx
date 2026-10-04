@@ -163,7 +163,12 @@ export default function StudentsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
-        <h1 className="text-3xl font-bold text-gray-900">תלמידים</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">תלמידים</h1>
+          <Link href="/instructor/students/import-legacy" className="text-xs text-gray-400 hover:text-blue-600 hover:underline">
+            ייבוא היסטוריה מהפלטפורמה הקודמת
+          </Link>
+        </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => setShowWeeklyCheck(v => !v)}
             title="מי עוד לא קבע שיעור"
