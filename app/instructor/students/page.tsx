@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { format, startOfWeek, addDays, addWeeks, subWeeks } from 'date-fns'
 import { he } from 'date-fns/locale'
@@ -22,6 +22,11 @@ type Student = {
 
 type ResetResult = { name: string; email: string; tempPassword: string }
 
+// Remembers scroll position and which sections were open, so returning from
+// a student's page via the back button lands where you left off instead of
+// at the collapsed top of the list.
+const UI_STATE_KEY = 'studentsPageUIState'
+
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -37,6 +42,41 @@ export default function StudentsPage() {
   const [weekOffset, setWeekOffset] = useState(1)
   const [showWeeklyCheck, setShowWeeklyCheck] = useState(false)
   const [showStudentList, setShowStudentList] = useState(false)
+  const scrollRestoredRef = useRef(false)
+
+  // Restore which sections were open and what was searched, as soon as we mount
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(UI_STATE_KEY) || 'null')
+      if (saved) {
+        if (saved.showWeeklyCheck) setShowWeeklyCheck(true)
+        if (saved.showStudentList) setShowStudentList(true)
+        if (saved.search) setSearch(saved.search)
+      }
+    } catch {}
+  }, [])
+
+  // Keep the saved state (incl. scroll position) fresh as the page is used
+  useEffect(() => {
+    function save() {
+      try {
+        sessionStorage.setItem(UI_STATE_KEY, JSON.stringify({ showWeeklyCheck, showStudentList, search, scrollY: window.scrollY }))
+      } catch {}
+    }
+    save()
+    window.addEventListener('scroll', save, { passive: true })
+    return () => window.removeEventListener('scroll', save)
+  }, [showWeeklyCheck, showStudentList, search])
+
+  // Once the list has data to render against, jump back to the saved scroll position
+  useEffect(() => {
+    if (scrollRestoredRef.current || students.length === 0) return
+    scrollRestoredRef.current = true
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(UI_STATE_KEY) || 'null')
+      if (saved?.scrollY) window.scrollTo(0, saved.scrollY)
+    } catch {}
+  }, [students])
 
   function openEdit(s: Student) {
     setEditingStudent(s)
