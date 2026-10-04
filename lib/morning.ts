@@ -48,7 +48,7 @@ const PAYMENT_TYPE_CODE: Record<PaymentMethodForInvoice, number> = {
 const BANK_TRANSFER_REFERENCE_RE = /^בנק (.+) \| סניף (.+) \| חשבון (.+) \| אסמכתא (.+)$/
 
 export async function createInvoice(params: {
-  student: { name: string; email?: string | null }
+  student: { name: string; email?: string | null; idNumber?: string | null }
   lines: { description: string; amount: number }[]
   method: PaymentMethodForInvoice
   paidAt: Date
@@ -66,10 +66,13 @@ export async function createInvoice(params: {
   if (params.reference) {
     const bankMatch = params.method === 'BANK_TRANSFER' ? params.reference.match(BANK_TRANSFER_REFERENCE_RE) : null
     if (bankMatch) {
+      // Morning's own template for a bank-transfer payment only ever prints
+      // bankName/bankBranch/bankAccount in the "פירוט" column — transactionId
+      // is silently dropped for this payment type. Folding the transfer
+      // reference into bankAccount is the only way to still get it printed.
       paymentExtra.bankName = bankMatch[1]
       paymentExtra.bankBranch = bankMatch[2]
-      paymentExtra.bankAccount = bankMatch[3]
-      paymentExtra.transactionId = bankMatch[4]
+      paymentExtra.bankAccount = `${bankMatch[3]} | אסמכתא ${bankMatch[4]}`
     } else {
       // Not sending appType here: Morning rejected it (errorCode 2438,
       // "סוג אפליקציית תשלום לא תקין") for at least PayBox on this account —
@@ -93,6 +96,7 @@ export async function createInvoice(params: {
       client: {
         name: params.student.name,
         emails: params.student.email ? [params.student.email] : [],
+        taxId: params.student.idNumber || undefined,
       },
       income: params.lines.map(l => ({
         description: l.description,

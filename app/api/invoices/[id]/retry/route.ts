@@ -45,7 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   try {
     const created = await createInvoice({
-      student: { name: invoice.student.name, email: invoice.student.email },
+      student: { name: invoice.student.name, email: invoice.student.email, idNumber: invoice.student.idNumber },
       lines,
       method: invoice.method as PaymentMethodForInvoice,
       paidAt: invoice.paidAt,

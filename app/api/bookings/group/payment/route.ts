@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
   let invoiceError: string | null = null
   try {
     const created = await createInvoice({
-      student: { name: student.name, email: student.email },
+      student: { name: student.name, email: student.email, idNumber: student.idNumber },
       lines,
       method: method as PaymentMethodForInvoice,
       paidAt: paidAtDate,
