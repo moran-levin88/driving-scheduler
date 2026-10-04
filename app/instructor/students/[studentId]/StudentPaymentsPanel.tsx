@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import BankTransferModal from '@/components/BankTransferModal'
 
 type PayableLesson = { firstBookingId: string; startTime: string; endTime: string; paidSoFar: number }
 type PendingCharge = { id: string; label: string; startTime: string; amount: number }
@@ -68,6 +69,9 @@ export default function StudentPaymentsPanel({
   const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [paying, setPaying] = useState(false)
   const [payResult, setPayResult] = useState('')
+
+  // Which form opened the mandatory bank-transfer-details popup, if any
+  const [bankTransferFor, setBankTransferFor] = useState<'deposit' | 'charge' | 'pay' | null>(null)
 
   // The amount still owed on this lesson — full price if nothing's been
   // paid yet, or just the remainder if it was partially paid before.
@@ -306,7 +310,7 @@ export default function StudentPaymentsPanel({
           <div className="bg-green-50 rounded-xl p-3 mt-2 space-y-2">
             <div className="grid grid-cols-5 gap-1.5">
               {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'EXTERNAL'] as const).map(m => (
-                <button key={m} type="button" onClick={() => setDepositMethod(m)}
+                <button key={m} type="button" onClick={() => m === 'BANK_TRANSFER' ? setBankTransferFor('deposit') : setDepositMethod(m)}
                   className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${depositMethod === m ? 'border-green-600 bg-green-100 text-green-800' : 'border-gray-200 bg-white hover:border-green-300'}`}>
                   {METHOD_LABELS[m]}
                 </button>
@@ -363,7 +367,7 @@ export default function StudentPaymentsPanel({
             </div>
             <div className="grid grid-cols-4 gap-1.5">
               {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER'] as const).map(m => (
-                <button key={m} type="button" onClick={() => setChargeMethod(m)}
+                <button key={m} type="button" onClick={() => m === 'BANK_TRANSFER' ? setBankTransferFor('charge') : setChargeMethod(m)}
                   className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${chargeMethod === m ? 'border-green-600 bg-green-100 text-green-800' : 'border-gray-200 bg-white hover:border-green-300'}`}>
                   {METHOD_LABELS[m]}
                 </button>
@@ -448,7 +452,7 @@ export default function StudentPaymentsPanel({
               {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'BALANCE', 'EXTERNAL'] as const).map(m => (
                 <button key={m} type="button"
                   disabled={(m === 'BALANCE' && (balance < total || hasChargeSelected)) || (m === 'EXTERNAL' && hasChargeSelected)}
-                  onClick={() => setMethod(m)}
+                  onClick={() => m === 'BANK_TRANSFER' ? setBankTransferFor('pay') : setMethod(m)}
                   className={`py-1.5 rounded-lg text-xs font-medium border-2 transition disabled:opacity-40 ${method === m ? 'border-green-600 bg-green-100 text-green-800' : 'border-gray-200 bg-white hover:border-green-300'}`}>
                   {METHOD_LABELS[m]}
                 </button>
@@ -533,6 +537,18 @@ export default function StudentPaymentsPanel({
           )}
         </div>
       </div>
+
+      {bankTransferFor && (
+        <BankTransferModal
+          onCancel={() => setBankTransferFor(null)}
+          onConfirm={ref => {
+            if (bankTransferFor === 'deposit') { setDepositMethod('BANK_TRANSFER'); setDepositReference(ref) }
+            if (bankTransferFor === 'charge') { setChargeMethod('BANK_TRANSFER'); setChargeReference(ref) }
+            if (bankTransferFor === 'pay') { setMethod('BANK_TRANSFER'); setReference(ref) }
+            setBankTransferFor(null)
+          }}
+        />
+      )}
     </div>
   )
 }

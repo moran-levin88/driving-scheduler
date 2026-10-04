@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay } from 'date-fns'
 import { he } from 'date-fns/locale'
 import StudentPaymentsPanel from '../students/[studentId]/StudentPaymentsPanel'
+import BankTransferModal from '@/components/BankTransferModal'
 
 type PaymentsPanelData = {
   student: { id: string; name: string; email: string; phone: string | null; pricePer20Min: number | null }
@@ -191,6 +192,7 @@ export default function CalendarPage() {
   const [paymentsModal, setPaymentsModal] = useState<{ studentId: string; data: PaymentsPanelData | null; error: string } | null>(null)
   const [newEventModal, setNewEventModal] = useState<NewEventModal | null>(null)
   const [chargeModal, setChargeModal] = useState<ChargeModal | null>(null)
+  const [bankTransferFor, setBankTransferFor] = useState<'newEvent' | 'chargeModal' | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   function refreshBookings() {
@@ -1195,7 +1197,7 @@ export default function CalendarPage() {
                         <>
                           <div className="grid grid-cols-4 gap-1.5">
                             {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER'] as const).map(mt => (
-                              <button key={mt} type="button" onClick={() => setNewEventModal(x => x ? { ...x, method: mt } : x)}
+                              <button key={mt} type="button" onClick={() => mt === 'BANK_TRANSFER' ? setBankTransferFor('newEvent') : setNewEventModal(x => x ? { ...x, method: mt } : x)}
                                 className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${m.method === mt ? 'border-blue-600 bg-blue-100 text-blue-800' : 'border-gray-200 bg-white hover:border-blue-300'}`}>
                                 {{ CASH: 'מזומן', BIT: 'ביט', PAYBOX: 'פייבוקס', BANK_TRANSFER: 'העברה בנקאית' }[mt]}
                               </button>
@@ -1258,7 +1260,7 @@ export default function CalendarPage() {
                 <p className="text-sm font-semibold text-blue-800">טרם שולם — ₪{chargeModal.charge.amount}</p>
                 <div className="grid grid-cols-4 gap-1.5">
                   {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER'] as const).map(mt => (
-                    <button key={mt} type="button" onClick={() => setChargeModal(m => m ? { ...m, method: mt } : m)}
+                    <button key={mt} type="button" onClick={() => mt === 'BANK_TRANSFER' ? setBankTransferFor('chargeModal') : setChargeModal(m => m ? { ...m, method: mt } : m)}
                       className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${chargeModal.method === mt ? 'border-blue-600 bg-blue-100 text-blue-800' : 'border-gray-200 bg-white hover:border-blue-300'}`}>
                       {{ CASH: 'מזומן', BIT: 'ביט', PAYBOX: 'פייבוקס', BANK_TRANSFER: 'העברה בנקאית' }[mt]}
                     </button>
@@ -1307,6 +1309,17 @@ export default function CalendarPage() {
             <button onClick={() => setChargeModal(null)} className="w-full text-gray-400 text-sm py-1 hover:text-gray-600">סגור</button>
           </div>
         </div>
+      )}
+
+      {bankTransferFor && (
+        <BankTransferModal
+          onCancel={() => setBankTransferFor(null)}
+          onConfirm={ref => {
+            if (bankTransferFor === 'newEvent') setNewEventModal(x => x ? { ...x, method: 'BANK_TRANSFER', reference: ref } : x)
+            if (bankTransferFor === 'chargeModal') setChargeModal(m => m ? { ...m, method: 'BANK_TRANSFER', reference: ref } : m)
+            setBankTransferFor(null)
+          }}
+        />
       )}
     </div>
   )
