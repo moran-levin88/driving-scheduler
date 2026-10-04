@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { createChargeCalendarEvent } from '@/lib/calendar'
 
 const VALID_TYPES = ['PRACTICAL_TEST', 'INTERNAL_TEST']
 
@@ -75,5 +76,15 @@ export async function POST(req: NextRequest) {
     include: { student: { select: { id: true, name: true, phone: true } } },
   })
 
-  return NextResponse.json(charge, { status: 201 })
+  const eventId = await createChargeCalendarEvent({
+    student: { name: charge.student.name, phone: charge.student.phone },
+    type: charge.type,
+    startTime: charge.startTime,
+    endTime: charge.endTime,
+  })
+  if (eventId) {
+    await prisma.charge.update({ where: { id: charge.id }, data: { calendarEventId: eventId } })
+  }
+
+  return NextResponse.json({ ...charge, calendarEventId: eventId }, { status: 201 })
 }

@@ -41,6 +41,38 @@ export async function createCalendarEvent(booking: BookingInfo): Promise<string 
   }
 }
 
+type ChargeInfo = {
+  student: { name: string; phone?: string | null }
+  type: 'PRACTICAL_TEST' | 'INTERNAL_TEST'
+  startTime: Date
+  endTime: Date
+}
+
+const CHARGE_TYPE_LABELS: Record<ChargeInfo['type'], string> = { PRACTICAL_TEST: 'מבחן מעשי', INTERNAL_TEST: 'טסט פנימי' }
+
+export async function createChargeCalendarEvent(charge: ChargeInfo): Promise<string | null> {
+  if (!process.env.GOOGLE_CLIENT_ID) return null
+  try {
+    const calendar = getCalendar()
+    const event = await calendar.events.insert({
+      calendarId: CALENDAR_ID,
+      requestBody: {
+        summary: `${CHARGE_TYPE_LABELS[charge.type]} — ${charge.student.name}`,
+        description: [
+          `תלמיד: ${charge.student.name}`,
+          charge.student.phone ? `טלפון: ${charge.student.phone}` : '',
+        ].filter(Boolean).join('\n'),
+        start: { dateTime: charge.startTime.toISOString(), timeZone: 'Asia/Jerusalem' },
+        end: { dateTime: charge.endTime.toISOString(), timeZone: 'Asia/Jerusalem' },
+      },
+    })
+    return event.data.id ?? null
+  } catch (err) {
+    console.error('Charge calendar create failed:', err)
+    return null
+  }
+}
+
 export async function createBlockedCalendarEvent(startTime: Date, endTime: Date, note?: string | null): Promise<string | null> {
   if (!process.env.GOOGLE_CLIENT_ID) return null
   try {

@@ -228,6 +228,7 @@ model Charge {
   amount    Int
   invoiceId String?    @unique
   invoice   Invoice?   @relation(fields: [invoiceId], references: [id])
+  calendarEventId String?
   createdAt DateTime   @default(now())
 
   @@index([studentId])

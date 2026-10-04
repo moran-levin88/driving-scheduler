@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { deleteCalendarEvent } from '@/lib/calendar'
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
@@ -15,6 +16,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!charge) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (charge.invoiceId) {
     return NextResponse.json({ error: 'לא ניתן למחוק — כבר הופקה עבורו חשבונית' }, { status: 409 })
+  }
+  if (charge.calendarEventId) {
+    await deleteCalendarEvent(charge.calendarEventId)
   }
   await prisma.charge.delete({ where: { id } })
   return NextResponse.json({ ok: true })
