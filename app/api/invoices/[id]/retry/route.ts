@@ -29,6 +29,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   let lines: { description: string; amount: number }[]
   if (invoice.isDeposit) {
     lines = [{ description: 'הפקדה ליתרה', amount: invoice.amount }]
+  } else if (invoice.description) {
+    // A one-off charge not tied to any lesson — it never gets a Payment row
+    // (see /api/students/[id]/charge), so the lesson lookup below would
+    // always come up empty for it.
+    lines = [{ description: invoice.description, amount: invoice.amount }]
   } else {
     lines = []
     for (const payment of invoice.payments) {
