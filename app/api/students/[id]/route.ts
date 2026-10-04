@@ -19,7 +19,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     pricePer20Min?: number | null; idNumber?: string | null; dateOfBirth?: Date | null
     manualPriorLessons?: number
     manualPriorPracticalTests?: number; manualPriorInternalTests?: number
+    archivedAt?: null
   } = {}
+  if (body.reactivate === true) data.archivedAt = null
   if ('isRestricted' in body) data.isRestricted = !!body.isRestricted
   if ('name' in body) {
     const name = String(body.name ?? '').trim()

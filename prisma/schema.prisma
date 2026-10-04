@@ -232,6 +232,7 @@ model Charge {
   invoiceId String?    @unique
   invoice   Invoice?   @relation(fields: [invoiceId], references: [id])
   calendarEventId String?
+  passed    Boolean?   // for a practical test: true=עבר, false=נכשל, null=still unknown
   createdAt DateTime   @default(now())
 
   @@index([studentId])

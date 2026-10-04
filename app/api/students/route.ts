@@ -7,16 +7,19 @@ import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { getAllStudentBalances } from '@/lib/balance'
 import { groupBookingsIntoLessons } from '@/lib/groupLessons'
+import { archiveStudent } from '@/lib/archiveStudent'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session || (session.user as any).role !== 'INSTRUCTOR') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const showArchived = new URL(req.url).searchParams.get('archived') === '1'
+
   const [students, balances, unpaidCharges, manualLessonSums] = await Promise.all([
     prisma.user.findMany({
-      where: { role: 'STUDENT', archivedAt: null },
+      where: { role: 'STUDENT', archivedAt: showArchived ? { not: null } : null },
       include: {
         bookings: {
           include: { availability: true, payments: { select: { amount: true } } },
@@ -112,35 +115,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   const { studentId } = await req.json()
-
-  // Free up and cancel only future pending/approved bookings — past lessons
-  // (whatever their status) are left untouched so they keep showing in the
-  // calendar/history for documentation after the student is archived.
-  const now = new Date()
-  const futureBookings = await prisma.booking.findMany({
-    where: {
-      studentId,
-      status: { in: ['PENDING', 'APPROVED'] },
-      availability: { startTime: { gt: now } },
-    },
-  })
-  for (const b of futureBookings) {
-    await prisma.availability.update({
-      where: { id: b.availabilityId },
-      data: { isBooked: false },
-    })
-  }
-  if (futureBookings.length > 0) {
-    await prisma.booking.updateMany({
-      where: { id: { in: futureBookings.map(b => b.id) } },
-      data: { status: 'CANCELLED' },
-    })
-  }
-
-  // Archive, don't delete — keeps the User row (and all its Booking/Payment/
-  // Invoice history) intact, just hidden from the active roster.
-  await prisma.session.deleteMany({ where: { userId: studentId } })
-  await prisma.user.update({ where: { id: studentId }, data: { archivedAt: new Date() } })
+  await archiveStudent(studentId)
 
   return NextResponse.json({ success: true })
 }

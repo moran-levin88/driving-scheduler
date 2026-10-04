@@ -42,6 +42,9 @@ export default function StudentsPage() {
   const [weekOffset, setWeekOffset] = useState(1)
   const [showWeeklyCheck, setShowWeeklyCheck] = useState(false)
   const [showStudentList, setShowStudentList] = useState(false)
+  const [showInactive, setShowInactive] = useState(false)
+  const [inactiveStudents, setInactiveStudents] = useState<Student[] | null>(null)
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null)
   const scrollRestoredRef = useRef(false)
 
   // Restore which sections were open and what was searched, as soon as we mount
@@ -51,6 +54,7 @@ export default function StudentsPage() {
       if (saved) {
         if (saved.showWeeklyCheck) setShowWeeklyCheck(true)
         if (saved.showStudentList) setShowStudentList(true)
+        if (saved.showInactive) setShowInactive(true)
         if (saved.search) setSearch(saved.search)
       }
     } catch {}
@@ -60,13 +64,13 @@ export default function StudentsPage() {
   useEffect(() => {
     function save() {
       try {
-        sessionStorage.setItem(UI_STATE_KEY, JSON.stringify({ showWeeklyCheck, showStudentList, search, scrollY: window.scrollY }))
+        sessionStorage.setItem(UI_STATE_KEY, JSON.stringify({ showWeeklyCheck, showStudentList, showInactive, search, scrollY: window.scrollY }))
       } catch {}
     }
     save()
     window.addEventListener('scroll', save, { passive: true })
     return () => window.removeEventListener('scroll', save)
-  }, [showWeeklyCheck, showStudentList, search])
+  }, [showWeeklyCheck, showStudentList, showInactive, search])
 
   // Once the list has data to render against, jump back to the saved scroll position
   useEffect(() => {
@@ -122,6 +126,30 @@ export default function StudentsPage() {
   }
 
   useEffect(() => { fetchStudents() }, [])
+
+  async function fetchInactive() {
+    const res = await fetch('/api/students?archived=1')
+    const data = await res.json()
+    setInactiveStudents(data)
+  }
+
+  useEffect(() => {
+    if (showInactive && inactiveStudents === null) fetchInactive()
+  }, [showInactive, inactiveStudents])
+
+  async function reactivateStudent(id: string) {
+    setReactivatingId(id)
+    const res = await fetch(`/api/students/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reactivate: true }),
+    })
+    setReactivatingId(null)
+    if (res.ok) {
+      setInactiveStudents(prev => prev?.filter(s => s.id !== id) ?? null)
+      fetchStudents()
+    }
+  }
 
   async function toggleRestriction(id: string, current: boolean) {
     setTogglingId(id)
@@ -183,6 +211,13 @@ export default function StudentsPage() {
               showStudentList ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
             }`}>
             👥 רשימת תלמידים
+          </button>
+          <button onClick={() => setShowInactive(v => !v)}
+            title="תלמידים לא פעילים"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
+              showInactive ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}>
+            🚫 לא פעילים
           </button>
           <input
             type="text"
@@ -466,6 +501,54 @@ export default function StudentsPage() {
         </div>
         )
       })()}
+
+      {/* Inactive students — archived once they passed their practical test (or
+          were manually removed) — kept read-only here with full access to
+          their history/report, since their lessons/payments stay in the system */}
+      {showInactive && (
+        <div className="mt-6">
+          <h2 className="font-bold text-gray-700 mb-3">תלמידים לא פעילים</h2>
+          {inactiveStudents === null ? (
+            <p className="text-sm text-gray-400 py-2">טוען...</p>
+          ) : inactiveStudents.length === 0 ? (
+            <div className="bg-white rounded-xl shadow p-8 text-center text-gray-500">אין תלמידים לא פעילים</div>
+          ) : (
+            <div className="space-y-3">
+              {inactiveStudents.map(s => (
+                <div key={s.id} className="bg-gray-50 rounded-xl shadow-sm p-4 border border-gray-200">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <p className="font-semibold text-gray-700 text-base">{s.name}</p>
+                        <span className="flex items-baseline gap-1 text-gray-500">
+                          <span className="text-2xl font-bold leading-none">{s.lessonCount}</span>
+                          <span className="text-xs">שיעורים</span>
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-400 truncate mt-1">{s.email}</p>
+                      {s.phone && <p className="text-sm text-gray-400">📞 {s.phone}</p>}
+                    </div>
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <Link href={`/instructor/students/${s.id}`}
+                        className="text-sm text-center bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition">
+                        היסטוריה
+                      </Link>
+                      <Link href={`/instructor/students/${s.id}/card`}
+                        className="text-sm text-center bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition">
+                        🖨️ כרטיס תלמיד
+                      </Link>
+                      <button onClick={() => reactivateStudent(s.id)} disabled={reactivatingId === s.id}
+                        className="text-sm bg-green-50 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-100 transition disabled:opacity-50">
+                        {reactivatingId === s.id ? '...' : '↩️ הפעל מחדש'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

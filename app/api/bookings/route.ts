@@ -43,6 +43,13 @@ export async function POST(req: NextRequest) {
   const { availabilityIds, notes, pickupAddress, alternativeSlots } = await req.json()
   const studentId = (session.user as any).id
 
+  // An archived student (e.g. passed their practical test) is done — their
+  // session may still be technically valid (JWT), but they can't book again.
+  const student = await prisma.user.findUnique({ where: { id: studentId }, select: { archivedAt: true } })
+  if (student?.archivedAt) {
+    return NextResponse.json({ error: 'החשבון אינו פעיל יותר ולא ניתן לקבוע שיעורים' }, { status: 403 })
+  }
+
   if (!pickupAddress?.trim()) {
     return NextResponse.json({ error: 'כתובת איסוף היא שדה חובה' }, { status: 400 })
   }

@@ -56,6 +56,7 @@ type ChargeItem = {
   amount: number
   invoiceUrl: string | null
   paid: boolean
+  passed: boolean | null
 }
 
 type CalendarBooking = {
@@ -174,6 +175,7 @@ type ChargeModal = {
   reference: string
   paying: boolean
   deleting: boolean
+  marking: boolean
   result: string
 }
 
@@ -211,6 +213,7 @@ export default function CalendarPage() {
           amount: c.amount,
           invoiceUrl: c.invoice?.invoiceUrl ?? null,
           paid: !!c.invoice,
+          passed: c.passed ?? null,
         })))
       }
     })
@@ -414,7 +417,30 @@ export default function CalendarPage() {
   }
 
   function openChargeModal(charge: ChargeItem) {
-    setChargeModal({ charge, method: 'CASH', reference: '', paying: false, deleting: false, result: '' })
+    setChargeModal({ charge, method: 'CASH', reference: '', paying: false, deleting: false, marking: false, result: '' })
+  }
+
+  async function handleMarkPassed(passed: boolean) {
+    if (!chargeModal) return
+    if (passed && !confirm(`לסמן ש${chargeModal.charge.studentName} עבר/ה את המבחן המעשי? התלמיד/ה יועבר/תועבר לתלמידים לא פעילים ולא יוכל/תוכל לקבוע שיעורים נוספים.`)) return
+    setChargeModal(m => m ? { ...m, marking: true, result: '' } : m)
+    try {
+      const res = await fetch(`/api/charges/${chargeModal.charge.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passed }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setChargeModal(null)
+        refreshCharges()
+        if (data.archived) refreshBookings()
+      } else {
+        setChargeModal(m => m ? { ...m, marking: false, result: data.error || 'שגיאה' } : m)
+      }
+    } catch {
+      setChargeModal(m => m ? { ...m, marking: false, result: 'שגיאת רשת — נסה שוב' } : m)
+    }
   }
 
   async function handlePayCharge() {
@@ -1247,6 +1273,29 @@ export default function CalendarPage() {
                   {chargeModal.paying ? 'מפיק חשבונית...' : `אשר ₪${chargeModal.charge.amount} והפק חשבונית`}
                 </button>
               </div>
+            )}
+
+            {chargeModal.charge.type === 'PRACTICAL_TEST' && (
+              chargeModal.charge.passed != null ? (
+                <div className={`rounded-xl p-3 mb-3 text-sm text-center font-semibold ${chargeModal.charge.passed ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-700'}`}>
+                  {chargeModal.charge.passed ? '✅ עבר/ה את המבחן' : '❌ נכשל/ה במבחן'}
+                </div>
+              ) : (
+                <div className="mb-3">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">תוצאת המבחן</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => handleMarkPassed(true)} disabled={chargeModal.marking}
+                      className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition">
+                      {chargeModal.marking ? '...' : '✅ עבר/ה'}
+                    </button>
+                    <button onClick={() => handleMarkPassed(false)} disabled={chargeModal.marking}
+                      className="flex-1 bg-red-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-red-600 disabled:opacity-50 transition">
+                      {chargeModal.marking ? '...' : '❌ נכשל/ה'}
+                    </button>
+                  </div>
+                  {chargeModal.result && <p className="text-xs text-red-600 mt-1.5">{chargeModal.result}</p>}
+                </div>
+              )
             )}
 
             {!chargeModal.charge.paid && (
