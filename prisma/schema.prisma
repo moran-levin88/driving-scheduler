@@ -58,6 +58,7 @@ model User {
   manualPriorLessons Float     @default(0) // lessons completed before this platform (quarter-lesson precision), entered by the instructor
   manualPriorPracticalTests Int @default(0) // מבחנים מעשיים done before this platform, for the student card report only
   manualPriorInternalTests  Int @default(0) // טסטים פנימיים done before this platform, for the student card report only
+  previousPlatformDebt Int @default(0) // ₪ still owed from the previous platform — decremented as it's paid off, never tied to a real lesson/charge
   archivedAt         DateTime? // "deleted" students are archived, not removed — past lessons must stay in the calendar/history
   createdAt          DateTime  @default(now())
 

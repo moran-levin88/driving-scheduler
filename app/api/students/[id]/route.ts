@@ -19,6 +19,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     pricePer20Min?: number | null; idNumber?: string | null; dateOfBirth?: Date | null
     manualPriorLessons?: number
     manualPriorPracticalTests?: number; manualPriorInternalTests?: number
+    previousPlatformDebt?: number
     archivedAt?: null
   } = {}
   if (body.reactivate === true) data.archivedAt = null
@@ -75,6 +76,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     data.manualPriorInternalTests = Math.round(raw)
   }
+  if ('previousPlatformDebt' in body) {
+    const raw = Number(body.previousPlatformDebt)
+    if (!Number.isFinite(raw) || raw < 0) {
+      return NextResponse.json({ error: 'סכום חוב לא תקין' }, { status: 400 })
+    }
+    data.previousPlatformDebt = Math.round(raw)
+  }
 
   try {
     const student = await prisma.user.update({
@@ -83,7 +91,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       select: {
         id: true, name: true, email: true, phone: true, isRestricted: true,
         pricePer20Min: true, idNumber: true, dateOfBirth: true, manualPriorLessons: true,
-        manualPriorPracticalTests: true, manualPriorInternalTests: true,
+        manualPriorPracticalTests: true, manualPriorInternalTests: true, previousPlatformDebt: true,
       },
     })
     return NextResponse.json(student)

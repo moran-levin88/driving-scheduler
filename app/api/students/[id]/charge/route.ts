@@ -19,7 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const { id } = await params
-  const { description, amount, method, reference, paidAt, chargeId } = await req.json()
+  const { description, amount, method, reference, paidAt, chargeId, reducesPreviousPlatformDebt } = await req.json()
 
   const desc = String(description ?? '').trim()
   if (!desc) {
@@ -51,6 +51,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await prisma.charge.update({ where: { id: chargeId }, data: { invoiceId: invoice.id } })
   }
 
+  // The money's already in hand once the instructor confirms it — the debt
+  // is reduced regardless of whether the Morning document below succeeds,
+  // same as every other payment path (the tax invoice itself can be retried
+  // later without that affecting what's actually been paid).
+  let remainingDebt: number | undefined
+  if (reducesPreviousPlatformDebt) {
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { previousPlatformDebt: Math.max(0, student.previousPlatformDebt - amount) },
+      select: { previousPlatformDebt: true },
+    })
+    remainingDebt = updated.previousPlatformDebt
+  }
+
   let invoiceError: string | null = null
   try {
     const created = await createInvoice({
@@ -77,7 +91,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const finalInvoice = await prisma.invoice.findUnique({ where: { id: invoice.id } })
   return NextResponse.json(
-    { ok: true, invoice: finalInvoice, invoiceError },
+    { ok: true, invoice: finalInvoice, invoiceError, remainingDebt },
     { status: invoiceError ? 207 : 200 },
   )
 }

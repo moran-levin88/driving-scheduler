@@ -15,6 +15,7 @@ type InvoiceRow = {
 type UnifiedItem =
   | { kind: 'lesson'; key: string; lesson: PayableLesson }
   | { kind: 'charge'; key: string; charge: PendingCharge }
+  | { kind: 'legacyDebt'; key: 'legacyDebt'; amount: number }
 
 const METHOD_LABELS: Record<string, string> = {
   CASH: 'מזומן', BIT: 'ביט', PAYBOX: 'פייבוקס', BANK_TRANSFER: 'העברה בנקאית', BALANCE: 'יתרה',
@@ -26,7 +27,7 @@ function minutesBetween(startIso: string, endIso: string) {
 }
 
 export default function StudentPaymentsPanel({
-  studentId, pricePer20Min, payableLessons, pendingCharges, invoices, initialBalance,
+  studentId, pricePer20Min, payableLessons, pendingCharges, invoices, initialBalance, initialPreviousPlatformDebt,
 }: {
   studentId: string
   pricePer20Min: number | null
@@ -34,11 +35,21 @@ export default function StudentPaymentsPanel({
   pendingCharges: PendingCharge[]
   invoices: InvoiceRow[]
   initialBalance: number
+  initialPreviousPlatformDebt: number
 }) {
   const [balance, setBalance] = useState(initialBalance)
   const [invoiceList, setInvoiceList] = useState(invoices)
   const [paidIds, setPaidIds] = useState<Set<string>>(new Set())
   const [chargesList, setChargesList] = useState(pendingCharges)
+  const [previousPlatformDebt, setPreviousPlatformDebt] = useState(initialPreviousPlatformDebt)
+
+  // Add to the legacy debt — pure record-keeping, no invoice (no money has
+  // actually changed hands yet; that happens later, when it's paid down
+  // below like any other item with a balance due).
+  const [addDebtOpen, setAddDebtOpen] = useState(false)
+  const [addDebtAmount, setAddDebtAmount] = useState('')
+  const [addingDebt, setAddingDebt] = useState(false)
+  const [addDebtError, setAddDebtError] = useState('')
 
   // Add balance form
   const [depositOpen, setDepositOpen] = useState(false)
@@ -84,7 +95,7 @@ export default function StudentPaymentsPanel({
   }
 
   const unvisibleLessons = payableLessons.filter(l => !paidIds.has(l.firstBookingId))
-  const unifiedItems: UnifiedItem[] = [
+  const timedItems: UnifiedItem[] = [
     ...unvisibleLessons.map(l => ({ kind: 'lesson' as const, key: `lesson:${l.firstBookingId}`, lesson: l })),
     ...chargesList.map(c => ({ kind: 'charge' as const, key: `charge:${c.id}`, charge: c })),
   ].sort((a, b) => {
@@ -92,9 +103,16 @@ export default function StudentPaymentsPanel({
     const bt = b.kind === 'lesson' ? b.lesson.startTime : b.charge.startTime
     return new Date(at).getTime() - new Date(bt).getTime()
   })
+  // The legacy debt isn't tied to a specific date — show it first, ahead of
+  // any dated lesson/test.
+  const unifiedItems: UnifiedItem[] = previousPlatformDebt > 0
+    ? [{ kind: 'legacyDebt' as const, key: 'legacyDebt' as const, amount: previousPlatformDebt }, ...timedItems]
+    : timedItems
 
   function suggestedAmountForItem(item: UnifiedItem) {
-    return item.kind === 'charge' ? String(item.charge.amount) : suggestedAmount(item.lesson)
+    if (item.kind === 'charge') return String(item.charge.amount)
+    if (item.kind === 'legacyDebt') return String(item.amount)
+    return suggestedAmount(item.lesson)
   }
 
   function toggleSelect(item: UnifiedItem) {
@@ -111,7 +129,9 @@ export default function StudentPaymentsPanel({
   }
 
   const total = [...selected].reduce((sum, key) => sum + (Number(amounts[key]) || 0), 0)
-  const hasChargeSelected = [...selected].some(k => k.startsWith('charge:'))
+  // Tests and the legacy debt both require a real payment method — neither
+  // can be settled from prepaid balance or marked as paid-on-the-old-platform.
+  const hasChargeSelected = [...selected].some(k => k.startsWith('charge:') || k === 'legacyDebt')
 
   const [dismissingId, setDismissingId] = useState<string | null>(null)
 
@@ -140,6 +160,35 @@ export default function StudentPaymentsPanel({
       alert('שגיאת רשת — נסה שוב')
     } finally {
       setDismissingId(null)
+    }
+  }
+
+  async function handleAddDebt() {
+    const amount = Number(addDebtAmount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setAddDebtError('סכום לא תקין')
+      return
+    }
+    setAddingDebt(true)
+    setAddDebtError('')
+    try {
+      const res = await fetch(`/api/students/${studentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ previousPlatformDebt: previousPlatformDebt + amount }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setPreviousPlatformDebt(data.previousPlatformDebt)
+        setAddDebtOpen(false)
+        setAddDebtAmount('')
+      } else {
+        setAddDebtError(data.error || 'שגיאה')
+      }
+    } catch {
+      setAddDebtError('שגיאת רשת — נסה שוב')
+    } finally {
+      setAddingDebt(false)
     }
   }
 
@@ -222,8 +271,8 @@ export default function StudentPaymentsPanel({
     }
     const lessonKeys = [...selected].filter(k => k.startsWith('lesson:'))
     const chargeKeys = [...selected].filter(k => k.startsWith('charge:'))
-    if (chargeKeys.length > 0 && (method === 'BALANCE' || method === 'EXTERNAL')) {
-      setPayResult('אירועי מבחן לא ניתן לשלם ביתרה או לסמן כשולם בפלטפורמה הקודמת — בחר/י אמצעי תשלום אחר')
+    if ((chargeKeys.length > 0 || selected.has('legacyDebt')) && (method === 'BALANCE' || method === 'EXTERNAL')) {
+      setPayResult('אירועי מבחן וחוב מהפלטפורמה הקודמת לא ניתן לשלם ביתרה או לסמן כשולם בפלטפורמה הקודמת — בחר/י אמצעי תשלום אחר')
       return
     }
     setPaying(true)
@@ -269,6 +318,27 @@ export default function StudentPaymentsPanel({
         if (res.ok || res.status === 207) {
           if (data.invoice) setInvoiceList(prev => [data.invoice, ...prev])
           if (data.invoiceError) anyError = data.invoiceError
+        } else {
+          setPayResult(data.error || 'שגיאה')
+          setPaying(false)
+          return
+        }
+      }
+
+      if (selected.has('legacyDebt')) {
+        const res = await fetch(`/api/students/${studentId}/charge`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            description: 'חוב מהפלטפורמה הקודמת', amount: Number(amounts.legacyDebt),
+            method, reference, paidAt: new Date(payDate).toISOString(), reducesPreviousPlatformDebt: true,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (res.ok || res.status === 207) {
+          if (data.invoice) setInvoiceList(prev => [data.invoice, ...prev])
+          if (data.invoiceError) anyError = data.invoiceError
+          if (typeof data.remainingDebt === 'number') setPreviousPlatformDebt(data.remainingDebt)
         } else {
           setPayResult(data.error || 'שגיאה')
           setPaying(false)
@@ -342,6 +412,35 @@ export default function StudentPaymentsPanel({
             <button onClick={handleDeposit} disabled={depositing}
               className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition">
               {depositing ? (depositMethod === 'EXTERNAL' ? 'מעדכן...' : 'מפיק חשבונית...') : depositMethod === 'EXTERNAL' ? `אשר ₪${depositAmount || 0} והוסף ליתרה (בלי חשבונית)` : `אשר ₪${depositAmount || 0} והוסף ליתרה`}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Legacy debt — carried over from the previous platform. Adding to it
+          is pure record-keeping (no money received, no invoice); it's paid
+          down later, like any other item, in "שיעורים עם יתרה לתשלום" below. */}
+      <div className="bg-white rounded-xl shadow p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-bold text-gray-900">
+            חוב מהפלטפורמה הקודמת
+            {previousPlatformDebt > 0 && <span className="text-sm font-normal text-red-600 mr-2">₪{previousPlatformDebt}</span>}
+          </h2>
+          <button onClick={() => setAddDebtOpen(v => !v)} className="text-sm bg-red-50 text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-100 transition">
+            + הוסף חוב
+          </button>
+        </div>
+        {addDebtOpen && (
+          <div className="bg-red-50 rounded-xl p-3 mt-2 space-y-2">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">סכום להוספה (₪)</label>
+              <input type="number" min={0} value={addDebtAmount} onChange={e => setAddDebtAmount(e.target.value)}
+                className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-red-400" />
+            </div>
+            {addDebtError && <p className="text-xs text-red-600">{addDebtError}</p>}
+            <button onClick={handleAddDebt} disabled={addingDebt}
+              className="w-full bg-red-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition">
+              {addingDebt ? 'שומר...' : `הוסף ₪${addDebtAmount || 0} לחוב`}
             </button>
           </div>
         )}
@@ -423,8 +522,10 @@ export default function StudentPaymentsPanel({
                           {' ('}{minutesBetween(item.lesson.startTime, item.lesson.endTime)} דק׳{')'}
                           {item.lesson.paidSoFar > 0 && <span className="text-amber-600"> — שולם ₪{item.lesson.paidSoFar} חלקית</span>}
                         </>
-                      ) : (
+                      ) : item.kind === 'charge' ? (
                         <>{item.charge.label} — {new Date(item.charge.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</>
+                      ) : (
+                        <>חוב מהפלטפורמה הקודמת</>
                       )}
                     </span>
                   </label>
@@ -438,8 +539,10 @@ export default function StudentPaymentsPanel({
                       className="shrink-0 text-xs text-gray-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg transition disabled:opacity-50">
                       {dismissingId === item.lesson.firstBookingId ? '...' : '🗑'}
                     </button>
-                  ) : (
+                  ) : item.kind === 'charge' ? (
                     <span className="shrink-0 text-xs text-gray-400">₪{item.charge.amount}</span>
+                  ) : (
+                    <span className="shrink-0 text-xs text-gray-400">₪{item.amount}</span>
                   )}
                 </div>
               )

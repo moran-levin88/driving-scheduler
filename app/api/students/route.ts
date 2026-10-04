@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     const approvedLessons = lessons.filter(l => l.status === 'APPROVED' && l.endTime <= now)
     const debt = (s.pricePer20Min != null
       ? approvedLessons.reduce((sum, l) => sum + Math.max(0, s.pricePer20Min! * l.slots - l.paidSoFar), 0)
-      : 0) + (unpaidChargeByStudent.get(s.id) ?? 0)
+      : 0) + (unpaidChargeByStudent.get(s.id) ?? 0) + s.previousPlatformDebt
     // A "lesson" is 40 min = two 20-min slots (a "שיעור וחצי" is 1.5, "כפול" is 2,
     // etc.) — count total slots, not sessions, so longer lessons count for more.
     // No rounding: a 60-min lesson alone is already a fractional 1.5, and

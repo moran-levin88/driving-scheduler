@@ -18,7 +18,7 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
   const { studentId } = await params
   const data = await getStudentPaymentsPanelData(studentId)
   if (!data) notFound()
-  const { student, lessons, completedCount, balance, payableLessons, manualLessonRecords, pendingCharges, invoices } = data
+  const { student, lessons, completedCount, balance, previousPlatformDebt, payableLessons, manualLessonRecords, pendingCharges, invoices } = data
 
   return (
     <div>
@@ -40,6 +40,12 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
             <p className="text-3xl font-bold text-green-700">₪{balance}</p>
             <p className="text-sm text-gray-500">יתרה</p>
           </div>
+          {previousPlatformDebt > 0 && (
+            <div className="bg-red-50 rounded-xl p-4 text-center">
+              <p className="text-3xl font-bold text-red-700">₪{previousPlatformDebt}</p>
+              <p className="text-sm text-gray-500">חוב מהפלטפורמה הקודמת</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -105,6 +111,7 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
         pendingCharges={pendingCharges}
         invoices={invoices}
         initialBalance={balance}
+        initialPreviousPlatformDebt={previousPlatformDebt}
       />
     </div>
   )

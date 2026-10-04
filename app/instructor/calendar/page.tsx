@@ -9,6 +9,7 @@ import ReferenceModal from '@/components/ReferenceModal'
 type PaymentsPanelData = {
   student: { id: string; name: string; email: string; phone: string | null; pricePer20Min: number | null }
   balance: number
+  previousPlatformDebt: number
   payableLessons: { firstBookingId: string; startTime: string; endTime: string; paidSoFar: number }[]
   pendingCharges: { id: string; label: string; startTime: string; amount: number }[]
   invoices: {
@@ -1097,6 +1098,7 @@ export default function CalendarPage() {
                 pendingCharges={paymentsModal.data.pendingCharges}
                 invoices={paymentsModal.data.invoices}
                 initialBalance={paymentsModal.data.balance}
+                initialPreviousPlatformDebt={paymentsModal.data.previousPlatformDebt}
               />
             )}
           </div>

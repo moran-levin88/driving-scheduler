@@ -36,26 +36,36 @@ export async function getStudentPaymentsPanelData(studentId: string) {
   // Group consecutive bookings into lessons, keeping the first booking's id
   // (that's what a lesson's Payments, if any, are keyed on) and its total
   // paid-so-far — a lesson can be settled across more than one payment.
+  // Partitioned by status before chaining — a slot can hold more than one
+  // Booking row over time (e.g. a cancelled earlier attempt sitting at the
+  // same time as the real one), and that interloper's different status would
+  // otherwise break the chain between two bookings that are really one lesson.
   type Lesson = { firstBookingId: string; status: string; startTime: Date; endTime: Date; slots: number; paidSoFar: number }
-  const lessons: Lesson[] = []
+  const byStatus = new Map<string, typeof student.bookings>()
   for (const b of student.bookings) {
-    const last = lessons[lessons.length - 1]
-    if (
-      last &&
-      last.status === b.status &&
-      last.endTime.getTime() === b.availability.startTime.getTime()
-    ) {
-      last.endTime = b.availability.endTime
-      last.slots += 1
-    } else {
-      lessons.push({
-        firstBookingId: b.id,
-        status: b.status,
-        startTime: b.availability.startTime,
-        endTime: b.availability.endTime,
-        slots: 1,
-        paidSoFar: b.payments.reduce((sum, p) => sum + p.amount, 0),
-      })
+    const arr = byStatus.get(b.status)
+    if (arr) arr.push(b)
+    else byStatus.set(b.status, [b])
+  }
+  const lessons: Lesson[] = []
+  for (const list of byStatus.values()) {
+    const sorted = [...list].sort((a, b) => a.availability.startTime.getTime() - b.availability.startTime.getTime())
+    let last: Lesson | null = null
+    for (const b of sorted) {
+      if (last && last.endTime.getTime() === b.availability.startTime.getTime()) {
+        last.endTime = b.availability.endTime
+        last.slots += 1
+      } else {
+        last = {
+          firstBookingId: b.id,
+          status: b.status,
+          startTime: b.availability.startTime,
+          endTime: b.availability.endTime,
+          slots: 1,
+          paidSoFar: b.payments.reduce((sum, p) => sum + p.amount, 0),
+        }
+        lessons.push(last)
+      }
     }
   }
   lessons.sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
@@ -91,6 +101,7 @@ export async function getStudentPaymentsPanelData(studentId: string) {
     lessons,
     completedCount,
     balance,
+    previousPlatformDebt: student.previousPlatformDebt,
     payableLessons,
     manualLessonRecords: manualLessonRecords.map(r => ({
       id: r.id, date: r.date.toISOString(), lessons: r.lessons, amountPaid: r.amountPaid,
