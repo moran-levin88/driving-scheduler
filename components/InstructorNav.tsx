@@ -93,7 +93,7 @@ export default function InstructorNav() {
   ]
 
   return (
-    <nav className="sticky top-0 z-40 bg-blue-700 text-white px-3 pt-[max(env(safe-area-inset-top),0.75rem)] pb-2 shadow-sm">
+    <nav className="sticky top-0 z-40 bg-blue-700 text-white px-3 pt-[max(env(safe-area-inset-top),0.75rem)] pb-2 shadow-sm print:hidden">
       <div className="flex min-h-11 items-center gap-1 overflow-x-auto overscroll-x-contain [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none' }} dir="rtl">
         {links.map(l => (
           <Link key={l.href} href={l.href}

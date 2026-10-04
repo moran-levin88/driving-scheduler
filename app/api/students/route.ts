@@ -14,7 +14,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const [students, balances, unpaidCharges] = await Promise.all([
+  const [students, balances, unpaidCharges, manualLessonSums] = await Promise.all([
     prisma.user.findMany({
       where: { role: 'STUDENT', archivedAt: null },
       include: {
@@ -27,8 +27,10 @@ export async function GET() {
     }),
     getAllStudentBalances(),
     prisma.charge.groupBy({ by: ['studentId'], where: { invoiceId: null }, _sum: { amount: true } }),
+    prisma.manualLessonRecord.groupBy({ by: ['studentId'], _sum: { lessons: true } }),
   ])
   const unpaidChargeByStudent = new Map(unpaidCharges.map(c => [c.studentId, c._sum.amount ?? 0]))
+  const manualLessonsByStudent = new Map(manualLessonSums.map(m => [m.studentId, m._sum.lessons ?? 0]))
 
   const now = new Date()
   const withStats = students.map(s => {
@@ -52,7 +54,7 @@ export async function GET() {
     const completedSlots = completedLessons.reduce((sum, l) => sum + l.slots, 0)
     return {
       ...s,
-      lessonCount: completedSlots / 2 + s.manualPriorLessons,
+      lessonCount: completedSlots / 2 + s.manualPriorLessons + (manualLessonsByStudent.get(s.id) ?? 0),
       debt,
       balance: balances.get(s.id) ?? 0,
     }

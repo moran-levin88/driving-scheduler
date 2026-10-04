@@ -16,7 +16,7 @@ export async function getStudentPaymentsPanelData(studentId: string) {
   })
   if (!student) return null
 
-  const [invoices, balance, pendingCharges] = await Promise.all([
+  const [invoices, balance, pendingCharges, manualLessonRecords] = await Promise.all([
     prisma.invoice.findMany({
       where: { studentId },
       include: { payments: true },
@@ -30,6 +30,7 @@ export async function getStudentPaymentsPanelData(studentId: string) {
       where: { studentId, invoiceId: null },
       orderBy: { startTime: 'desc' },
     }),
+    prisma.manualLessonRecord.findMany({ where: { studentId }, orderBy: { date: 'asc' } }),
   ])
 
   // Group consecutive bookings into lessons, keeping the first booking's id
@@ -67,7 +68,8 @@ export async function getStudentPaymentsPanelData(studentId: string) {
   // No rounding — a lone 60-min lesson is already a fractional 1.5, and
   // manualPriorLessons can carry its own quarter-lesson fraction too.
   const completedSlots = student.bookings.filter(b => ['APPROVED', 'COMPLETED'].includes(b.status) && b.availability.endTime <= now).length
-  const completedCount = completedSlots / 2 + student.manualPriorLessons
+  const manualLessonsTotal = manualLessonRecords.reduce((sum, r) => sum + r.lessons, 0)
+  const completedCount = completedSlots / 2 + student.manualPriorLessons + manualLessonsTotal
 
   const payableLessons = lessons
     .filter(l => {
@@ -90,6 +92,9 @@ export async function getStudentPaymentsPanelData(studentId: string) {
     completedCount,
     balance,
     payableLessons,
+    manualLessonRecords: manualLessonRecords.map(r => ({
+      id: r.id, date: r.date.toISOString(), lessons: r.lessons, amountPaid: r.amountPaid,
+    })),
     pendingCharges: pendingCharges.map(c => ({
       id: c.id,
       label: CHARGE_LABELS[c.type] ?? c.type,

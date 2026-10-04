@@ -68,6 +68,7 @@ model User {
   invoices            Invoice[]
   payments            Payment[]
   charges             Charge[]
+  manualLessonRecords ManualLessonRecord[]
 }
 
 model PasswordResetToken {
@@ -233,4 +234,20 @@ model Charge {
 
   @@index([studentId])
   @@index([startTime])
+}
+
+// One lesson that happened on the previous platform, entered by hand so the
+// student's full history (not just a single carried-over count) can show up
+// in the student card report — a date, how many lesson-units it was, and
+// what was paid for it, if known.
+model ManualLessonRecord {
+  id         String   @id @default(cuid())
+  studentId  String
+  student    User     @relation(fields: [studentId], references: [id])
+  date       DateTime
+  lessons    Float
+  amountPaid Int?
+  createdAt  DateTime @default(now())
+
+  @@index([studentId])
 }

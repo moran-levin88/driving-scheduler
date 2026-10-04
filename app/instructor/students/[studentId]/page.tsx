@@ -3,6 +3,7 @@ import Link from 'next/link'
 import StudentPaymentsPanel from './StudentPaymentsPanel'
 import CancelLessonButton from './CancelLessonButton'
 import EditDurationButton from './EditDurationButton'
+import ManualLessonsPanel from './ManualLessonsPanel'
 import { getStudentPaymentsPanelData } from '@/lib/paymentsPanelData'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -17,7 +18,7 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
   const { studentId } = await params
   const data = await getStudentPaymentsPanelData(studentId)
   if (!data) notFound()
-  const { student, lessons, completedCount, balance, payableLessons, pendingCharges, invoices } = data
+  const { student, lessons, completedCount, balance, payableLessons, manualLessonRecords, pendingCharges, invoices } = data
 
   return (
     <div>
@@ -26,6 +27,9 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{student.name}</h1>
           <p className="text-gray-600 mt-1">{student.email} {student.phone ? `| ${student.phone}` : ''}</p>
+          <Link href={`/instructor/students/${studentId}/card`} className="text-sm text-blue-600 hover:underline mt-1 inline-block">
+            🖨️ כרטיס תלמיד להדפסה
+          </Link>
         </div>
         <div className="flex gap-3">
           <div className="bg-blue-50 rounded-xl p-4 text-center">
@@ -38,6 +42,8 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
           </div>
         </div>
       </div>
+
+      <ManualLessonsPanel studentId={studentId} initialRecords={manualLessonRecords} />
 
       <div className="bg-white rounded-xl shadow overflow-hidden mb-4">
         <div className="overflow-x-auto">
