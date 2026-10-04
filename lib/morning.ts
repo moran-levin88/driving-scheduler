@@ -41,22 +41,41 @@ const PAYMENT_TYPE_CODE: Record<PaymentMethodForInvoice, number> = {
   PAYBOX: 10,
 }
 
+// Matches the exact string BankTransferModal's formatBankTransferReference()
+// produces — "בנק X | סניף Y | חשבון Z | אסמכתא W" — so it can be split back
+// into Morning's own structured bank fields instead of being shown as one
+// opaque blob.
+const BANK_TRANSFER_REFERENCE_RE = /^בנק (.+) \| סניף (.+) \| חשבון (.+) \| אסמכתא (.+)$/
+
 export async function createInvoice(params: {
   student: { name: string; email?: string | null }
   lines: { description: string; amount: number }[]
   method: PaymentMethodForInvoice
   paidAt: Date
   // Bank transfer details, or a Bit/PayBox confirmation number — whatever
-  // the instructor entered when picking the method. Appended to each line's
-  // description so it actually shows up on the printed/emailed document,
-  // since Morning's payment object has no reliable free-text field for it.
+  // the instructor entered when picking the method. Passed through to
+  // Morning's own payment fields (bankName/bankBranch/bankAccount,
+  // appType+transactionId) so they print in the invoice's "פרטי תשלומים"
+  // table, in the "פירוט" column next to the payment method itself.
   reference?: string
 }): Promise<{ id: string; number: string; url: string }> {
   const token = await getToken()
   const total = params.lines.reduce((sum, l) => sum + l.amount, 0)
-  const lines = params.reference
-    ? params.lines.map(l => ({ ...l, description: `${l.description} — ${params.reference}` }))
-    : params.lines
+
+  const paymentExtra: Record<string, string | number> = {}
+  if (params.reference) {
+    const bankMatch = params.method === 'BANK_TRANSFER' ? params.reference.match(BANK_TRANSFER_REFERENCE_RE) : null
+    if (bankMatch) {
+      paymentExtra.bankName = bankMatch[1]
+      paymentExtra.bankBranch = bankMatch[2]
+      paymentExtra.bankAccount = bankMatch[3]
+      paymentExtra.transactionId = bankMatch[4]
+    } else {
+      if (params.method === 'BIT') paymentExtra.appType = 1
+      if (params.method === 'PAYBOX') paymentExtra.appType = 3
+      paymentExtra.transactionId = params.reference
+    }
+  }
 
   const res = await fetch(`${BASE_URL}/documents`, {
     method: 'POST',
@@ -73,7 +92,7 @@ export async function createInvoice(params: {
         name: params.student.name,
         emails: params.student.email ? [params.student.email] : [],
       },
-      income: lines.map(l => ({
+      income: params.lines.map(l => ({
         description: l.description,
         quantity: 1,
         price: l.amount,
@@ -88,6 +107,7 @@ export async function createInvoice(params: {
           type: PAYMENT_TYPE_CODE[params.method],
           price: total,
           date: params.paidAt.toISOString().slice(0, 10),
+          ...paymentExtra,
         },
       ],
     }),
