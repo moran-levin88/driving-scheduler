@@ -71,9 +71,6 @@ export async function POST(req: NextRequest) {
       let first: any = null
       for (const availabilityId of ids) {
         await tx.availability.update({ where: { id: availabilityId }, data: { isBooked: true } })
-        await tx.booking.deleteMany({
-          where: { availabilityId, status: { in: ['CANCELLED', 'REJECTED'] } },
-        })
         const created = await tx.booking.create({
           data: {
             studentId,

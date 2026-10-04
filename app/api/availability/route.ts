@@ -17,13 +17,17 @@ export async function GET(req: NextRequest) {
     const slots = await prisma.availability.findMany({
       where: { startTime: { gte: now } },
       include: {
-        booking: {
+        // A slot can carry more than one Booking row over its history (an old
+        // cancelled one kept for its payment trail, say) — only the active
+        // one matters for display, and there's at most one of those per slot.
+        bookings: {
+          where: { status: { notIn: ['CANCELLED', 'REJECTED'] } },
           select: { id: true, status: true, pickupAddress: true, student: { select: { name: true, email: true, phone: true } } },
         },
       },
       orderBy: { startTime: 'asc' },
     })
-    return NextResponse.json(slots)
+    return NextResponse.json(slots.map(({ bookings, ...s }) => ({ ...s, booking: bookings[0] ?? null })))
   }
 
   // Student: all non-blocked future slots, excluding those inside a blocked range
@@ -31,14 +35,14 @@ export async function GET(req: NextRequest) {
   const student = await prisma.user.findUnique({ where: { id: studentId }, select: { isRestricted: true } })
   const isRestricted = student?.isRestricted ?? false
 
-  const [slots, blockedRanges] = await Promise.all([
+  const [slotsRaw, blockedRanges] = await Promise.all([
     prisma.availability.findMany({
       where: {
         isBlocked: false,
         startTime: { gte: now },
         OR: [{ isBooked: true }, { publishAt: null }, { publishAt: { lte: now } }],
       },
-      include: { booking: { select: { status: true, studentId: true } } },
+      include: { bookings: { where: { status: { notIn: ['CANCELLED', 'REJECTED'] } }, select: { status: true, studentId: true } } },
       orderBy: { startTime: 'asc' },
     }),
     prisma.availability.findMany({
@@ -46,6 +50,7 @@ export async function GET(req: NextRequest) {
       select: { id: true, startTime: true, endTime: true },
     }),
   ])
+  const slots = slotsRaw.map(({ bookings, ...s }) => ({ ...s, booking: bookings[0] ?? null }))
 
   // Round to nearest minute to avoid millisecond precision issues
   const min = (ms: number) => Math.round(ms / 60000) * 60000
@@ -188,10 +193,23 @@ export async function DELETE(req: NextRequest) {
     where: { isBooked: false, isBlocked: false, startTime: { gte: start }, endTime: { lte: end } },
     select: { id: true },
   })
+  if (toDelete.length === 0) return NextResponse.json({ deleted: 0 })
 
-  if (toDelete.length > 0) {
-    await prisma.availability.deleteMany({ where: { id: { in: toDelete.map(s => s.id) } } })
+  const ids = toDelete.map(s => s.id)
+  // A slot whose history includes a booking that was ever paid keeps a
+  // Payment row pointing at it — deleting the slot would sever the trail
+  // back to that payment's lesson time, so leave those out of the batch.
+  const paidBookings = await prisma.booking.findMany({
+    where: { availabilityId: { in: ids }, payments: { some: {} } },
+    select: { availabilityId: true },
+  })
+  const blocked = new Set(paidBookings.map(b => b.availabilityId))
+  const deletableIds = ids.filter(id => !blocked.has(id))
+
+  if (deletableIds.length > 0) {
+    await prisma.booking.deleteMany({ where: { availabilityId: { in: deletableIds }, status: { in: ['CANCELLED', 'REJECTED'] } } })
+    await prisma.availability.deleteMany({ where: { id: { in: deletableIds } } })
   }
 
-  return NextResponse.json({ deleted: toDelete.length })
+  return NextResponse.json({ deleted: deletableIds.length, skipped: ids.length - deletableIds.length })
 }

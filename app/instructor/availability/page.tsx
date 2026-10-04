@@ -408,7 +408,8 @@ export default function AvailabilityPage() {
     })
     const data = await res.json().catch(() => ({}))
     if (res.ok) {
-      setDeleteRangeModal(m => m ? { ...m, deleting: false, result: `✓ נמחקו ${data.deleted} שעות פנויות` } : m)
+      const skippedMsg = data.skipped > 0 ? ` (${data.skipped} לא נמחקו — יש להן היסטוריית תשלומים)` : ''
+      setDeleteRangeModal(m => m ? { ...m, deleting: false, result: `✓ נמחקו ${data.deleted} שעות פנויות${skippedMsg}` } : m)
       fetchSlots()
     } else {
       setDeleteRangeModal(m => m ? { ...m, deleting: false, result: data.error || 'שגיאה במחיקה' } : m)

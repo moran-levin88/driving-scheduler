@@ -114,9 +114,6 @@ export async function POST(req: NextRequest) {
         })
         if (claimed.count !== 1) throw new Error('SLOT_UNAVAILABLE')
 
-        await tx.booking.deleteMany({
-          where: { availabilityId, status: { in: ['CANCELLED', 'REJECTED'] } },
-        })
         const booking = await tx.booking.create({
           data: { studentId, availabilityId, notes, pickupAddress, alternativeSlots: alternativeSlots || [] },
           include: { student: true, availability: true },

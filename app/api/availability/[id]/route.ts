@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { deleteCalendarEvent, updateCalendarEvent } from '@/lib/calendar'
+import { Prisma } from '@prisma/client'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
@@ -48,8 +49,18 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (slot.isBlocked && (slot as any).calendarEventId) {
     await deleteCalendarEvent((slot as any).calendarEventId)
   }
-  // Remove any cancelled/rejected booking records linked to this slot (foreign key)
-  await prisma.booking.deleteMany({ where: { availabilityId: id } })
-  await prisma.availability.delete({ where: { id } })
+  try {
+    // Clear any cancelled/rejected booking records linked to this slot so the
+    // slot itself can be deleted — but a booking that was ever paid keeps a
+    // Payment row pointing at it, which blocks this and should: deleting the
+    // slot would otherwise sever the trail back to that payment's lesson time.
+    await prisma.booking.deleteMany({ where: { availabilityId: id, status: { in: ['CANCELLED', 'REJECTED'] } } })
+    await prisma.availability.delete({ where: { id } })
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+      return NextResponse.json({ error: 'לא ניתן למחוק שעה זו — יש לה היסטוריית תשלומים מקושרת' }, { status: 409 })
+    }
+    throw err
+  }
   return NextResponse.json({ success: true })
 }

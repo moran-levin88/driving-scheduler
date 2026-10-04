@@ -111,7 +111,7 @@ model Availability {
   publishAt       DateTime?
   createdAt       DateTime @default(now())
 
-  booking Booking?
+  bookings Booking[]
 
   @@index([startTime])
   @@index([isBooked, isBlocked, startTime])
@@ -121,7 +121,11 @@ model Booking {
   id             String        @id @default(cuid())
   studentId      String
   student        User          @relation("StudentBookings", fields: [studentId], references: [id])
-  availabilityId String        @unique
+  // Not unique — a slot's history can hold more than one Booking over time
+  // (a cancelled/rejected row kept for its payment history, plus whichever
+  // booking is actually active now), so creating or moving a booking into a
+  // slot that was once used never has to delete that old row first.
+  availabilityId String
   availability   Availability  @relation(fields: [availabilityId], references: [id])
   status           BookingStatus @default(PENDING)
   notes            String?
@@ -134,6 +138,7 @@ model Booking {
 
   payments Payment[]
 
+  @@index([availabilityId])
   @@index([studentId, status])
   @@index([status, createdAt])
   @@index([reminderSent, status])
