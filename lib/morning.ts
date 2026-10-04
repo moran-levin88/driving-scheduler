@@ -54,9 +54,9 @@ export async function createInvoice(params: {
   paidAt: Date
   // Bank transfer details, or a Bit/PayBox confirmation number — whatever
   // the instructor entered when picking the method. Passed through to
-  // Morning's own payment fields (bankName/bankBranch/bankAccount,
-  // appType+transactionId) so they print in the invoice's "פרטי תשלומים"
-  // table, in the "פירוט" column next to the payment method itself.
+  // Morning's own payment fields (bankName/bankBranch/bankAccount, or
+  // transactionId) so they print in the invoice's "פרטי תשלומים" table, in
+  // the "פירוט" column next to the payment method itself.
   reference?: string
 }): Promise<{ id: string; number: string; url: string }> {
   const token = await getToken()
@@ -71,8 +71,10 @@ export async function createInvoice(params: {
       paymentExtra.bankAccount = bankMatch[3]
       paymentExtra.transactionId = bankMatch[4]
     } else {
-      if (params.method === 'BIT') paymentExtra.appType = 1
-      if (params.method === 'PAYBOX') paymentExtra.appType = 3
+      // Not sending appType here: Morning rejected it (errorCode 2438,
+      // "סוג אפליקציית תשלום לא תקין") for at least PayBox on this account —
+      // transactionId alone still gets the confirmation number onto the
+      // invoice without risking the whole document failing to issue.
       paymentExtra.transactionId = params.reference
     }
   }
