@@ -42,8 +42,6 @@ function groupBookings(bookings: Booking[]): LessonGroup[] {
       last &&
       last.status === b.status &&
       last.student.email === b.student.email &&
-      (last.pickupAddress ?? null) === (b.pickupAddress ?? null) &&
-      (last.notes ?? null) === (b.notes ?? null) &&
       roundMin(new Date(last.endTime).getTime()) === roundMin(new Date(b.availability.startTime).getTime())
     ) {
       last.ids.push(b.id)

@@ -10,8 +10,8 @@ export type ChainBooking = Prisma.BookingGetPayload<{ include: typeof chainInclu
 
 /**
  * Rebuilds the full lesson a single 20-minute booking belongs to: all
- * consecutive same-student/pickupAddress/notes bookings at the given status,
- * sorted by time. Lessons may span 2-4 of these base slots (40/60/80 min).
+ * consecutive same-student bookings at the given status, sorted by time.
+ * Lessons may span 2-4 of these base slots (40/60/80 min).
  */
 export async function findLessonChain(
   bookingId: string,
@@ -35,8 +35,6 @@ export async function findLessonChain(
     const last = current[current.length - 1]
     if (
       last &&
-      (last.pickupAddress ?? null) === (b.pickupAddress ?? null) &&
-      (last.notes ?? null) === (b.notes ?? null) &&
       new Date(last.availability.endTime).getTime() === new Date(b.availability.startTime).getTime()
     ) {
       current.push(b)

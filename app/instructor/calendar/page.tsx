@@ -85,7 +85,6 @@ function groupToLessons(bookings: CalendarBooking[]): Lesson[] {
     if (
       last &&
       last.studentName === b.student.name &&
-      (last.pickupAddress ?? null) === (b.pickupAddress ?? null) &&
       last.endTime.getTime() === new Date(b.availability.startTime).getTime()
     ) {
       last.ids.push(b.id)
