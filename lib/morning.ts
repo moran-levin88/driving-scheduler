@@ -34,11 +34,20 @@ async function getToken(): Promise<string> {
 
 export type PaymentMethodForInvoice = 'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER'
 
+// Morning's "אפליקציית תשלום" type (10) is for a payment Morning's own
+// processing actually ran (Bit/Apple Pay/Google Pay through their gateway,
+// which needs a separate merchant setup under Payments > Processing) — not
+// for recording that the student paid via Bit/PayBox directly to the
+// instructor outside Morning. Using it without that setup is what produced
+// "Morning invoice creation failed (400): ... סוג אפליקציית תשלום לא תקין"
+// (errorCode 2438). "אחר" (11) is the right type for money received outside
+// Morning through a channel it has no dedicated code for — same bucket CASH
+// and BANK_TRANSFER already use without any special setup.
 const PAYMENT_TYPE_CODE: Record<PaymentMethodForInvoice, number> = {
   CASH: 1,
   BANK_TRANSFER: 4,
-  BIT: 10,
-  PAYBOX: 10,
+  BIT: 11,
+  PAYBOX: 11,
 }
 
 // Matches the exact string BankTransferModal's formatBankTransferReference()
@@ -63,6 +72,12 @@ export async function createInvoice(params: {
   const total = params.lines.reduce((sum, l) => sum + l.amount, 0)
 
   const paymentExtra: Record<string, string | number> = {}
+  if (params.method === 'BIT' || params.method === 'PAYBOX') {
+    // Morning requires subType whenever type is "אחר" (11) — "שווה כסף" (2,
+    // "cash equivalent") is the closest fit for a digital payment that
+    // happened outside Morning and just needs to be logged.
+    paymentExtra.subType = 2
+  }
   if (params.reference) {
     const bankMatch = params.method === 'BANK_TRANSFER' ? params.reference.match(BANK_TRANSFER_REFERENCE_RE) : null
     if (bankMatch) {
@@ -74,10 +89,6 @@ export async function createInvoice(params: {
       paymentExtra.bankBranch = bankMatch[2]
       paymentExtra.bankAccount = `${bankMatch[3]} | אסמכתא ${bankMatch[4]}`
     } else {
-      // Not sending appType here: Morning rejected it (errorCode 2438,
-      // "סוג אפליקציית תשלום לא תקין") for at least PayBox on this account —
-      // transactionId alone still gets the confirmation number onto the
-      // invoice without risking the whole document failing to issue.
       paymentExtra.transactionId = params.reference
     }
   }
