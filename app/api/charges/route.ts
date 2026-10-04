@@ -76,15 +76,17 @@ export async function POST(req: NextRequest) {
     include: { student: { select: { id: true, name: true, phone: true } } },
   })
 
-  const eventId = await createChargeCalendarEvent({
+  // Fire-and-forget: the charge is already committed above, so a slow or
+  // unreachable Google Calendar must never fail (or hang) this response —
+  // that previously made a perfectly good booking look like it errored out.
+  createChargeCalendarEvent({
     student: { name: charge.student.name, phone: charge.student.phone },
     type: charge.type,
     startTime: charge.startTime,
     endTime: charge.endTime,
-  })
-  if (eventId) {
-    await prisma.charge.update({ where: { id: charge.id }, data: { calendarEventId: eventId } })
-  }
+  }).then(eventId => {
+    if (eventId) return prisma.charge.update({ where: { id: charge.id }, data: { calendarEventId: eventId } })
+  }).catch(console.error)
 
-  return NextResponse.json({ ...charge, calendarEventId: eventId }, { status: 201 })
+  return NextResponse.json(charge, { status: 201 })
 }

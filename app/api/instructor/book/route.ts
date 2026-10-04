@@ -89,17 +89,19 @@ export async function POST(req: NextRequest) {
     const approvalEmail = { ...firstBooking, availability: { ...firstBooking.availability, endTime: lastSlotEndTime } }
     sendBookingApproved(approvalEmail as any).catch(console.error)
 
-    const eventId = await createCalendarEvent({
+    // Fire-and-forget: the booking is already committed above, so a slow or
+    // unreachable Google Calendar must never fail (or hang) this response —
+    // that previously made a perfectly good booking look like it errored out.
+    createCalendarEvent({
       student: firstBooking.student,
       availability: {
         startTime: firstBooking.availability.startTime,
         endTime: lastSlotEndTime,
       },
       pickupAddress: firstBooking.pickupAddress,
-    })
-    if (eventId) {
-      await prisma.booking.update({ where: { id: firstBooking.id }, data: { calendarEventId: eventId } })
-    }
+    }).then(eventId => {
+      if (eventId) return prisma.booking.update({ where: { id: firstBooking.id }, data: { calendarEventId: eventId } })
+    }).catch(console.error)
 
     return NextResponse.json(firstBooking, { status: 201 })
   } catch (err: any) {
