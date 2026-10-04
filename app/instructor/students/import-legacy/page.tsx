@@ -13,6 +13,7 @@ type MatchState = {
   alreadyImported: number
   selected: Set<number> // indices into legacy.lessons
   importTests: boolean
+  importExtra: boolean
   loading: boolean
   result: string
   importing: boolean
@@ -42,6 +43,7 @@ export default function ImportLegacyPage() {
           alreadyImported: 0,
           selected: new Set(legacy.lessons.map((_, i) => i)),
           importTests: true,
+          importExtra: true,
           loading: false,
           result: '',
           importing: false,
@@ -117,6 +119,13 @@ export default function ImportLegacyPage() {
           }),
         }).catch(() => {})
       }
+      if (row.importExtra && row.legacy.extraManualPriorLessons) {
+        await fetch(`/api/students/${row.match.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ manualPriorLessons: row.legacy.extraManualPriorLessons }),
+        }).catch(() => {})
+      }
       setRows(prev => prev.map((r, i) => i === index ? { ...r, importing: false, result: `✓ יובאו ${data.count} שיעורים` } : r))
     } catch {
       setRows(prev => prev.map((r, i) => i === index ? { ...r, importing: false, result: 'שגיאת רשת — נסה שוב' } : r))
@@ -130,7 +139,9 @@ export default function ImportLegacyPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">ייבוא היסטוריה מהפלטפורמה הקודמת</h1>
         <p className="text-sm text-gray-500 mt-1">
-          כלי חד-פעמי לייבוא שיעורים מקבצי ה-PDF של אלפא דרייב. <strong className="text-red-600">בדקי טווח תאריכים לפני ייבוא</strong> — אם לתלמיד/ה כבר יש שיעורים אמיתיים במערכת החדשה בתאריכים חופפים, בטלי את הסימון שלהם כדי לא לכפול אותם.
+          כלי חד-פעמי לייבוא שיעורים מ-{LEGACY_STUDENTS.length} קבצי PDF של אלפא דרייב. כל שורה עברה אימות אוטומטי מול הסכום שמופיע בכותרת ה-PDF עצמו (שדה &quot;שיעורים&quot;). חמישה תלמידים כוללים גם &quot;היסטוריה נוספת&quot; ללא תאריכים פרטניים (צ&apos;קבוקס נפרד לכל אחד/ת), ותלמידה אחת (מיכל אמינוב) מסומנת באדום עם פער לא מוסבר שדורש בדיקה ידנית.
+          {' '}
+          <strong className="text-red-600">בדקי טווח תאריכים לפני ייבוא</strong> — אם לתלמיד/ה כבר יש שיעורים אמיתיים במערכת החדשה בתאריכים חופפים, בטלי את הסימון שלהם כדי לא לכפול אותם.
         </p>
       </div>
 
@@ -145,6 +156,7 @@ export default function ImportLegacyPage() {
                 <p className="font-bold text-gray-900">{row.legacy.name} <span className="text-gray-400 text-sm">({row.legacy.idNumber})</span></p>
                 <p className="text-xs text-gray-500">
                   PDF: {legacyDates[0]} – {legacyDates[legacyDates.length - 1]} | {row.legacy.lessons.length} שורות | {legacyTotal} שיעורים
+                  {!!row.legacy.extraManualPriorLessons && <> + {row.legacy.extraManualPriorLessons} היסטוריים ללא תאריך = {legacyTotal + row.legacy.extraManualPriorLessons} סה&quot;כ</>}
                   {(row.legacy.practicalTests > 0 || row.legacy.internalTests > 0) && (
                     <> | {row.legacy.practicalTests} מבחנים מעשיים, {row.legacy.internalTests} טסטים פנימיים</>
                   )}
@@ -160,6 +172,12 @@ export default function ImportLegacyPage() {
                 </select>
               )}
             </div>
+
+            {row.legacy.mismatchNote && (
+              <p className="text-xs bg-red-50 text-red-700 border border-red-200 rounded-lg px-2 py-1.5 mb-2">
+                ⚠️ {row.legacy.mismatchNote}
+              </p>
+            )}
 
             {row.match && (
               <>
@@ -196,6 +214,13 @@ export default function ImportLegacyPage() {
                   <label className="flex items-center gap-2 text-sm mb-2 cursor-pointer">
                     <input type="checkbox" checked={row.importTests} onChange={e => setRows(prev => prev.map((r, i) => i === index ? { ...r, importTests: e.target.checked } : r))} className="w-4 h-4 accent-blue-600" />
                     ייבא גם ספירת מבחנים ({row.legacy.practicalTests} מעשיים, {row.legacy.internalTests} פנימיים) לכרטיס התלמיד
+                  </label>
+                )}
+
+                {!!row.legacy.extraManualPriorLessons && (
+                  <label className="flex items-center gap-2 text-sm mb-2 cursor-pointer">
+                    <input type="checkbox" checked={row.importExtra} onChange={e => setRows(prev => prev.map((r, i) => i === index ? { ...r, importExtra: e.target.checked } : r))} className="w-4 h-4 accent-blue-600" />
+                    קבע &quot;שיעורים שבוצעו לפני המערכת&quot; ל-{row.legacy.extraManualPriorLessons} (היסטוריה נוספת שאין לה תאריכים פרטניים ב-PDF — ⚠ ידרוס ערך קיים אם יש)
                   </label>
                 )}
 
