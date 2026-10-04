@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
   }
 
   const showArchived = new URL(req.url).searchParams.get('archived') === '1'
+  const now = new Date()
 
   const [students, balances, unpaidCharges, manualLessonSums] = await Promise.all([
     prisma.user.findMany({
@@ -29,13 +30,14 @@ export async function GET(req: NextRequest) {
       orderBy: { name: 'asc' },
     }),
     getAllStudentBalances(),
-    prisma.charge.groupBy({ by: ['studentId'], where: { invoiceId: null }, _sum: { amount: true } }),
+    // Only a test that's already happened can be owed for — one scheduled
+    // for the future isn't a debt yet.
+    prisma.charge.groupBy({ by: ['studentId'], where: { invoiceId: null, startTime: { lte: now } }, _sum: { amount: true } }),
     prisma.manualLessonRecord.groupBy({ by: ['studentId'], _sum: { lessons: true } }),
   ])
   const unpaidChargeByStudent = new Map(unpaidCharges.map(c => [c.studentId, c._sum.amount ?? 0]))
   const manualLessonsByStudent = new Map(manualLessonSums.map(m => [m.studentId, m._sum.lessons ?? 0]))
 
-  const now = new Date()
   const withStats = students.map(s => {
     const lessons = groupBookingsIntoLessons(s.bookings)
     // Only lessons that have actually happened (ended already) count toward

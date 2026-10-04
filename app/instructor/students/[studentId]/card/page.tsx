@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { groupBookingsIntoLessons } from '@/lib/groupLessons'
-import { INSTRUCTOR_LICENSE_NUMBER } from '@/lib/instructorInfo'
+import { INSTRUCTOR_NAME, INSTRUCTOR_LICENSE_NUMBER } from '@/lib/instructorInfo'
 import PrintButton from './PrintButton'
 
 type Row = { date: Date; timeLabel: string; lessonUnits: number; amountPaid: number | null }
@@ -10,17 +10,14 @@ type Row = { date: Date; timeLabel: string; lessonUnits: number; amountPaid: num
 export default async function StudentCardPage({ params }: { params: Promise<{ studentId: string }> }) {
   const { studentId } = await params
 
-  const [student, instructor] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: studentId, role: 'STUDENT' },
-      include: {
-        bookings: { include: { availability: true, payments: true }, orderBy: { availability: { startTime: 'asc' } } },
-        manualLessonRecords: { orderBy: { date: 'asc' } },
-        charges: true,
-      },
-    }),
-    prisma.user.findFirst({ where: { role: 'INSTRUCTOR' } }),
-  ])
+  const student = await prisma.user.findUnique({
+    where: { id: studentId, role: 'STUDENT' },
+    include: {
+      bookings: { include: { availability: true, payments: true }, orderBy: { availability: { startTime: 'asc' } } },
+      manualLessonRecords: { orderBy: { date: 'asc' } },
+      charges: true,
+    },
+  })
   if (!student) notFound()
 
   const now = new Date()
@@ -45,8 +42,10 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
   const manualTotal = student.manualLessonRecords.reduce((sum, r) => sum + r.lessons, 0)
   const totalLessons = completedSlots / 2 + student.manualPriorLessons + manualTotal
 
-  const practicalTestCount = student.charges.filter(c => c.type === 'PRACTICAL_TEST').length + student.manualPriorPracticalTests
-  const internalTestCount = student.charges.filter(c => c.type === 'INTERNAL_TEST').length + student.manualPriorInternalTests
+  // Only tests that have actually happened count — one scheduled for the
+  // future hasn't been taken yet.
+  const practicalTestCount = student.charges.filter(c => c.type === 'PRACTICAL_TEST' && c.startTime <= now).length + student.manualPriorPracticalTests
+  const internalTestCount = student.charges.filter(c => c.type === 'INTERNAL_TEST' && c.startTime <= now).length + student.manualPriorInternalTests
   const totalPaid = allRows.reduce((sum, r) => sum + (r.amountPaid ?? 0), 0)
 
   return (
@@ -63,7 +62,7 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
             <p className="text-sm text-gray-500 mt-1">הופק בתאריך {now.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</p>
           </div>
           <div className="text-left text-sm text-gray-700">
-            <p className="font-semibold">{instructor?.name ?? 'מורה נהיגה'}</p>
+            <p className="font-semibold">{INSTRUCTOR_NAME}</p>
             <p>מספר הוראה: {INSTRUCTOR_LICENSE_NUMBER}</p>
           </div>
         </div>
