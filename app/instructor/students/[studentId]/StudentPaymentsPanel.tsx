@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import BankTransferModal from '@/components/BankTransferModal'
+import ReferenceModal from '@/components/ReferenceModal'
 
 type PayableLesson = { firstBookingId: string; startTime: string; endTime: string; paidSoFar: number }
 type PendingCharge = { id: string; label: string; startTime: string; amount: number }
@@ -70,8 +71,9 @@ export default function StudentPaymentsPanel({
   const [paying, setPaying] = useState(false)
   const [payResult, setPayResult] = useState('')
 
-  // Which form opened the mandatory bank-transfer-details popup, if any
-  const [bankTransferFor, setBankTransferFor] = useState<'deposit' | 'charge' | 'pay' | null>(null)
+  // Which form opened the mandatory payment-details popup, if any — bank
+  // transfer needs 4 fields, Bit/PayBox need just a confirmation number
+  const [pendingMethod, setPendingMethod] = useState<{ form: 'deposit' | 'charge' | 'pay'; method: 'BANK_TRANSFER' | 'BIT' | 'PAYBOX' } | null>(null)
 
   // The amount still owed on this lesson — full price if nothing's been
   // paid yet, or just the remainder if it was partially paid before.
@@ -310,7 +312,7 @@ export default function StudentPaymentsPanel({
           <div className="bg-green-50 rounded-xl p-3 mt-2 space-y-2">
             <div className="grid grid-cols-5 gap-1.5">
               {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'EXTERNAL'] as const).map(m => (
-                <button key={m} type="button" onClick={() => m === 'BANK_TRANSFER' ? setBankTransferFor('deposit') : setDepositMethod(m)}
+                <button key={m} type="button" onClick={() => (m === 'BANK_TRANSFER' || m === 'BIT' || m === 'PAYBOX') ? setPendingMethod({ form: 'deposit', method: m }) : setDepositMethod(m)}
                   className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${depositMethod === m ? 'border-green-600 bg-green-100 text-green-800' : 'border-gray-200 bg-white hover:border-green-300'}`}>
                   {METHOD_LABELS[m]}
                 </button>
@@ -367,7 +369,7 @@ export default function StudentPaymentsPanel({
             </div>
             <div className="grid grid-cols-4 gap-1.5">
               {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER'] as const).map(m => (
-                <button key={m} type="button" onClick={() => m === 'BANK_TRANSFER' ? setBankTransferFor('charge') : setChargeMethod(m)}
+                <button key={m} type="button" onClick={() => (m === 'BANK_TRANSFER' || m === 'BIT' || m === 'PAYBOX') ? setPendingMethod({ form: 'charge', method: m }) : setChargeMethod(m)}
                   className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${chargeMethod === m ? 'border-green-600 bg-green-100 text-green-800' : 'border-gray-200 bg-white hover:border-green-300'}`}>
                   {METHOD_LABELS[m]}
                 </button>
@@ -452,7 +454,7 @@ export default function StudentPaymentsPanel({
               {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'BALANCE', 'EXTERNAL'] as const).map(m => (
                 <button key={m} type="button"
                   disabled={(m === 'BALANCE' && (balance < total || hasChargeSelected)) || (m === 'EXTERNAL' && hasChargeSelected)}
-                  onClick={() => m === 'BANK_TRANSFER' ? setBankTransferFor('pay') : setMethod(m)}
+                  onClick={() => (m === 'BANK_TRANSFER' || m === 'BIT' || m === 'PAYBOX') ? setPendingMethod({ form: 'pay', method: m }) : setMethod(m)}
                   className={`py-1.5 rounded-lg text-xs font-medium border-2 transition disabled:opacity-40 ${method === m ? 'border-green-600 bg-green-100 text-green-800' : 'border-gray-200 bg-white hover:border-green-300'}`}>
                   {METHOD_LABELS[m]}
                 </button>
@@ -538,17 +540,23 @@ export default function StudentPaymentsPanel({
         </div>
       </div>
 
-      {bankTransferFor && (
-        <BankTransferModal
-          onCancel={() => setBankTransferFor(null)}
-          onConfirm={ref => {
-            if (bankTransferFor === 'deposit') { setDepositMethod('BANK_TRANSFER'); setDepositReference(ref) }
-            if (bankTransferFor === 'charge') { setChargeMethod('BANK_TRANSFER'); setChargeReference(ref) }
-            if (bankTransferFor === 'pay') { setMethod('BANK_TRANSFER'); setReference(ref) }
-            setBankTransferFor(null)
-          }}
-        />
-      )}
+      {pendingMethod && (() => {
+        const applyResult = (ref: string) => {
+          if (pendingMethod.form === 'deposit') { setDepositMethod(pendingMethod.method); setDepositReference(ref) }
+          if (pendingMethod.form === 'charge') { setChargeMethod(pendingMethod.method); setChargeReference(ref) }
+          if (pendingMethod.form === 'pay') { setMethod(pendingMethod.method); setReference(ref) }
+          setPendingMethod(null)
+        }
+        return pendingMethod.method === 'BANK_TRANSFER' ? (
+          <BankTransferModal onCancel={() => setPendingMethod(null)} onConfirm={applyResult} />
+        ) : (
+          <ReferenceModal
+            title={pendingMethod.method === 'BIT' ? 'פרטי תשלום בביט' : 'פרטי תשלום בפייבוקס'}
+            onCancel={() => setPendingMethod(null)}
+            onConfirm={applyResult}
+          />
+        )
+      })()}
     </div>
   )
 }

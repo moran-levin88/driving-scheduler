@@ -58,6 +58,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       lines: [{ description: desc, amount }],
       method,
       paidAt: paidAtDate,
+      reference: reference || undefined,
     })
     await prisma.invoice.update({
       where: { id: invoice.id },

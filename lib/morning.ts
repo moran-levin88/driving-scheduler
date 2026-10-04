@@ -46,9 +46,17 @@ export async function createInvoice(params: {
   lines: { description: string; amount: number }[]
   method: PaymentMethodForInvoice
   paidAt: Date
+  // Bank transfer details, or a Bit/PayBox confirmation number — whatever
+  // the instructor entered when picking the method. Appended to each line's
+  // description so it actually shows up on the printed/emailed document,
+  // since Morning's payment object has no reliable free-text field for it.
+  reference?: string
 }): Promise<{ id: string; number: string; url: string }> {
   const token = await getToken()
   const total = params.lines.reduce((sum, l) => sum + l.amount, 0)
+  const lines = params.reference
+    ? params.lines.map(l => ({ ...l, description: `${l.description} — ${params.reference}` }))
+    : params.lines
 
   const res = await fetch(`${BASE_URL}/documents`, {
     method: 'POST',
@@ -65,7 +73,7 @@ export async function createInvoice(params: {
         name: params.student.name,
         emails: params.student.email ? [params.student.email] : [],
       },
-      income: params.lines.map(l => ({
+      income: lines.map(l => ({
         description: l.description,
         quantity: 1,
         price: l.amount,
