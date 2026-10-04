@@ -32,33 +32,46 @@ type LessonGroup = {
 const roundMin = (ms: number) => Math.round(ms / 60000) * 60000
 
 function groupBookings(bookings: Booking[]): LessonGroup[] {
-  const sorted = [...bookings].sort((a, b) =>
-    new Date(a.availability.startTime).getTime() - new Date(b.availability.startTime).getTime()
-  )
+  // Partition by student+status first, then chain each partition on its own.
+  // A slot can hold more than one Booking row over time (e.g. an earlier
+  // attempt the student cancelled, sitting at the same time as the real
+  // one) — comparing only against "the last group pushed overall" let such
+  // an interloper's different status break the chain between two bookings
+  // that really are one lesson, even though they're never actually compared
+  // to each other directly.
+  const partitions = new Map<string, Booking[]>()
+  for (const b of bookings) {
+    const key = `${b.student.email}|${b.status}`
+    const arr = partitions.get(key)
+    if (arr) arr.push(b)
+    else partitions.set(key, [b])
+  }
+
   const groups: LessonGroup[] = []
-  for (const b of sorted) {
-    const last = groups[groups.length - 1]
-    if (
-      last &&
-      last.status === b.status &&
-      last.student.email === b.student.email &&
-      roundMin(new Date(last.endTime).getTime()) === roundMin(new Date(b.availability.startTime).getTime())
-    ) {
-      last.ids.push(b.id)
-      last.endTime = b.availability.endTime
-    } else {
-      groups.push({
-        ids: [b.id],
-        firstId: b.id,
-        status: b.status,
-        student: b.student,
-        startTime: b.availability.startTime,
-        endTime: b.availability.endTime,
-        pickupAddress: b.pickupAddress ?? null,
-        notes: b.notes ?? null,
-        alternativeSlots: b.alternativeSlots,
-        createdAt: b.createdAt,
-      })
+  for (const list of partitions.values()) {
+    const sorted = [...list].sort((a, b) =>
+      new Date(a.availability.startTime).getTime() - new Date(b.availability.startTime).getTime()
+    )
+    let last: LessonGroup | null = null
+    for (const b of sorted) {
+      if (last && roundMin(new Date(last.endTime).getTime()) === roundMin(new Date(b.availability.startTime).getTime())) {
+        last.ids.push(b.id)
+        last.endTime = b.availability.endTime
+      } else {
+        last = {
+          ids: [b.id],
+          firstId: b.id,
+          status: b.status,
+          student: b.student,
+          startTime: b.availability.startTime,
+          endTime: b.availability.endTime,
+          pickupAddress: b.pickupAddress ?? null,
+          notes: b.notes ?? null,
+          alternativeSlots: b.alternativeSlots,
+          createdAt: b.createdAt,
+        }
+        groups.push(last)
+      }
     }
   }
   return groups
