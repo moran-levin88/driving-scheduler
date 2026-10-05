@@ -87,7 +87,7 @@ export async function getStudentPaymentsPanelData(studentId: string) {
   // manualPriorLessons can carry its own quarter-lesson fraction too.
   const completedSlots = student.bookings.filter(b => ['APPROVED', 'COMPLETED'].includes(b.status) && b.availability.endTime <= now).length
   const manualLessonsTotal = manualLessonRecords.reduce((sum, r) => sum + r.lessons, 0)
-  const completedCount = completedSlots / 2 + student.manualPriorLessons + manualLessonsTotal
+  const completedCount = completedSlots / 2 + student.manualPriorLessons + student.manualPriorOtherTeacherLessons + manualLessonsTotal
 
   const payableLessons = lessons
     .filter(l => {

@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     const completedSlots = completedLessons.reduce((sum, l) => sum + l.slots, 0)
     return {
       ...s,
-      lessonCount: completedSlots / 2 + s.manualPriorLessons + (manualLessonsByStudent.get(s.id) ?? 0),
+      lessonCount: completedSlots / 2 + s.manualPriorLessons + s.manualPriorOtherTeacherLessons + (manualLessonsByStudent.get(s.id) ?? 0),
       debt,
       balance: balances.get(s.id) ?? 0,
     }

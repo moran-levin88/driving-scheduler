@@ -56,6 +56,7 @@ model User {
   idNumber           String?   // ת"ז
   dateOfBirth        DateTime?
   manualPriorLessons Float     @default(0) // lessons completed before this platform (quarter-lesson precision), entered by the instructor
+  manualPriorOtherTeacherLessons Float @default(0) // lessons completed with a different instructor before this one (quarter-lesson precision) — distinct from manualPriorLessons (previous platform, same instructor), both count toward the total
   manualPriorPracticalTests Int @default(0) // מבחנים מעשיים done before this platform, for the student card report only
   manualPriorInternalTests  Int @default(0) // טסטים פנימיים done before this platform, for the student card report only
   previousPlatformDebt Int @default(0) // ₪ still owed from the previous platform — decremented as it's paid off, never tied to a real lesson/charge

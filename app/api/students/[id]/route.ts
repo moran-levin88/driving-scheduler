@@ -17,7 +17,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const data: {
     isRestricted?: boolean; name?: string; email?: string; phone?: string | null
     pricePer20Min?: number | null; idNumber?: string | null; dateOfBirth?: Date | null
-    manualPriorLessons?: number
+    manualPriorLessons?: number; manualPriorOtherTeacherLessons?: number
     manualPriorPracticalTests?: number; manualPriorInternalTests?: number
     previousPlatformDebt?: number
     archivedAt?: null
@@ -62,6 +62,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // real-booking count elsewhere, which is always a multiple of 0.5.
     data.manualPriorLessons = Math.round(raw * 4) / 4
   }
+  if ('manualPriorOtherTeacherLessons' in body) {
+    const raw = Number(body.manualPriorOtherTeacherLessons)
+    if (!Number.isFinite(raw) || raw < 0) {
+      return NextResponse.json({ error: 'מספר שיעורים לא תקין' }, { status: 400 })
+    }
+    data.manualPriorOtherTeacherLessons = Math.round(raw * 4) / 4
+  }
   if ('manualPriorPracticalTests' in body) {
     const raw = Number(body.manualPriorPracticalTests)
     if (!Number.isFinite(raw) || raw < 0) {
@@ -91,6 +98,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       select: {
         id: true, name: true, email: true, phone: true, isRestricted: true,
         pricePer20Min: true, idNumber: true, dateOfBirth: true, manualPriorLessons: true,
+        manualPriorOtherTeacherLessons: true,
         manualPriorPracticalTests: true, manualPriorInternalTests: true, previousPlatformDebt: true,
       },
     })

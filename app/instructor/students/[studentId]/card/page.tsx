@@ -40,7 +40,7 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
 
   const completedSlots = completedLessons.reduce((sum, l) => sum + l.slots, 0)
   const manualTotal = student.manualLessonRecords.reduce((sum, r) => sum + r.lessons, 0)
-  const totalLessons = completedSlots / 2 + student.manualPriorLessons + manualTotal
+  const totalLessons = completedSlots / 2 + student.manualPriorLessons + student.manualPriorOtherTeacherLessons + manualTotal
 
   // Only tests that have actually happened count — one scheduled for the
   // future hasn't been taken yet.
@@ -112,7 +112,10 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
         </table>
         {allRows.length === 0 && <p className="text-center text-gray-400 py-6">אין היסטוריית שיעורים</p>}
         {student.manualPriorLessons > 0 && (
-          <p className="text-xs text-gray-400 mt-3">+ {student.manualPriorLessons} שיעורים נוספים שתועדו כסכום כולל (ללא פירוט תאריכים)</p>
+          <p className="text-xs text-gray-400 mt-3">+ {student.manualPriorLessons} שיעורים נוספים מהפלטפורמה הקודמת (ללא פירוט תאריכים)</p>
+        )}
+        {student.manualPriorOtherTeacherLessons > 0 && (
+          <p className="text-xs text-gray-400 mt-1">+ {student.manualPriorOtherTeacherLessons} שיעורים נוספים אצל מורה אחר (ללא פירוט תאריכים)</p>
         )}
       </div>
     </div>

@@ -14,6 +14,7 @@ type Student = {
   idNumber: string | null
   dateOfBirth: string | null
   manualPriorLessons: number
+  manualPriorOtherTeacherLessons: number
   manualPriorPracticalTests: number
   manualPriorInternalTests: number
   lessonCount: number
@@ -40,7 +41,8 @@ export default function StudentsPage() {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [editForm, setEditForm] = useState({
     name: '', email: '', phone: '', pricePer20Min: '', idNumber: '', dateOfBirth: '',
-    manualPriorLessons: '', manualPriorPracticalTests: '', manualPriorInternalTests: '',
+    manualPriorLessons: '', manualPriorOtherTeacherLessons: '',
+    manualPriorPracticalTests: '', manualPriorInternalTests: '',
   })
   const [priorTeacherOpen, setPriorTeacherOpen] = useState(false)
   const [editError, setEditError] = useState('')
@@ -96,12 +98,13 @@ export default function StudentsPage() {
       idNumber: s.idNumber || '',
       dateOfBirth: s.dateOfBirth ? s.dateOfBirth.slice(0, 10) : '',
       manualPriorLessons: String(s.manualPriorLessons ?? 0),
+      manualPriorOtherTeacherLessons: String(s.manualPriorOtherTeacherLessons ?? 0),
       manualPriorPracticalTests: String(s.manualPriorPracticalTests ?? 0),
       manualPriorInternalTests: String(s.manualPriorInternalTests ?? 0),
     })
     // Keep the details visible by default if any were already filled in —
     // never hide existing data behind a collapsed toggle.
-    setPriorTeacherOpen(!!(s.manualPriorPracticalTests || s.manualPriorInternalTests))
+    setPriorTeacherOpen(!!(s.manualPriorOtherTeacherLessons || s.manualPriorPracticalTests || s.manualPriorInternalTests))
     setEditError('')
   }
 
@@ -118,6 +121,7 @@ export default function StudentsPage() {
         idNumber: editForm.idNumber,
         dateOfBirth: editForm.dateOfBirth || null,
         manualPriorLessons: editForm.manualPriorLessons === '' ? 0 : Number(editForm.manualPriorLessons),
+        manualPriorOtherTeacherLessons: editForm.manualPriorOtherTeacherLessons === '' ? 0 : Number(editForm.manualPriorOtherTeacherLessons),
         manualPriorPracticalTests: editForm.manualPriorPracticalTests === '' ? 0 : Number(editForm.manualPriorPracticalTests),
         manualPriorInternalTests: editForm.manualPriorInternalTests === '' ? 0 : Number(editForm.manualPriorInternalTests),
       }),
@@ -386,6 +390,18 @@ export default function StudentsPage() {
                     </div>
                     <div className="space-y-2">
                       <div>
+                        <label className="block text-xs text-gray-500 mb-1">כמות שיעורים</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.25}
+                          value={editForm.manualPriorOtherTeacherLessons}
+                          onChange={e => setEditForm(f => ({ ...f, manualPriorOtherTeacherLessons: e.target.value }))}
+                          placeholder="0"
+                          className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 bg-white"
+                        />
+                      </div>
+                      <div>
                         <label className="block text-xs text-gray-500 mb-1">כמות טסטים פנימיים</label>
                         <input
                           type="number"
@@ -408,7 +424,7 @@ export default function StudentsPage() {
                         />
                       </div>
                     </div>
-                    <p className="text-xs text-gray-400 mt-2">הכמויות האלה ייספרו יחד עם הטסטים שבוצעו במערכת, בדוח ובכרטיס התלמיד — בנוסף לשיעורים שהוזנו למעלה, לא במקומם.</p>
+                    <p className="text-xs text-gray-400 mt-2">הכמויות האלה ייספרו יחד עם השיעורים/הטסטים שבוצעו במערכת, בדוח ובכרטיס התלמיד — בנוסף לשיעורים שהוזנו למעלה (מהפלטפורמה הקודמת), לא במקומם.</p>
                   </div>
                 )}
               </div>
