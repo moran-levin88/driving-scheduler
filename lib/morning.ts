@@ -75,10 +75,15 @@ export async function createInvoice(params: {
   if (params.method === 'BIT' || params.method === 'PAYBOX') {
     // Morning requires subType whenever type is "אחר" (11) — "שווה כסף" (2,
     // "cash equivalent") is the closest fit for a digital payment that
-    // happened outside Morning and just needs to be logged.
+    // happened outside Morning and just needs to be logged. Morning's own
+    // label for that subType ("שווה כסף") doesn't say which app was used, so
+    // the method name goes into transactionId instead — the one thing that
+    // does print in the "פירוט" column — so the instructor can still tell
+    // Bit from PayBox at a glance.
     paymentExtra.subType = 2
-  }
-  if (params.reference) {
+    const methodLabel = params.method === 'BIT' ? 'ביט' : 'פייבוקס'
+    paymentExtra.transactionId = params.reference ? `${methodLabel} — ${params.reference}` : methodLabel
+  } else if (params.reference) {
     const bankMatch = params.method === 'BANK_TRANSFER' ? params.reference.match(BANK_TRANSFER_REFERENCE_RE) : null
     if (bankMatch) {
       // Morning's own template for a bank-transfer payment only ever prints
