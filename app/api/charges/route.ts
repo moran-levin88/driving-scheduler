@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -76,17 +76,23 @@ export async function POST(req: NextRequest) {
     include: { student: { select: { id: true, name: true, phone: true } } },
   })
 
-  // Fire-and-forget: the charge is already committed above, so a slow or
-  // unreachable Google Calendar must never fail (or hang) this response —
-  // that previously made a perfectly good booking look like it errored out.
-  createChargeCalendarEvent({
-    student: { name: charge.student.name, phone: charge.student.phone },
-    type: charge.type,
-    startTime: charge.startTime,
-    endTime: charge.endTime,
-  }).then(eventId => {
-    if (eventId) return prisma.charge.update({ where: { id: charge.id }, data: { calendarEventId: eventId } })
-  }).catch(console.error)
+  // Scheduled via after() rather than left as a bare dangling promise: the
+  // charge is already committed above, so none of this should block or fail
+  // the response — but on Vercel a serverless function can freeze or
+  // recycle right after the response is sent, which was silently killing a
+  // plain fire-and-forget call before it ever ran. after() keeps the
+  // function alive until it actually finishes.
+  after(async () => {
+    const eventId = await createChargeCalendarEvent({
+      student: { name: charge.student.name, phone: charge.student.phone },
+      type: charge.type,
+      startTime: charge.startTime,
+      endTime: charge.endTime,
+    }).catch(err => { console.error(err); return null })
+    if (eventId) {
+      await prisma.charge.update({ where: { id: charge.id }, data: { calendarEventId: eventId } }).catch(console.error)
+    }
+  })
 
   return NextResponse.json(charge, { status: 201 })
 }

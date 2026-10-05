@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -119,21 +119,28 @@ export async function POST(req: NextRequest) {
     }, { timeout: 20000 })
 
     const approvalEmail = { ...firstBooking, availability: { ...firstBooking.availability, endTime: lastSlotEndTime } }
-    sendBookingApproved(approvalEmail as any).catch(console.error)
 
-    // Fire-and-forget: the booking is already committed above, so a slow or
-    // unreachable Google Calendar must never fail (or hang) this response —
-    // that previously made a perfectly good booking look like it errored out.
-    createCalendarEvent({
-      student: firstBooking.student,
-      availability: {
-        startTime: firstBooking.availability.startTime,
-        endTime: lastSlotEndTime,
-      },
-      pickupAddress: firstBooking.pickupAddress,
-    }).then(eventId => {
-      if (eventId) return prisma.booking.update({ where: { id: firstBooking.id }, data: { calendarEventId: eventId } })
-    }).catch(console.error)
+    // Scheduled via after() rather than left as a bare dangling promise: the
+    // booking is already committed above, so none of this should block or
+    // fail the response — but on Vercel a serverless function can freeze or
+    // recycle right after the response is sent, which was silently killing
+    // these before they ever ran (no error, nothing — the calendar event
+    // just never got created). after() keeps the function alive until they
+    // actually finish.
+    after(async () => {
+      await sendBookingApproved(approvalEmail as any).catch(console.error)
+      const eventId = await createCalendarEvent({
+        student: firstBooking.student,
+        availability: {
+          startTime: firstBooking.availability.startTime,
+          endTime: lastSlotEndTime,
+        },
+        pickupAddress: firstBooking.pickupAddress,
+      }).catch(err => { console.error(err); return null })
+      if (eventId) {
+        await prisma.booking.update({ where: { id: firstBooking.id }, data: { calendarEventId: eventId } }).catch(console.error)
+      }
+    })
 
     return NextResponse.json(firstBooking, { status: 201 })
   } catch (err: any) {
