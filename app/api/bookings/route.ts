@@ -128,7 +128,12 @@ export async function POST(req: NextRequest) {
         created.push(booking)
       }
       return created
-    })
+    // Prisma's interactive-transaction default timeout is 5s — this does
+    // several sequential round-trips per slot on top of the checks before
+    // the loop, so a double lesson (4 slots) plus any DB latency could
+    // exceed that and abort mid-transaction with a generic 500 (same issue
+    // found and fixed for the instructor's own booking route).
+    }, { timeout: 20000 })
 
     const firstName = bookings[0].student.name.split(' ')[0]
     sendPushToInstructor('בקשת שיעור חדשה', `${firstName} ביקש/ה שיעור`).catch(console.error)

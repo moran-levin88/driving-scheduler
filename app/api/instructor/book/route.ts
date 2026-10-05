@@ -84,7 +84,13 @@ export async function POST(req: NextRequest) {
         if (!first) first = created
       }
       return { firstBooking: first, lastSlotEndTime }
-    })
+    // Prisma's interactive-transaction default timeout is 5s — this loop
+    // does several sequential round-trips per 20-min slot (conflict checks,
+    // a possible availability create, the booking create itself), so a
+    // longer lesson (3+ slots) plus any DB latency routinely blew past that
+    // and aborted mid-transaction with a generic 500 — which the instructor
+    // saw as the booking silently "failing" even on an ordinary attempt.
+    }, { timeout: 20000 })
 
     const approvalEmail = { ...firstBooking, availability: { ...firstBooking.availability, endTime: lastSlotEndTime } }
     sendBookingApproved(approvalEmail as any).catch(console.error)
