@@ -222,6 +222,22 @@ export default function CalendarPage() {
     })
   }
 
+  // A freshly-created lesson/test shows "לא סונכרן ל-Google Calendar" for a
+  // moment — the sync itself now runs after the response is sent (see
+  // /api/instructor/book and /api/charges), so it finishes a few seconds
+  // later, not instantly. These catch that up automatically so the warning
+  // clears on its own instead of needing a manual refresh.
+  function refreshBookingsSoonAfter() {
+    refreshBookings()
+    setTimeout(refreshBookings, 4000)
+    setTimeout(refreshBookings, 9000)
+  }
+  function refreshChargesSoonAfter() {
+    refreshCharges()
+    setTimeout(refreshCharges, 4000)
+    setTimeout(refreshCharges, 9000)
+  }
+
   async function openPaymentsModal(studentId: string) {
     setActionModal(null)
     setPaymentsModal({ studentId, data: null, error: '' })
@@ -386,7 +402,7 @@ export default function CalendarPage() {
         }).catch(() => {})
       }
       setNewEventModal(null)
-      refreshCharges()
+      refreshChargesSoonAfter()
     } catch {
       setNewEventModal(m => m ? { ...m, submitting: false, error: 'שגיאת רשת — נסה שוב' } : m)
     }
@@ -415,7 +431,7 @@ export default function CalendarPage() {
         return
       }
       setNewEventModal(null)
-      refreshBookings()
+      refreshBookingsSoonAfter()
     } catch {
       setNewEventModal(m => m ? { ...m, submitting: false, error: 'שגיאת רשת — נסה שוב' } : m)
     }
