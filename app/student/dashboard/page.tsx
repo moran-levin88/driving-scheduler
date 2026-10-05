@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react'
 import { format } from 'date-fns'
 import { he, ru } from 'date-fns/locale'
 import { useLanguage } from '@/contexts/LanguageContext'
+import NextAvailabilityCountdown from '@/components/NextAvailabilityCountdown'
 
 type Booking = {
   id: string
@@ -104,6 +105,8 @@ export default function StudentDashboard() {
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-1">{t('myLessons')}</h1>
       {studentName && <p className="text-gray-500 mb-8">{t('hello')}, {studentName}</p>}
+
+      <NextAvailabilityCountdown />
 
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-4 text-gray-800">{t('upcomingLessons')}</h2>

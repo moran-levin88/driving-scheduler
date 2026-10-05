@@ -97,6 +97,10 @@ const translations = {
     backToLogin: 'חזרה לכניסה',
     dateFormat: "EEEE, d בMMMM yyyy",
     dateFormatShort: "d בMMMM yyyy",
+    nextAvailabilityCountdown: 'עוד {time} לפתיחת זמינות נוספת בלו״ז של אלכס',
+    countdownDays: 'ימים',
+    countdownHours: 'שעות',
+    countdownMinutes: 'דקות',
   },
   ru: {
     homeTitle: 'Уроки вождения',
@@ -194,6 +198,10 @@ const translations = {
     backToLogin: 'Вернуться к входу',
     dateFormat: "EEEE, d MMMM yyyy",
     dateFormatShort: "d MMMM yyyy",
+    nextAvailabilityCountdown: 'Через {time} откроются новые часы у Алекса',
+    countdownDays: 'дн.',
+    countdownHours: 'ч.',
+    countdownMinutes: 'мин.',
   },
 }
 

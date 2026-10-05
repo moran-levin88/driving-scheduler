@@ -21,7 +21,7 @@ type PaymentsPanelData = {
 }
 
 const HOUR_HEIGHT = 64
-const START_HOUR = 7
+const START_HOUR = 6
 const END_HOUR = 22
 const TOTAL_HEIGHT = (END_HOUR - START_HOUR) * HOUR_HEIGHT
 
@@ -670,8 +670,8 @@ export default function CalendarPage() {
             return (
               <div key={day.toISOString()} className="flex-1 text-center py-2 border-l last:border-l-0 min-w-0">
                 <div className="text-xs text-gray-500">{format(day, 'EEE', { locale: he })}</div>
-                <div className={`text-base font-bold mx-auto w-8 h-8 flex items-center justify-center rounded-full ${isToday ? 'bg-blue-600 text-white' : 'text-gray-800'}`}>
-                  {format(day, 'd')}
+                <div className={`text-sm font-bold mx-auto px-2 h-8 flex items-center justify-center rounded-full whitespace-nowrap ${isToday ? 'bg-blue-600 text-white' : 'text-gray-800'}`}>
+                  {format(day, 'd/M')}
                 </div>
               </div>
             )
