@@ -16,6 +16,8 @@ export async function getStudentPaymentsPanelData(studentId: string) {
   })
   if (!student) return null
 
+  const now = new Date()
+
   const [invoices, balance, pendingCharges, manualLessonRecords] = await Promise.all([
     prisma.invoice.findMany({
       where: { studentId },
@@ -25,9 +27,11 @@ export async function getStudentPaymentsPanelData(studentId: string) {
     getStudentBalance(studentId),
     // Practical/internal tests booked from the calendar that haven't been
     // paid yet — once paid they get a normal Invoice (with a description)
-    // and show up in the invoices list below like any other charge.
+    // and show up in the invoices list below like any other charge. Only
+    // ones that have actually happened can be closed out — a test still in
+    // the future isn't owed for yet.
     prisma.charge.findMany({
-      where: { studentId, invoiceId: null },
+      where: { studentId, invoiceId: null, startTime: { lte: now } },
       orderBy: { startTime: 'desc' },
     }),
     prisma.manualLessonRecord.findMany({ where: { studentId }, orderBy: { date: 'asc' } }),
@@ -74,7 +78,6 @@ export async function getStudentPaymentsPanelData(studentId: string) {
   // double (80 min) or "שיעור וחצי" (60 min) lesson counts for more than one.
   // Only lessons that have actually happened (ended already) count — a
   // future approved booking isn't "taken" yet.
-  const now = new Date()
   // No rounding — a lone 60-min lesson is already a fractional 1.5, and
   // manualPriorLessons can carry its own quarter-lesson fraction too.
   const completedSlots = student.bookings.filter(b => ['APPROVED', 'COMPLETED'].includes(b.status) && b.availability.endTime <= now).length
@@ -84,6 +87,7 @@ export async function getStudentPaymentsPanelData(studentId: string) {
   const payableLessons = lessons
     .filter(l => {
       if (l.status !== 'APPROVED') return false
+      if (l.endTime > now) return false // not owed yet — hasn't happened
       const price = student.pricePer20Min != null ? student.pricePer20Min * l.slots : null
       return price == null || price - l.paidSoFar > 0
     })
