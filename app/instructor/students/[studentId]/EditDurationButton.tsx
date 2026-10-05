@@ -2,7 +2,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-const OPTIONS = [40, 60, 80, 100, 120] as const
+const OPTIONS = [20, 40, 60, 80, 100, 120] as const
 const POPOVER_WIDTH = 224 // w-56
 const POPOVER_HEIGHT = 160 // approx, for deciding whether to flip upward
 

@@ -867,8 +867,8 @@ export default function CalendarPage() {
             {/* Change duration */}
             <div className="bg-purple-50 rounded-xl p-3 mb-3">
               <p className="text-sm font-semibold text-purple-800 mb-2">שינוי משך שיעור</p>
-              <div className="grid grid-cols-3 gap-2 mb-2">
-                {[40, 60, 80].map(min => {
+              <div className="grid grid-cols-4 gap-2 mb-2">
+                {[20, 40, 60, 80].map(min => {
                   const currentMinutes = Math.round((actionModal.lesson.endTime.getTime() - actionModal.lesson.startTime.getTime()) / 60000)
                   const active = currentMinutes === min
                   return (

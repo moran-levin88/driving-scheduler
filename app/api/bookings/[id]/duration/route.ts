@@ -8,7 +8,7 @@ import { updateCalendarEvent } from '@/lib/calendar'
 import { findLessonChain } from '@/lib/lessonChain'
 
 const SLOT_MINUTES = 20
-const ALLOWED_MINUTES = [40, 60, 80, 100, 120]
+const ALLOWED_MINUTES = [20, 40, 60, 80, 100, 120]
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
