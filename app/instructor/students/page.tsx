@@ -14,6 +14,8 @@ type Student = {
   idNumber: string | null
   dateOfBirth: string | null
   manualPriorLessons: number
+  manualPriorPracticalTests: number
+  manualPriorInternalTests: number
   lessonCount: number
   debt: number
   balance: number
@@ -36,7 +38,11 @@ export default function StudentsPage() {
   const [search, setSearch] = useState('')
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
-  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', pricePer20Min: '', idNumber: '', dateOfBirth: '', manualPriorLessons: '' })
+  const [editForm, setEditForm] = useState({
+    name: '', email: '', phone: '', pricePer20Min: '', idNumber: '', dateOfBirth: '',
+    manualPriorLessons: '', manualPriorPracticalTests: '', manualPriorInternalTests: '',
+  })
+  const [priorTeacherOpen, setPriorTeacherOpen] = useState(false)
   const [editError, setEditError] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [weekOffset, setWeekOffset] = useState(1)
@@ -90,7 +96,12 @@ export default function StudentsPage() {
       idNumber: s.idNumber || '',
       dateOfBirth: s.dateOfBirth ? s.dateOfBirth.slice(0, 10) : '',
       manualPriorLessons: String(s.manualPriorLessons ?? 0),
+      manualPriorPracticalTests: String(s.manualPriorPracticalTests ?? 0),
+      manualPriorInternalTests: String(s.manualPriorInternalTests ?? 0),
     })
+    // Keep the details visible by default if any were already filled in —
+    // never hide existing data behind a collapsed toggle.
+    setPriorTeacherOpen(!!(s.manualPriorLessons || s.manualPriorPracticalTests || s.manualPriorInternalTests))
     setEditError('')
   }
 
@@ -107,6 +118,8 @@ export default function StudentsPage() {
         idNumber: editForm.idNumber,
         dateOfBirth: editForm.dateOfBirth || null,
         manualPriorLessons: editForm.manualPriorLessons === '' ? 0 : Number(editForm.manualPriorLessons),
+        manualPriorPracticalTests: editForm.manualPriorPracticalTests === '' ? 0 : Number(editForm.manualPriorPracticalTests),
+        manualPriorInternalTests: editForm.manualPriorInternalTests === '' ? 0 : Number(editForm.manualPriorInternalTests),
       }),
     })
     setSavingEdit(false)
@@ -346,17 +359,57 @@ export default function StudentsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-500 mb-1">שיעורים שבוצעו לפני המערכת</label>
-                <input
-                  type="number"
-                  min={0}
-                  step={0.25}
-                  value={editForm.manualPriorLessons}
-                  onChange={e => setEditForm(f => ({ ...f, manualPriorLessons: e.target.value }))}
-                  placeholder="0"
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-gray-400 mt-1">לתלמידים ותיקים — שיעורים שהתבצעו לפני שהתחלתם להשתמש במערכת. ניתן להזין גם חצאי ורבעי שיעור (למשל 9.5 או 9.25)</p>
+                {!priorTeacherOpen ? (
+                  <button type="button" onClick={() => setPriorTeacherOpen(true)}
+                    className="w-full text-sm bg-blue-50 text-blue-700 py-2 rounded-lg hover:bg-blue-100 transition">
+                    למדה בעבר אצל מורה אחר
+                  </button>
+                ) : (
+                  <div className="border rounded-lg p-3 bg-gray-50">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium text-gray-700">למדה בעבר אצל מורה אחר</p>
+                      <button type="button" onClick={() => setPriorTeacherOpen(false)}
+                        className="text-xs text-gray-400 hover:text-gray-600">סגירה</button>
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">כמות שיעורים</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.25}
+                          value={editForm.manualPriorLessons}
+                          onChange={e => setEditForm(f => ({ ...f, manualPriorLessons: e.target.value }))}
+                          placeholder="0"
+                          className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">כמות טסטים פנימיים</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editForm.manualPriorInternalTests}
+                          onChange={e => setEditForm(f => ({ ...f, manualPriorInternalTests: e.target.value }))}
+                          placeholder="0"
+                          className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">כמות מבחנים מעשיים</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editForm.manualPriorPracticalTests}
+                          onChange={e => setEditForm(f => ({ ...f, manualPriorPracticalTests: e.target.value }))}
+                          placeholder="0"
+                          className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 bg-white"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-2">הכמויות האלה ייספרו יחד עם השיעורים/הטסטים שבוצעו במערכת, בדוח ובכרטיס התלמיד. ניתן להזין גם חצאי ורבעי שיעור (למשל 9.5 או 9.25)</p>
+                  </div>
+                )}
               </div>
             </div>
             {editError && <p className="text-red-600 text-sm mb-3">{editError}</p>}
