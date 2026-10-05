@@ -91,11 +91,8 @@ function formatAlt(iso: string) {
 }
 
 function durationLabel(startTime: string, endTime: string): string {
-  const mins = (new Date(endTime).getTime() - new Date(startTime).getTime()) / 60000
-  if (mins <= 20) return ''
-  if (mins <= 40) return '40 דק׳'
-  if (mins <= 60) return 'שעה'
-  if (mins <= 80) return '80 דק׳'
+  const mins = Math.round((new Date(endTime).getTime() - new Date(startTime).getTime()) / 60000)
+  if (mins === 60) return 'שעה'
   return `${mins} דק׳`
 }
 

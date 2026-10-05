@@ -35,12 +35,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Resolve each booking id to its lesson (first booking of the chain)
-  const resolved: { first: ChainBooking; chainLength: number; amount: number }[] = []
+  // Resolve each booking id to its lesson (first booking of the chain).
+  // slots is derived from elapsed time, not chain.length — a row isn't
+  // always exactly 20 min (e.g. a 30-min lesson booked directly from the
+  // calendar is one row spanning 30 min, i.e. 1.5 of this unit).
+  const resolved: { first: ChainBooking; slots: number; amount: number }[] = []
   for (const it of items) {
     const result = await findLessonChain(it.bookingId, 'APPROVED')
     if (!result) return NextResponse.json({ error: 'שיעור לא נמצא' }, { status: 404 })
-    resolved.push({ first: result.first, chainLength: result.chain.length, amount: it.amount })
+    const slots = (result.last.availability.endTime.getTime() - result.first.availability.startTime.getTime()) / (20 * 60 * 1000)
+    resolved.push({ first: result.first, slots, amount: it.amount })
   }
 
   const studentId = resolved[0].first.studentId
@@ -60,7 +64,7 @@ export async function POST(req: NextRequest) {
 
   if (student.pricePer20Min != null) {
     for (const r of resolved) {
-      const price = student.pricePer20Min * r.chainLength
+      const price = student.pricePer20Min * r.slots
       const paidSoFar = paidByBooking.get(r.first.id) ?? 0
       if (price - paidSoFar <= 0) {
         return NextResponse.json({ error: 'אחד השיעורים כבר שולם במלואו' }, { status: 409 })
@@ -94,7 +98,7 @@ export async function POST(req: NextRequest) {
   const lines = resolved.map(r => {
     const dateStr = formatIsraelDate(r.first.availability.startTime)
     const timeStr = formatIsraelTime(r.first.availability.startTime)
-    const base = `שיעור נהיגה — ${dateStr} ${timeStr} (${r.chainLength * 20} דק')`
+    const base = `שיעור נהיגה — ${dateStr} ${timeStr} (${Math.round(r.slots * 20)} דק')`
     return { description: noteText ? `${base} — ${noteText}` : base, amount: r.amount }
   })
 

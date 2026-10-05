@@ -45,7 +45,7 @@ type Block = { id: string; startTime: Date; endTime: Date; blockNote: string | n
 type ChargeType = 'PRACTICAL_TEST' | 'INTERNAL_TEST'
 const CHARGE_TYPE_LABELS: Record<ChargeType, string> = { PRACTICAL_TEST: 'מבחן מעשי', INTERNAL_TEST: 'טסט פנימי' }
 const CHARGE_TYPE_DEFAULT_AMOUNT: Record<ChargeType, number> = { PRACTICAL_TEST: 230, INTERNAL_TEST: 200 }
-const DURATION_OPTIONS = [40, 60, 80, 100, 120] as const
+const DURATION_OPTIONS = [20, 30, 40, 60, 80, 100, 120] as const
 const PRACTICAL_TEST_DURATION_OPTIONS = [20] as const
 
 type ChargeItem = {
@@ -765,7 +765,7 @@ export default function CalendarPage() {
                           <span title="לא סונכרן ל-Google Calendar" className="absolute top-0.5 left-0.5 text-xs leading-none">⚠️</span>
                         )}
                         {(() => {
-                          const slots = Math.round((lesson.endTime.getTime() - lesson.startTime.getTime()) / 60000 / 20)
+                          const slots = (lesson.endTime.getTime() - lesson.startTime.getTime()) / 60000 / 20
                           const price = lesson.pricePer20Min != null ? lesson.pricePer20Min * slots : null
                           const fullyPaid = price != null && lesson.paidSoFar >= price
                           return (
@@ -888,7 +888,7 @@ export default function CalendarPage() {
 
             {/* Payment — status + opens the full payments panel in a modal */}
             {(() => {
-              const slots = Math.round((actionModal.lesson.endTime.getTime() - actionModal.lesson.startTime.getTime()) / 60000 / 20)
+              const slots = (actionModal.lesson.endTime.getTime() - actionModal.lesson.startTime.getTime()) / 60000 / 20
               const price = actionModal.lesson.pricePer20Min != null ? actionModal.lesson.pricePer20Min * slots : null
               const paid = actionModal.lesson.paidSoFar
               const remaining = price != null ? price - paid : null
@@ -1174,7 +1174,7 @@ export default function CalendarPage() {
 
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">משך</label>
-                    <div className={m.step === 'test' && m.chargeType === 'PRACTICAL_TEST' ? 'grid grid-cols-1 gap-1' : 'grid grid-cols-5 gap-1'}>
+                    <div className={m.step === 'test' && m.chargeType === 'PRACTICAL_TEST' ? 'grid grid-cols-1 gap-1' : 'grid grid-cols-4 gap-1'}>
                       {(m.step === 'test' && m.chargeType === 'PRACTICAL_TEST' ? PRACTICAL_TEST_DURATION_OPTIONS : DURATION_OPTIONS).map(min => (
                         <button key={min} type="button" onClick={() => setNewEventModal(x => x ? { ...x, minutes: min } : x)}
                           className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${m.minutes === min ? 'border-blue-600 bg-blue-100 text-blue-800' : 'border-gray-200 bg-white hover:border-blue-300'}`}>

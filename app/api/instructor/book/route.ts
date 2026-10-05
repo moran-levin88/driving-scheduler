@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
           throw new Error('SLOT_UNAVAILABLE')
         }
         ids = availabilityIds
-      } else {
+      } else if (minutes % SLOT_MINUTES === 0) {
         // Booking directly into a clicked calendar time — the slot(s) may
         // never have been formally published to students, so create them on
         // the fly as long as nothing else is actually booked there.
@@ -63,6 +63,32 @@ export async function POST(req: NextRequest) {
           cursor = slot.endTime
         }
         ids = resolved
+      } else {
+        // A duration that isn't a multiple of 20 (currently just 30 min) —
+        // not decomposable into chainable 20-min pieces, so it's a single
+        // Availability/Booking row spanning the exact requested span.
+        // Everywhere a lesson's price/slot-count is derived from elapsed
+        // time (not row count) this still works out correctly — e.g. 30 min
+        // divides to 1.5 of the 20-min price unit, i.e. 0.75 of a lesson.
+        const start = new Date(startTime)
+        const end = new Date(start.getTime() + minutes * 60 * 1000)
+        const isPast = start < new Date()
+        const [conflict, chargeConflict] = await Promise.all([
+          tx.booking.findFirst({
+            where: {
+              status: { in: ['PENDING', 'APPROVED'] },
+              availability: { instructorId, startTime: { lt: end }, endTime: { gt: start } },
+            },
+          }),
+          tx.charge.findFirst({ where: { startTime: { lt: end }, endTime: { gt: start } } }),
+        ])
+        if (conflict || chargeConflict) throw new Error('SLOT_UNAVAILABLE')
+        let slot = await tx.availability.findFirst({ where: { instructorId, startTime: start, endTime: end } })
+        if (slot?.isBlocked && !isPast) throw new Error('SLOT_UNAVAILABLE')
+        if (!slot) {
+          slot = await tx.availability.create({ data: { instructorId, startTime: start, endTime: end, isBooked: false } })
+        }
+        ids = [slot.id]
       }
 
       const slotsFinal = await tx.availability.findMany({ where: { id: { in: ids } }, orderBy: { startTime: 'asc' } })

@@ -41,7 +41,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (!result) continue
       const dateStr = formatIsraelDate(result.first.availability.startTime)
       const timeStr = formatIsraelTime(result.first.availability.startTime)
-      lines.push({ description: `שיעור נהיגה — ${dateStr} ${timeStr} (${result.chain.length * 20} דק')`, amount: payment.amount })
+      // From elapsed time, not chain.length * 20 — a row isn't always
+      // exactly 20 min (e.g. a 30-min lesson booked directly from the calendar).
+      const durationMin = Math.round((result.last.availability.endTime.getTime() - result.first.availability.startTime.getTime()) / 60000)
+      lines.push({ description: `שיעור נהיגה — ${dateStr} ${timeStr} (${durationMin} דק')`, amount: payment.amount })
     }
     if (lines.length === 0) {
       return NextResponse.json({ error: 'לא נמצאו שיעורים לחשבונית זו' }, { status: 404 })

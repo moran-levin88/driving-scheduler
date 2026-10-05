@@ -39,6 +39,7 @@ export function groupBookingsIntoLessons<T extends BookingLike>(bookings: T[]): 
     else partitions.set(b.status, [b])
   }
 
+  const SLOT_MS = 20 * 60 * 1000
   const lessons: GroupedLesson[] = []
   for (const list of partitions.values()) {
     const sorted = [...list].sort(
@@ -47,16 +48,21 @@ export function groupBookingsIntoLessons<T extends BookingLike>(bookings: T[]): 
     let last: GroupedLesson | null = null
     for (const b of sorted) {
       const bStart = new Date(b.availability.startTime).getTime()
+      const bEnd = new Date(b.availability.endTime).getTime()
+      // Derived from elapsed time, not a row count — a row doesn't have to
+      // be exactly 20 min (e.g. a 30-min lesson booked directly from the
+      // calendar is one row spanning 30 min, i.e. 1.5 of this unit).
+      const rowSlots = (bEnd - bStart) / SLOT_MS
       if (last && last.endTime.getTime() === bStart) {
-        last.slots += 1
-        last.endTime = new Date(b.availability.endTime)
+        last.slots += rowSlots
+        last.endTime = new Date(bEnd)
       } else {
         last = {
           firstId: b.id,
           status: b.status,
-          startTime: new Date(b.availability.startTime),
-          endTime: new Date(b.availability.endTime),
-          slots: 1,
+          startTime: new Date(bStart),
+          endTime: new Date(bEnd),
+          slots: rowSlots,
           paidSoFar: (b.payments ?? []).reduce((sum, p) => sum + p.amount, 0),
         }
         lessons.push(last)

@@ -51,21 +51,26 @@ export async function getStudentPaymentsPanelData(studentId: string) {
     if (arr) arr.push(b)
     else byStatus.set(b.status, [b])
   }
+  const SLOT_MS = 20 * 60 * 1000
   const lessons: Lesson[] = []
   for (const list of byStatus.values()) {
     const sorted = [...list].sort((a, b) => a.availability.startTime.getTime() - b.availability.startTime.getTime())
     let last: Lesson | null = null
     for (const b of sorted) {
+      // Derived from elapsed time, not a row count — a row doesn't have to
+      // be exactly 20 min (e.g. a 30-min lesson booked directly from the
+      // calendar is one row spanning 30 min, i.e. 1.5 of this unit).
+      const rowSlots = (b.availability.endTime.getTime() - b.availability.startTime.getTime()) / SLOT_MS
       if (last && last.endTime.getTime() === b.availability.startTime.getTime()) {
         last.endTime = b.availability.endTime
-        last.slots += 1
+        last.slots += rowSlots
       } else {
         last = {
           firstBookingId: b.id,
           status: b.status,
           startTime: b.availability.startTime,
           endTime: b.availability.endTime,
-          slots: 1,
+          slots: rowSlots,
           paidSoFar: b.payments.reduce((sum, p) => sum + p.amount, 0),
         }
         lessons.push(last)
