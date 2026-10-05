@@ -101,7 +101,7 @@ export default function StudentsPage() {
     })
     // Keep the details visible by default if any were already filled in —
     // never hide existing data behind a collapsed toggle.
-    setPriorTeacherOpen(!!(s.manualPriorLessons || s.manualPriorPracticalTests || s.manualPriorInternalTests))
+    setPriorTeacherOpen(!!(s.manualPriorPracticalTests || s.manualPriorInternalTests))
     setEditError('')
   }
 
@@ -359,6 +359,19 @@ export default function StudentsPage() {
                 />
               </div>
               <div>
+                <label className="block text-sm text-gray-500 mb-1">שיעורים שבוצעו לפני המערכת</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.25}
+                  value={editForm.manualPriorLessons}
+                  onChange={e => setEditForm(f => ({ ...f, manualPriorLessons: e.target.value }))}
+                  placeholder="0"
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">לתלמידים ותיקים — שיעורים שהתבצעו לפני שהתחלתם להשתמש במערכת (בפלטפורמה הקודמת). ניתן להזין גם חצאי ורבעי שיעור (למשל 9.5 או 9.25)</p>
+              </div>
+              <div>
                 {!priorTeacherOpen ? (
                   <button type="button" onClick={() => setPriorTeacherOpen(true)}
                     className="w-full text-sm bg-blue-50 text-blue-700 py-2 rounded-lg hover:bg-blue-100 transition">
@@ -372,18 +385,6 @@ export default function StudentsPage() {
                         className="text-xs text-gray-400 hover:text-gray-600">סגירה</button>
                     </div>
                     <div className="space-y-2">
-                      <div>
-                        <label className="block text-xs text-gray-500 mb-1">כמות שיעורים</label>
-                        <input
-                          type="number"
-                          min={0}
-                          step={0.25}
-                          value={editForm.manualPriorLessons}
-                          onChange={e => setEditForm(f => ({ ...f, manualPriorLessons: e.target.value }))}
-                          placeholder="0"
-                          className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 bg-white"
-                        />
-                      </div>
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">כמות טסטים פנימיים</label>
                         <input
@@ -407,7 +408,7 @@ export default function StudentsPage() {
                         />
                       </div>
                     </div>
-                    <p className="text-xs text-gray-400 mt-2">הכמויות האלה ייספרו יחד עם השיעורים/הטסטים שבוצעו במערכת, בדוח ובכרטיס התלמיד. ניתן להזין גם חצאי ורבעי שיעור (למשל 9.5 או 9.25)</p>
+                    <p className="text-xs text-gray-400 mt-2">הכמויות האלה ייספרו יחד עם הטסטים שבוצעו במערכת, בדוח ובכרטיס התלמיד — בנוסף לשיעורים שהוזנו למעלה, לא במקומם.</p>
                   </div>
                 )}
               </div>
