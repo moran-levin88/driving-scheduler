@@ -26,7 +26,7 @@ export default function LoginPage() {
     })
 
     if (res?.error) {
-      setError(t('loginError'))
+      setError(res.error === 'ACCOUNT_LOCKED' ? t('accountLocked') : t('loginError'))
       setLoading(false)
       return
     }

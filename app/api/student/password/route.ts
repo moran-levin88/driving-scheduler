@@ -16,8 +16,8 @@ export async function PATCH(req: NextRequest) {
   if (!currentPassword || !newPassword) {
     return NextResponse.json({ error: 'חסרים פרטים' }, { status: 400 })
   }
-  if (newPassword.length < 6) {
-    return NextResponse.json({ error: 'הסיסמה החדשה חייבת להכיל לפחות 6 תווים' }, { status: 400 })
+  if (newPassword.length < 8) {
+    return NextResponse.json({ error: 'הסיסמה החדשה חייבת להכיל לפחות 8 תווים' }, { status: 400 })
   }
 
   const userId = (session.user as any).id

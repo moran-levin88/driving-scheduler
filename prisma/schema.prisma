@@ -63,6 +63,14 @@ model User {
   archivedAt         DateTime? // "deleted" students are archived, not removed — past lessons must stay in the calendar/history
   createdAt          DateTime  @default(now())
 
+  // Privacy Protection Law (Amendment 13) — informed consent at account
+  // creation isn't possible for students the instructor registers on their
+  // behalf, so this is also captured via a one-time gate on first login.
+  privacyConsentAt    DateTime?
+  // Login throttling — reset on a successful login or a password reset.
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
   accounts            Account[]
   sessions            Session[]
   bookings            Booking[] @relation("StudentBookings")
@@ -255,4 +263,20 @@ model ManualLessonRecord {
   createdAt  DateTime @default(now())
 
   @@index([studentId])
+}
+
+// Audit trail for the Privacy Protection Law (Data Security Regulations) —
+// logins, lockouts and consent events. No FK to User: a security log must
+// survive independently of whatever happens to the account it's about.
+model SecurityLog {
+  id        String   @id @default(cuid())
+  type      String   // LOGIN_SUCCESS | LOGIN_FAILURE | LOGIN_LOCKED | PRIVACY_CONSENT
+  userId    String?
+  email     String?
+  ip        String?
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
 }

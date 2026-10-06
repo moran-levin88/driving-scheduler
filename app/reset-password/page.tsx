@@ -74,12 +74,12 @@ function ResetPasswordForm() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">{t('newPassword')}</label>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6}
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8}
             className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">{t('confirmPassword')}</label>
-          <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required minLength={6}
+          <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required minLength={8}
             className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         {error && <p className="text-red-600 text-sm">{error}</p>}

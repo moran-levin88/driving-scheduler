@@ -54,7 +54,7 @@ export default function SettingsPage() {
     currentPwd: 'סיסמה נוכחית',
     newPwd: 'סיסמה חדשה',
     confirmPwd: 'אימות סיסמה חדשה',
-    hint: 'לפחות 6 תווים',
+    hint: 'לפחות 8 תווים',
     pwdSave: 'שמור סיסמה חדשה',
     pwdSaving: 'שומר...',
     mismatch: 'הסיסמאות אינן תואמות',
@@ -134,14 +134,14 @@ export default function SettingsPage() {
           <div>
             <label className="block text-sm font-medium mb-1">{L.newPwd}</label>
             <input type="password" value={next} onChange={e => setNext(e.target.value)}
-              required minLength={6} autoComplete="new-password"
+              required minLength={8} autoComplete="new-password"
               className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500" />
             <p className="text-xs text-gray-400 mt-1">{L.hint}</p>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">{L.confirmPwd}</label>
             <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
-              required minLength={6} autoComplete="new-password"
+              required minLength={8} autoComplete="new-password"
               className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500" />
           </div>
           {pwdError && <p className="text-red-500 text-sm">{pwdError}</p>}
