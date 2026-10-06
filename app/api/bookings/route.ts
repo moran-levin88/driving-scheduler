@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendPushToInstructor } from '@/lib/push'
+import { groupBookingsIntoLessons } from '@/lib/groupLessons'
 import { Prisma } from '@prisma/client'
 
 export async function GET(req: NextRequest) {
@@ -84,21 +85,32 @@ export async function POST(req: NextRequest) {
 
       // Enforce weekly limit: student may not exceed 4 slots (80 min) per week.
       // Exception: if the requested slots were freed by another student's cancellation
-      // (CANCELLED record still exists on the slot), allow booking regardless of weekly count
-      // so late-cancellation vacancies can always be filled.
+      // (CANCELLED record still exists on the slot), allow booking regardless of slot
+      // count so late-cancellation vacancies can usually be filled — but not if the
+      // student already has 2 separate lesson sessions this week (any mix of single/
+      // half/double): a freed-up slot can't be used to sneak in a 3rd lesson.
       const isCancelledVacancy = await tx.booking.findFirst({
         where: { availabilityId: { in: availabilityIds }, status: { in: ['CANCELLED', 'REJECTED'] } },
       })
 
-      if (!isCancelledVacancy) {
-        const firstSlot = slots.slice().sort((a, b) => a.startTime.getTime() - b.startTime.getTime())[0]
-        const dayOfWeek = firstSlot.startTime.getUTCDay() // 0=Sun
-        const weekStart = new Date(firstSlot.startTime)
-        weekStart.setUTCDate(weekStart.getUTCDate() - dayOfWeek)
-        weekStart.setUTCHours(0, 0, 0, 0)
-        const weekEnd = new Date(weekStart)
-        weekEnd.setUTCDate(weekEnd.getUTCDate() + 7)
+      const firstSlot = slots.slice().sort((a, b) => a.startTime.getTime() - b.startTime.getTime())[0]
+      const dayOfWeek = firstSlot.startTime.getUTCDay() // 0=Sun
+      const weekStart = new Date(firstSlot.startTime)
+      weekStart.setUTCDate(weekStart.getUTCDate() - dayOfWeek)
+      weekStart.setUTCHours(0, 0, 0, 0)
+      const weekEnd = new Date(weekStart)
+      weekEnd.setUTCDate(weekEnd.getUTCDate() + 7)
 
+      if (isCancelledVacancy) {
+        const existingBookingsThisWeek = await tx.booking.findMany({
+          where: { studentId, status: { in: ['PENDING', 'APPROVED'] }, availability: { startTime: { gte: weekStart, lt: weekEnd } } },
+          include: { availability: true },
+        })
+        const existingLessonCount = groupBookingsIntoLessons(existingBookingsThisWeek).length
+        if (existingLessonCount >= 2) {
+          throw new Error('LESSON_COUNT_LIMIT')
+        }
+      } else {
         const existingCount = await tx.booking.count({
           where: {
             studentId,
@@ -144,6 +156,9 @@ export async function POST(req: NextRequest) {
     }
     if (err.message === 'WEEKLY_LIMIT') {
       return NextResponse.json({ error: 'לא ניתן לקבוע יותר משיעור כפול אחד בשבוע' }, { status: 400 })
+    }
+    if (err.message === 'LESSON_COUNT_LIMIT') {
+      return NextResponse.json({ error: 'כבר קבעת 2 שיעורים השבוע — לא ניתן לקבוע שיעור נוסף גם אם התפנה מביטול' }, { status: 400 })
     }
     throw err
   }
