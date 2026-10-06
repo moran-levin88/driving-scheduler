@@ -22,7 +22,7 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
 
   return (
     <div>
-      <Link href="/instructor/students" className="text-blue-600 hover:underline mb-4 block text-sm">&larr; חזרה לרשימת תלמידים</Link>
+      <Link href="/instructor/students" scroll={false} className="text-blue-600 hover:underline mb-4 block text-sm">&larr; חזרה לרשימת תלמידים</Link>
       <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{student.name}</h1>

@@ -24,6 +24,7 @@ type Student = {
 }
 
 type ResetResult = { name: string; email: string; tempPassword: string }
+type NewStudentResult = { name: string; email: string; tempPassword: string | null }
 
 // Remembers scroll position and which sections were open, so returning from
 // a student's page via the back button lands where you left off instead of
@@ -53,6 +54,11 @@ export default function StudentsPage() {
   const [showInactive, setShowInactive] = useState(false)
   const [inactiveStudents, setInactiveStudents] = useState<Student[] | null>(null)
   const [reactivatingId, setReactivatingId] = useState<string | null>(null)
+  const [addingStudent, setAddingStudent] = useState(false)
+  const [addForm, setAddForm] = useState({ name: '', phone: '', email: '' })
+  const [addError, setAddError] = useState('')
+  const [savingAdd, setSavingAdd] = useState(false)
+  const [newStudentResult, setNewStudentResult] = useState<NewStudentResult | null>(null)
   const scrollRestoredRef = useRef(false)
 
   // Restore which sections were open and what was searched, as soon as we mount
@@ -68,11 +74,21 @@ export default function StudentsPage() {
     } catch {}
   }, [])
 
-  // Keep the saved state (incl. scroll position) fresh as the page is used
+  // Keep the saved state (incl. scroll position) fresh as the page is used.
+  // Runs its initial save() as soon as this effect (re-)registers — including
+  // right after the mount-restore effect above flips showStudentList etc. back
+  // on, at which point we're still sitting at scrollY 0 because the restore-
+  // scroll effect below hasn't run yet (it waits on `students` to load). Saving
+  // window.scrollY unconditionally at that moment clobbers the real saved
+  // position with 0 before it's ever read back — so until restoration has
+  // actually happened, keep whatever scrollY is already on disk instead of
+  // overwriting it with the pre-restore 0.
   useEffect(() => {
     function save() {
       try {
-        sessionStorage.setItem(UI_STATE_KEY, JSON.stringify({ showWeeklyCheck, showStudentList, showInactive, search, scrollY: window.scrollY }))
+        const prev = JSON.parse(sessionStorage.getItem(UI_STATE_KEY) || 'null')
+        const scrollY = scrollRestoredRef.current ? window.scrollY : (prev?.scrollY ?? window.scrollY)
+        sessionStorage.setItem(UI_STATE_KEY, JSON.stringify({ showWeeklyCheck, showStudentList, showInactive, search, scrollY }))
       } catch {}
     }
     save()
@@ -133,6 +149,36 @@ export default function StudentsPage() {
     } else {
       const d = await res.json().catch(() => ({}))
       setEditError(d.error || 'שגיאה בשמירה')
+    }
+  }
+
+  function openAddStudent() {
+    setAddForm({ name: '', phone: '', email: '' })
+    setAddError('')
+    setAddingStudent(true)
+  }
+
+  async function saveAddStudent() {
+    if (!addForm.name.trim()) {
+      setAddError('שם הוא שדה חובה')
+      return
+    }
+    setSavingAdd(true)
+    setAddError('')
+    const res = await fetch('/api/students', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: addForm.name, phone: addForm.phone, email: addForm.email }),
+    })
+    setSavingAdd(false)
+    if (res.ok) {
+      const data = await res.json()
+      setAddingStudent(false)
+      setNewStudentResult(data)
+      fetchStudents()
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setAddError(d.error || 'שגיאה בהוספת תלמיד')
     }
   }
 
@@ -215,6 +261,10 @@ export default function StudentsPage() {
           </Link>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={openAddStudent}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition">
+            ➕ הוספת תלמיד
+          </button>
           <button onClick={() => setShowWeeklyCheck(v => !v)}
             title="מי עוד לא קבע שיעור"
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
@@ -299,6 +349,88 @@ export default function StudentsPage() {
           </div>
         )
       })()}
+
+      {/* Add student modal */}
+      {addingStudent && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto shadow-xl" dir="rtl">
+            <h2 className="text-lg font-bold mb-4">➕ הוספת תלמיד</h2>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">שם *</label>
+                <input
+                  type="text"
+                  value={addForm.name}
+                  onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">טלפון</label>
+                <input
+                  type="tel"
+                  value={addForm.phone}
+                  onChange={e => setAddForm(f => ({ ...f, phone: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">אימייל</label>
+                <input
+                  type="email"
+                  value={addForm.email}
+                  onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="אם לא ידוע, ניתן להשאיר ריק"
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">אם לא תוזן כתובת אימייל, התלמיד/ה לא יוכל/תוכל להתחבר למערכת בעצמו/ה — אפשר להוסיף אימייל בהמשך בעריכת פרטים.</p>
+              </div>
+            </div>
+            {addError && <p className="text-red-600 text-sm mb-3">{addError}</p>}
+            <div className="flex gap-2">
+              <button onClick={saveAddStudent} disabled={savingAdd}
+                className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50">
+                {savingAdd ? 'מוסיף...' : 'הוספה'}
+              </button>
+              <button onClick={() => setAddingStudent(false)}
+                className="flex-1 border py-2 rounded-lg hover:bg-gray-50 transition">
+                ביטול
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New student result modal */}
+      {newStudentResult && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-xl" dir="rtl">
+            <h2 className="text-lg font-bold mb-1">✅ התלמיד/ה {newStudentResult.name} נוסף/ה</h2>
+            {newStudentResult.tempPassword ? (
+              <>
+                <p className="text-gray-600 text-sm mb-4">שלח/י לתלמיד/ה את פרטי הכניסה:</p>
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2 mb-4 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">אימייל:</span>
+                    <span className="font-mono font-semibold select-all">{newStudentResult.email}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">סיסמה זמנית:</span>
+                    <span className="font-mono font-bold text-blue-700 text-lg select-all">{newStudentResult.tempPassword}</span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mb-4">התלמיד/ה יכול/ה להתחבר עם פרטים אלו ולשנות סיסמה בהגדרות.</p>
+              </>
+            ) : (
+              <p className="text-orange-600 text-sm mb-4">⚠ לא הוזנה כתובת אימייל — התלמיד/ה לא יוכל/תוכל להתחבר בעצמו/ה. ניתן להוסיף אימייל ולהפיק סיסמה בהמשך דרך ✏️ עריכת פרטים ← 🔑 איפוס סיסמה.</p>
+            )}
+            <button onClick={() => setNewStudentResult(null)}
+              className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-medium">
+              סגור
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Edit student modal */}
       {editingStudent && (
