@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs'
 import { logSecurityEvent } from '@/lib/securityLog'
 
 export async function POST(req: NextRequest) {
-  const { name, email: rawEmail, phone, password, idNumber, dateOfBirth, agreedToPrivacy } = await req.json()
+  const { name, email: rawEmail, phone, password, idNumber, dateOfBirth, address, agreedToPrivacy } = await req.json()
   const email = rawEmail?.toLowerCase()
 
   if (!name || !email || !password || !idNumber || !dateOfBirth) {
@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
     data: {
       name, email, phone, role: 'STUDENT', password: hash,
       idNumber, dateOfBirth: new Date(dateOfBirth),
+      address: address?.trim() || null,
       privacyConsentAt: new Date(),
     },
   })

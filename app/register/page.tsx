@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useLanguage } from '@/contexts/LanguageContext'
 
 export default function RegisterPage() {
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', password: '', idNumber: '', dateOfBirth: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', password: '', idNumber: '', dateOfBirth: '', address: '' })
   const [confirm, setConfirm] = useState('')
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -113,6 +113,11 @@ export default function RegisterPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('dateOfBirth')} <span className="text-red-500">*</span></label>
             <input type="date" value={form.dateOfBirth} onChange={e => setForm({...form, dateOfBirth: e.target.value})} required
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('homeAddress')}</label>
+            <input type="text" value={form.address} onChange={e => setForm({...form, address: e.target.value})}
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>

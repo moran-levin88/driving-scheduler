@@ -74,6 +74,7 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
               <div className="flex justify-between"><dt className="text-gray-500">שם</dt><dd className="font-medium">{student.name}</dd></div>
               {student.idNumber && <div className="flex justify-between"><dt className="text-gray-500">ת&quot;ז</dt><dd className="font-medium">{student.idNumber}</dd></div>}
               {student.dateOfBirth && <div className="flex justify-between"><dt className="text-gray-500">תאריך לידה</dt><dd className="font-medium">{student.dateOfBirth.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</dd></div>}
+              {student.address && <div className="flex justify-between"><dt className="text-gray-500">מען</dt><dd className="font-medium">{student.address}</dd></div>}
               {student.phone && <div className="flex justify-between"><dt className="text-gray-500">טלפון</dt><dd className="font-medium">{student.phone}</dd></div>}
               {!student.email.includes('@placeholder') && <div className="flex justify-between"><dt className="text-gray-500">אימייל</dt><dd className="font-medium">{student.email}</dd></div>}
             </dl>

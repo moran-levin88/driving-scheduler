@@ -13,6 +13,7 @@ type Student = {
   pricePer20Min: number | null
   idNumber: string | null
   dateOfBirth: string | null
+  address: string | null
   manualPriorLessons: number
   manualPriorOtherTeacherLessons: number
   manualPriorPracticalTests: number
@@ -42,7 +43,7 @@ export default function StudentsPage() {
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [editForm, setEditForm] = useState({
-    name: '', email: '', phone: '', pricePer20Min: '', idNumber: '', dateOfBirth: '',
+    name: '', email: '', phone: '', pricePer20Min: '', idNumber: '', dateOfBirth: '', address: '',
     manualPriorLessons: '', manualPriorOtherTeacherLessons: '',
     manualPriorPracticalTests: '', manualPriorInternalTests: '',
   })
@@ -114,6 +115,7 @@ export default function StudentsPage() {
       pricePer20Min: s.pricePer20Min != null ? String(s.pricePer20Min) : '',
       idNumber: s.idNumber || '',
       dateOfBirth: s.dateOfBirth ? s.dateOfBirth.slice(0, 10) : '',
+      address: s.address || '',
       manualPriorLessons: String(s.manualPriorLessons ?? 0),
       manualPriorOtherTeacherLessons: String(s.manualPriorOtherTeacherLessons ?? 0),
       manualPriorPracticalTests: String(s.manualPriorPracticalTests ?? 0),
@@ -137,6 +139,7 @@ export default function StudentsPage() {
         pricePer20Min: editForm.pricePer20Min === '' ? null : Number(editForm.pricePer20Min),
         idNumber: editForm.idNumber,
         dateOfBirth: editForm.dateOfBirth || null,
+        address: editForm.address,
         manualPriorLessons: editForm.manualPriorLessons === '' ? 0 : Number(editForm.manualPriorLessons),
         manualPriorOtherTeacherLessons: editForm.manualPriorOtherTeacherLessons === '' ? 0 : Number(editForm.manualPriorOtherTeacherLessons),
         manualPriorPracticalTests: editForm.manualPriorPracticalTests === '' ? 0 : Number(editForm.manualPriorPracticalTests),
@@ -257,9 +260,14 @@ export default function StudentsPage() {
       <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">תלמידים</h1>
-          <Link href="/instructor/students/import-legacy" className="text-xs text-gray-400 hover:text-blue-600 hover:underline">
-            ייבוא היסטוריה מהפלטפורמה הקודמת
-          </Link>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Link href="/instructor/students/import-legacy" className="text-xs text-gray-400 hover:text-blue-600 hover:underline">
+              ייבוא היסטוריה מהפלטפורמה הקודמת
+            </Link>
+            <Link href="/instructor/year-end-report" className="text-xs text-gray-400 hover:text-blue-600 hover:underline">
+              📄 דוח יתרות חייבים וזכאים
+            </Link>
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={openAddStudent}
@@ -492,6 +500,16 @@ export default function StudentsPage() {
                   type="date"
                   value={editForm.dateOfBirth}
                   onChange={e => setEditForm(f => ({ ...f, dateOfBirth: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">מען (כתובת קבועה)</label>
+                <input
+                  type="text"
+                  value={editForm.address}
+                  onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))}
+                  placeholder="רחוב, מספר בית, עיר"
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
                 />
               </div>

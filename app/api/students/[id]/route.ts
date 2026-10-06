@@ -17,6 +17,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const data: {
     isRestricted?: boolean; name?: string; email?: string; phone?: string | null
     pricePer20Min?: number | null; idNumber?: string | null; dateOfBirth?: Date | null
+    address?: string | null
     manualPriorLessons?: number; manualPriorOtherTeacherLessons?: number
     manualPriorPracticalTests?: number; manualPriorInternalTests?: number
     previousPlatformDebt?: number
@@ -51,6 +52,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if ('dateOfBirth' in body) {
     data.dateOfBirth = body.dateOfBirth ? new Date(body.dateOfBirth) : null
+  }
+  if ('address' in body) {
+    const address = String(body.address ?? '').trim()
+    data.address = address || null
   }
   if ('manualPriorLessons' in body) {
     const raw = Number(body.manualPriorLessons)
@@ -97,7 +102,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data,
       select: {
         id: true, name: true, email: true, phone: true, isRestricted: true,
-        pricePer20Min: true, idNumber: true, dateOfBirth: true, manualPriorLessons: true,
+        pricePer20Min: true, idNumber: true, dateOfBirth: true, address: true, manualPriorLessons: true,
         manualPriorOtherTeacherLessons: true,
         manualPriorPracticalTests: true, manualPriorInternalTests: true, previousPlatformDebt: true,
       },

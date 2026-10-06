@@ -55,6 +55,7 @@ model User {
   pricePer20Min      Int?      // ₪ instructor sets per student; null = not priced yet
   idNumber           String?   // ת"ז
   dateOfBirth        DateTime?
+  address            String?   // מען — recorded once, separate from the per-lesson pickupAddress on Booking
   manualPriorLessons Float     @default(0) // lessons completed before this platform (quarter-lesson precision), entered by the instructor
   manualPriorOtherTeacherLessons Float @default(0) // lessons completed with a different instructor before this one (quarter-lesson precision) — distinct from manualPriorLessons (previous platform, same instructor), both count toward the total
   manualPriorPracticalTests Int @default(0) // מבחנים מעשיים done before this platform, for the student card report only
