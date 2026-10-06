@@ -280,3 +280,50 @@ model SecurityLog {
   @@index([userId])
   @@index([createdAt])
 }
+
+// Tosefet Z (הוראות ניהול פנקסי חשבונות — בתי ספר לנהיגה), section 3 — ספר
+// הרכב. Only one vehicle exists today, but the law is itself written for an
+// instructor with any number of teaching vehicles, so this stays its own
+// table rather than a hardcoded constant.
+model Vehicle {
+  id           String   @id @default(cuid())
+  licensePlate String   @unique
+  label        String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  odometerLogs  VehicleOdometerLog[]
+  fuelPurchases FuelPurchase[]
+}
+
+// The day's opening odometer reading (section 3(ב)) — the one thing the law
+// requires that isn't already on Booking/Availability. Per-lesson details
+// (student, start time, instructor) are read straight from those at report
+// time instead of being duplicated here.
+model VehicleOdometerLog {
+  id         String   @id @default(cuid())
+  vehicleId  String
+  vehicle    Vehicle  @relation(fields: [vehicleId], references: [id])
+  date       DateTime // that day's UTC midnight
+  odometerKm Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([vehicleId, date])
+}
+
+// Section 3(ד) — every fuel purchase for the vehicle, unless the receipt
+// itself is kept with the vehicle's plate number noted on it. Logging here
+// satisfies the requirement regardless of whether a paper receipt exists too.
+model FuelPurchase {
+  id        String   @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
+  date      DateTime
+  liters    Float
+  amount    Int?
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([vehicleId, date])
+}

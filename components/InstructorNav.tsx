@@ -90,6 +90,7 @@ export default function InstructorNav() {
     { href: '/instructor/calendar', label: 'קלנדר' },
     { href: '/instructor/bookings', label: 'הזמנות', badge: pendingCount },
     { href: '/instructor/students', label: 'תלמידים' },
+    { href: '/instructor/vehicle-log', label: '🚗 ספר הרכב' },
     { href: '/instructor/security-log', label: '🔒 אבטחה' },
   ]
 
