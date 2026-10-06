@@ -21,7 +21,24 @@ export async function GET(req: NextRequest) {
   const [students, balances, unpaidCharges, manualLessonSums] = await Promise.all([
     prisma.user.findMany({
       where: { role: 'STUDENT', archivedAt: showArchived ? { not: null } : null },
-      include: {
+      // Explicit select, not a bare include — this response goes straight to
+      // the instructor's browser, and a bare include would also ship the
+      // bcrypt password hash and login-lockout fields over the wire.
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        isRestricted: true,
+        pricePer20Min: true,
+        idNumber: true,
+        dateOfBirth: true,
+        manualPriorLessons: true,
+        manualPriorOtherTeacherLessons: true,
+        manualPriorPracticalTests: true,
+        manualPriorInternalTests: true,
+        previousPlatformDebt: true,
+        privacyConsentAt: true,
         bookings: {
           include: { availability: true, payments: { select: { amount: true } } },
           orderBy: { createdAt: 'desc' },

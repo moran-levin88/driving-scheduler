@@ -17,6 +17,7 @@ type Student = {
   manualPriorOtherTeacherLessons: number
   manualPriorPracticalTests: number
   manualPriorInternalTests: number
+  privacyConsentAt: string | null
   lessonCount: number
   debt: number
   balance: number
@@ -641,6 +642,12 @@ export default function StudentsPage() {
                       {s.balance > 0 && (
                         <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-medium">
                           יתרה: ₪{s.balance}
+                        </span>
+                      )}
+                      {!s.privacyConsentAt && (
+                        <span title="התלמיד/ה עוד לא אישר/ה את מדיניות הפרטיות — יתבקש/תתבקש לאשר בכניסה הבאה"
+                          className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                          ⚠ טרם אישר/ה פרטיות
                         </span>
                       )}
                     </div>
