@@ -75,8 +75,10 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
 
   // Only tests that have actually happened count — one scheduled for the
   // future hasn't been taken yet.
-  const practicalTestCount = student.charges.filter(c => c.type === 'PRACTICAL_TEST' && c.startTime <= now).length + student.manualPriorPracticalTests
-  const internalTestCount = student.charges.filter(c => c.type === 'INTERNAL_TEST' && c.startTime <= now).length + student.manualPriorInternalTests
+  const practicalTestCount = student.charges.filter(c => c.type === 'PRACTICAL_TEST' && c.startTime <= now).length
+    + student.manualPriorPracticalTests + student.manualPriorOtherTeacherPracticalTests
+  const internalTestCount = student.charges.filter(c => c.type === 'INTERNAL_TEST' && c.startTime <= now).length
+    + student.manualPriorInternalTests + student.manualPriorOtherTeacherInternalTests
   const totalPaid = allRows.reduce((sum, r) => sum + (r.amountPaid ?? 0), 0)
   // Sum of this table's own "remaining" column — distinct from totalDebt
   // below, which also folds in unpaid tests and previous-platform debt that

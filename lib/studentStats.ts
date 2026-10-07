@@ -17,6 +17,8 @@ const STUDENT_SELECT = {
   manualPriorOtherTeacherLessons: true,
   manualPriorPracticalTests: true,
   manualPriorInternalTests: true,
+  manualPriorOtherTeacherPracticalTests: true,
+  manualPriorOtherTeacherInternalTests: true,
   previousPlatformDebt: true,
   privacyConsentAt: true,
   archivedAt: true,

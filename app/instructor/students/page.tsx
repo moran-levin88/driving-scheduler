@@ -18,6 +18,8 @@ type Student = {
   manualPriorOtherTeacherLessons: number
   manualPriorPracticalTests: number
   manualPriorInternalTests: number
+  manualPriorOtherTeacherPracticalTests: number
+  manualPriorOtherTeacherInternalTests: number
   privacyConsentAt: string | null
   lessonCount: number
   debt: number
@@ -46,6 +48,7 @@ export default function StudentsPage() {
     name: '', email: '', phone: '', pricePer20Min: '', idNumber: '', dateOfBirth: '', address: '',
     manualPriorLessons: '', manualPriorOtherTeacherLessons: '',
     manualPriorPracticalTests: '', manualPriorInternalTests: '',
+    manualPriorOtherTeacherPracticalTests: '', manualPriorOtherTeacherInternalTests: '',
   })
   const [priorTeacherOpen, setPriorTeacherOpen] = useState(false)
   const [editError, setEditError] = useState('')
@@ -120,10 +123,12 @@ export default function StudentsPage() {
       manualPriorOtherTeacherLessons: String(s.manualPriorOtherTeacherLessons ?? 0),
       manualPriorPracticalTests: String(s.manualPriorPracticalTests ?? 0),
       manualPriorInternalTests: String(s.manualPriorInternalTests ?? 0),
+      manualPriorOtherTeacherPracticalTests: String(s.manualPriorOtherTeacherPracticalTests ?? 0),
+      manualPriorOtherTeacherInternalTests: String(s.manualPriorOtherTeacherInternalTests ?? 0),
     })
     // Keep the details visible by default if any were already filled in —
     // never hide existing data behind a collapsed toggle.
-    setPriorTeacherOpen(!!s.manualPriorOtherTeacherLessons)
+    setPriorTeacherOpen(!!(s.manualPriorOtherTeacherLessons || s.manualPriorOtherTeacherPracticalTests || s.manualPriorOtherTeacherInternalTests))
     setEditError('')
   }
 
@@ -144,6 +149,8 @@ export default function StudentsPage() {
         manualPriorOtherTeacherLessons: editForm.manualPriorOtherTeacherLessons === '' ? 0 : Number(editForm.manualPriorOtherTeacherLessons),
         manualPriorPracticalTests: editForm.manualPriorPracticalTests === '' ? 0 : Number(editForm.manualPriorPracticalTests),
         manualPriorInternalTests: editForm.manualPriorInternalTests === '' ? 0 : Number(editForm.manualPriorInternalTests),
+        manualPriorOtherTeacherPracticalTests: editForm.manualPriorOtherTeacherPracticalTests === '' ? 0 : Number(editForm.manualPriorOtherTeacherPracticalTests),
+        manualPriorOtherTeacherInternalTests: editForm.manualPriorOtherTeacherInternalTests === '' ? 0 : Number(editForm.manualPriorOtherTeacherInternalTests),
       }),
     })
     setSavingEdit(false)
@@ -576,8 +583,30 @@ export default function StudentsPage() {
                           className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 bg-white"
                         />
                       </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">כמות טסטים פנימיים</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editForm.manualPriorOtherTeacherInternalTests}
+                          onChange={e => setEditForm(f => ({ ...f, manualPriorOtherTeacherInternalTests: e.target.value }))}
+                          placeholder="0"
+                          className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">כמות מבחנים מעשיים</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={editForm.manualPriorOtherTeacherPracticalTests}
+                          onChange={e => setEditForm(f => ({ ...f, manualPriorOtherTeacherPracticalTests: e.target.value }))}
+                          placeholder="0"
+                          className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 bg-white"
+                        />
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-400 mt-2">הכמות הזו תיספר יחד עם השיעורים שבוצעו במערכת, בדוח ובכרטיס התלמיד — בנוסף לשיעורים שהוזנו למעלה (מהפלטפורמה הקודמת), לא במקומם.</p>
+                    <p className="text-xs text-gray-400 mt-2">הכמויות האלה ייספרו יחד עם השיעורים/הטסטים שבוצעו במערכת, בדוח ובכרטיס התלמיד — בנוסף למה שהוזן למעלה, לא במקומו.</p>
                   </div>
                 )}
               </div>

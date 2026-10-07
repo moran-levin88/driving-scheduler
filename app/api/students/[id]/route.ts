@@ -20,6 +20,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     address?: string | null
     manualPriorLessons?: number; manualPriorOtherTeacherLessons?: number
     manualPriorPracticalTests?: number; manualPriorInternalTests?: number
+    manualPriorOtherTeacherPracticalTests?: number; manualPriorOtherTeacherInternalTests?: number
     previousPlatformDebt?: number
     archivedAt?: null
   } = {}
@@ -88,6 +89,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     data.manualPriorInternalTests = Math.round(raw)
   }
+  if ('manualPriorOtherTeacherPracticalTests' in body) {
+    const raw = Number(body.manualPriorOtherTeacherPracticalTests)
+    if (!Number.isFinite(raw) || raw < 0) {
+      return NextResponse.json({ error: 'כמות מבחנים מעשיים לא תקינה' }, { status: 400 })
+    }
+    data.manualPriorOtherTeacherPracticalTests = Math.round(raw)
+  }
+  if ('manualPriorOtherTeacherInternalTests' in body) {
+    const raw = Number(body.manualPriorOtherTeacherInternalTests)
+    if (!Number.isFinite(raw) || raw < 0) {
+      return NextResponse.json({ error: 'כמות טסטים פנימיים לא תקינה' }, { status: 400 })
+    }
+    data.manualPriorOtherTeacherInternalTests = Math.round(raw)
+  }
   if ('previousPlatformDebt' in body) {
     const raw = Number(body.previousPlatformDebt)
     if (!Number.isFinite(raw) || raw < 0) {
@@ -104,7 +119,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         id: true, name: true, email: true, phone: true, isRestricted: true,
         pricePer20Min: true, idNumber: true, dateOfBirth: true, address: true, manualPriorLessons: true,
         manualPriorOtherTeacherLessons: true,
-        manualPriorPracticalTests: true, manualPriorInternalTests: true, previousPlatformDebt: true,
+        manualPriorPracticalTests: true, manualPriorInternalTests: true,
+        manualPriorOtherTeacherPracticalTests: true, manualPriorOtherTeacherInternalTests: true,
+        previousPlatformDebt: true,
       },
     })
     return NextResponse.json(student)
