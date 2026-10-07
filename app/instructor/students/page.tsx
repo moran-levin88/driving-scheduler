@@ -123,7 +123,7 @@ export default function StudentsPage() {
     })
     // Keep the details visible by default if any were already filled in —
     // never hide existing data behind a collapsed toggle.
-    setPriorTeacherOpen(!!(s.manualPriorOtherTeacherLessons || s.manualPriorPracticalTests || s.manualPriorInternalTests))
+    setPriorTeacherOpen(!!s.manualPriorOtherTeacherLessons)
     setEditError('')
   }
 
@@ -527,6 +527,30 @@ export default function StudentsPage() {
                 <p className="text-xs text-gray-400 mt-1">לתלמידים ותיקים — שיעורים שהתבצעו לפני שהתחלתם להשתמש במערכת (בפלטפורמה הקודמת). ניתן להזין גם חצאי ורבעי שיעור (למשל 9.5 או 9.25)</p>
               </div>
               <div>
+                <label className="block text-sm text-gray-500 mb-1">טסטים פנימיים שבוצעו לפני המערכת</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={editForm.manualPriorInternalTests}
+                  onChange={e => setEditForm(f => ({ ...f, manualPriorInternalTests: e.target.value }))}
+                  placeholder="0"
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">טסטים פנימיים שבוצעו לפני שהתחלתם להשתמש במערכת</p>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-500 mb-1">מבחנים מעשיים שבוצעו לפני המערכת</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={editForm.manualPriorPracticalTests}
+                  onChange={e => setEditForm(f => ({ ...f, manualPriorPracticalTests: e.target.value }))}
+                  placeholder="0"
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">מבחנים מעשיים שבוצעו לפני שהתחלתם להשתמש במערכת</p>
+              </div>
+              <div>
                 {!priorTeacherOpen ? (
                   <button type="button" onClick={() => setPriorTeacherOpen(true)}
                     className="w-full text-sm bg-blue-50 text-blue-700 py-2 rounded-lg hover:bg-blue-100 transition">
@@ -552,30 +576,8 @@ export default function StudentsPage() {
                           className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 bg-white"
                         />
                       </div>
-                      <div>
-                        <label className="block text-xs text-gray-500 mb-1">כמות טסטים פנימיים</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={editForm.manualPriorInternalTests}
-                          onChange={e => setEditForm(f => ({ ...f, manualPriorInternalTests: e.target.value }))}
-                          placeholder="0"
-                          className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 bg-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-500 mb-1">כמות מבחנים מעשיים</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={editForm.manualPriorPracticalTests}
-                          onChange={e => setEditForm(f => ({ ...f, manualPriorPracticalTests: e.target.value }))}
-                          placeholder="0"
-                          className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 bg-white"
-                        />
-                      </div>
                     </div>
-                    <p className="text-xs text-gray-400 mt-2">הכמויות האלה ייספרו יחד עם השיעורים/הטסטים שבוצעו במערכת, בדוח ובכרטיס התלמיד — בנוסף לשיעורים שהוזנו למעלה (מהפלטפורמה הקודמת), לא במקומם.</p>
+                    <p className="text-xs text-gray-400 mt-2">הכמות הזו תיספר יחד עם השיעורים שבוצעו במערכת, בדוח ובכרטיס התלמיד — בנוסף לשיעורים שהוזנו למעלה (מהפלטפורמה הקודמת), לא במקומם.</p>
                   </div>
                 )}
               </div>
