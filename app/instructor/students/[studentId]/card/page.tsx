@@ -5,7 +5,7 @@ import { groupBookingsIntoLessons } from '@/lib/groupLessons'
 import { computeDebt } from '@/lib/debt'
 import { getDefaultVehicle } from '@/lib/vehicle'
 import { INSTRUCTOR_NAME, INSTRUCTOR_LICENSE_NUMBER } from '@/lib/instructorInfo'
-import PrintButton from './PrintButton'
+import DownloadPdfButton from './DownloadPdfButton'
 
 type Row = {
   date: Date
@@ -97,10 +97,10 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
     <div className="max-w-3xl mx-auto" dir="rtl">
       <div className="mb-4 print:hidden flex justify-between items-center">
         <Link href={`/instructor/students/${studentId}`} className="text-blue-600 hover:underline text-sm">&larr; חזרה</Link>
-        <PrintButton />
+        <DownloadPdfButton targetId="student-card-content" fileName={`כרטיס-תלמיד-${student.name}.pdf`} />
       </div>
 
-      <div className="bg-white rounded-xl shadow p-8 print:shadow-none print:p-0">
+      <div id="student-card-content" className="bg-white rounded-xl shadow p-8">
         <div className="flex justify-between items-start border-b pb-4 mb-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">כרטיס תלמיד</h1>
