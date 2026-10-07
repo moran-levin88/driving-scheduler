@@ -134,7 +134,7 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
               <div className="flex justify-between"><dt className="text-gray-500">מבחנים מעשיים</dt><dd className="font-medium">{practicalTestCount}</dd></div>
               <div className="flex justify-between"><dt className="text-gray-500">טסטים פנימיים</dt><dd className="font-medium">{internalTestCount}</dd></div>
               <div className="flex justify-between"><dt className="text-gray-500">סה&quot;כ שולם</dt><dd className="font-medium">₪{totalPaid}</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">סה&quot;כ חוב</dt><dd className={`font-medium ${totalDebt > 0 ? 'text-red-600' : ''}`}>₪{totalDebt}</dd></div>
+              <div className="flex justify-between"><dt className="text-gray-500">יתרה לתשלום</dt><dd className={`font-medium ${totalDebt > 0 ? 'text-red-600' : ''}`}>₪{totalDebt}</dd></div>
             </dl>
           </div>
         </div>
