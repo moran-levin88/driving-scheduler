@@ -1,6 +1,7 @@
 import { prisma } from './prisma'
 import { getAllStudentBalances } from './balance'
 import { groupBookingsIntoLessons } from './groupLessons'
+import { computeDebt } from './debt'
 
 const STUDENT_SELECT = {
   id: true,
@@ -52,15 +53,13 @@ export async function getStudentsWithStats(scope: 'active' | 'archived' | 'all')
     // Only lessons that have actually happened (ended already) count toward
     // the displayed lesson count — a future approved booking isn't "taken" yet.
     const completedLessons = lessons.filter(l => ['APPROVED', 'COMPLETED'].includes(l.status) && l.endTime <= now)
-    // Debt is the shortfall per approved lesson that's already happened
-    // (price minus whatever's been paid so far) — a future booked lesson
-    // isn't owed yet, and a partially-paid past lesson still owes the
-    // difference, not just lessons with zero payments. Unpaid practical/
-    // internal tests (Charges with no linked invoice yet) add to this too.
-    const approvedLessons = lessons.filter(l => l.status === 'APPROVED' && l.endTime <= now)
-    const debt = (s.pricePer20Min != null
-      ? approvedLessons.reduce((sum, l) => sum + Math.max(0, s.pricePer20Min! * l.slots - l.paidSoFar), 0)
-      : 0) + (unpaidChargeByStudent.get(s.id) ?? 0) + s.previousPlatformDebt
+    const debt = computeDebt({
+      pricePer20Min: s.pricePer20Min,
+      previousPlatformDebt: s.previousPlatformDebt,
+      lessons,
+      unpaidChargesTotal: unpaidChargeByStudent.get(s.id) ?? 0,
+      now,
+    })
     // A "lesson" is 40 min = two 20-min slots (a "שיעור וחצי" is 1.5, "כפול" is 2,
     // etc.) — count total slots, not sessions, so longer lessons count for more.
     // No rounding: a 60-min lesson alone is already a fractional 1.5, and

@@ -702,6 +702,10 @@ export default function StudentsPage() {
                       className="text-sm bg-yellow-50 text-yellow-700 px-3 py-1.5 rounded-lg hover:bg-yellow-100 transition disabled:opacity-50">
                       {resettingId === s.id ? '...' : '🔑 איפוס סיסמה'}
                     </button>
+                    <Link href={`/instructor/students/${s.id}/card`}
+                      className="text-sm text-center bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition">
+                      🖨️ כרטיס תלמיד
+                    </Link>
 
                     {confirmId === s.id ? (
                       <div className="flex gap-1.5">
