@@ -173,9 +173,6 @@ type NewEventModal = {
 
 type ChargeModal = {
   charge: ChargeItem
-  method: 'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER'
-  reference: string
-  paying: boolean
   deleting: boolean
   marking: boolean
   result: string
@@ -193,7 +190,12 @@ export default function CalendarPage() {
   const [paymentsModal, setPaymentsModal] = useState<{ studentId: string; data: PaymentsPanelData | null; error: string } | null>(null)
   const [newEventModal, setNewEventModal] = useState<NewEventModal | null>(null)
   const [chargeModal, setChargeModal] = useState<ChargeModal | null>(null)
-  const [pendingMethod, setPendingMethod] = useState<{ form: 'newEvent' | 'chargeModal'; method: 'BANK_TRANSFER' | 'BIT' | 'PAYBOX' } | null>(null)
+  // The student's total outstanding balance — shown in both the lesson and
+  // test click-modals instead of just that one item's price, since what the
+  // instructor actually wants to know at a glance is "does this student owe
+  // me money", not just whether this specific item is settled.
+  const [modalStudentDebt, setModalStudentDebt] = useState<number | null>(null)
+  const [pendingMethod, setPendingMethod] = useState<{ form: 'newEvent'; method: 'BANK_TRANSFER' | 'BIT' | 'PAYBOX' } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   function refreshBookings() {
@@ -240,6 +242,7 @@ export default function CalendarPage() {
 
   async function openPaymentsModal(studentId: string) {
     setActionModal(null)
+    setChargeModal(null)
     setPaymentsModal({ studentId, data: null, error: '' })
     try {
       const res = await fetch(`/api/students/${studentId}/payments-panel`)
@@ -257,6 +260,7 @@ export default function CalendarPage() {
   function closePaymentsModal() {
     setPaymentsModal(null)
     refreshBookings() // payment status may have changed — refresh the ₪ badges
+    refreshCharges() // tests can now be paid from this same panel too
   }
 
   useEffect(() => {
@@ -438,7 +442,8 @@ export default function CalendarPage() {
   }
 
   function openChargeModal(charge: ChargeItem) {
-    setChargeModal({ charge, method: 'CASH', reference: '', paying: false, deleting: false, marking: false, result: '' })
+    loadStudentDebt(charge.studentId)
+    setChargeModal({ charge, deleting: false, marking: false, result: '' })
   }
 
   async function handleMarkPassed(passed: boolean) {
@@ -461,31 +466,6 @@ export default function CalendarPage() {
       }
     } catch {
       setChargeModal(m => m ? { ...m, marking: false, result: 'שגיאת רשת — נסה שוב' } : m)
-    }
-  }
-
-  async function handlePayCharge() {
-    if (!chargeModal) return
-    setChargeModal(m => m ? { ...m, paying: true, result: '' } : m)
-    try {
-      const res = await fetch(`/api/students/${chargeModal.charge.studentId}/charge`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          description: CHARGE_TYPE_LABELS[chargeModal.charge.type], amount: chargeModal.charge.amount,
-          method: chargeModal.method, reference: chargeModal.reference,
-          paidAt: new Date().toISOString(), chargeId: chargeModal.charge.id,
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok || res.status === 207) {
-        setChargeModal(null)
-        refreshCharges()
-      } else {
-        setChargeModal(m => m ? { ...m, paying: false, result: data.error || 'שגיאה' } : m)
-      }
-    } catch {
-      setChargeModal(m => m ? { ...m, paying: false, result: 'שגיאת רשת — נסה שוב' } : m)
     }
   }
 
@@ -543,7 +523,19 @@ export default function CalendarPage() {
     }
   }
 
+  async function loadStudentDebt(studentId: string) {
+    setModalStudentDebt(null)
+    try {
+      const res = await fetch(`/api/students/${studentId}/debt`)
+      if (res.ok) {
+        const data = await res.json()
+        setModalStudentDebt(data.debt)
+      }
+    } catch {}
+  }
+
   function openAction(lesson: Lesson) {
+    loadStudentDebt(lesson.studentId)
     setActionModal({
       lesson,
       targetDate: format(lesson.startTime, 'yyyy-MM-dd'),
@@ -911,8 +903,12 @@ export default function CalendarPage() {
               const statusText =
                 remaining != null && remaining <= 0 ? `✓ שולם במלואו (₪${paid})`
                 : paid > 0 ? `שולם ₪${paid}${price != null ? ` מתוך ₪${price}` : ''} — נותר ${remaining != null ? `₪${remaining}` : 'לא ידוע'}`
-                : price != null ? `טרם שולם — ₪${price}`
-                : 'טרם הוגדר מחיר לתלמיד זה'
+                // Not paid for this lesson at all — show the student's total
+                // outstanding balance (not just this one lesson's price), since
+                // that's what the instructor actually wants to know at a glance.
+                : modalStudentDebt == null ? 'טוען יתרה לתשלום...'
+                : modalStudentDebt > 0 ? `טרם שולם — יתרה לתשלום: ₪${modalStudentDebt}`
+                : 'אין יתרה לתשלום'
               return (
                 <div className="bg-green-50 rounded-xl p-3 mb-3">
                   <p className="text-sm text-gray-700 mb-2">{statusText}</p>
@@ -1276,23 +1272,15 @@ export default function CalendarPage() {
                 )}
               </div>
             ) : (
-              <div className="bg-blue-50 rounded-xl p-3 mb-3 space-y-2">
-                <p className="text-sm font-semibold text-blue-800">טרם שולם — ₪{chargeModal.charge.amount}</p>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER'] as const).map(mt => (
-                    <button key={mt} type="button" onClick={() => (mt === 'BANK_TRANSFER' || mt === 'BIT' || mt === 'PAYBOX') ? setPendingMethod({ form: 'chargeModal', method: mt }) : setChargeModal(m => m ? { ...m, method: mt } : m)}
-                      className={`py-1.5 rounded-lg text-xs font-medium border-2 transition ${chargeModal.method === mt ? 'border-blue-600 bg-blue-100 text-blue-800' : 'border-gray-200 bg-white hover:border-blue-300'}`}>
-                      {{ CASH: 'מזומן', BIT: 'ביט', PAYBOX: 'פייבוקס', BANK_TRANSFER: 'העברה בנקאית' }[mt]}
-                    </button>
-                  ))}
-                </div>
-                <input type="text" placeholder="אסמכתא (אופציונלי)" value={chargeModal.reference}
-                  onChange={e => setChargeModal(m => m ? { ...m, reference: e.target.value } : m)}
-                  className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-400" />
-                {chargeModal.result && <p className="text-xs text-red-600">{chargeModal.result}</p>}
-                <button onClick={handlePayCharge} disabled={chargeModal.paying}
-                  className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition">
-                  {chargeModal.paying ? 'מפיק חשבונית...' : `אשר ₪${chargeModal.charge.amount} והפק חשבונית`}
+              <div className="bg-green-50 rounded-xl p-3 mb-3">
+                <p className="text-sm text-gray-700 mb-2">
+                  {modalStudentDebt == null ? 'טוען יתרה לתשלום...'
+                    : modalStudentDebt > 0 ? `יתרה לתשלום: ₪${modalStudentDebt}`
+                    : 'אין יתרה לתשלום'}
+                </p>
+                <button type="button" onClick={() => openPaymentsModal(chargeModal.charge.studentId)}
+                  className="block w-full text-center bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition">
+                  💰 ניהול תשלום וחשבוניות
                 </button>
               </div>
             )}
@@ -1333,8 +1321,7 @@ export default function CalendarPage() {
 
       {pendingMethod && (() => {
         const applyResult = (ref: string) => {
-          if (pendingMethod.form === 'newEvent') setNewEventModal(x => x ? { ...x, method: pendingMethod.method, reference: ref } : x)
-          if (pendingMethod.form === 'chargeModal') setChargeModal(m => m ? { ...m, method: pendingMethod.method, reference: ref } : m)
+          setNewEventModal(x => x ? { ...x, method: pendingMethod.method, reference: ref } : x)
           setPendingMethod(null)
         }
         return pendingMethod.method === 'BANK_TRANSFER' ? (
