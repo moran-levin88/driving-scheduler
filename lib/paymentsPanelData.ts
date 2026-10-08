@@ -27,11 +27,13 @@ export async function getStudentPaymentsPanelData(studentId: string) {
     getStudentBalance(studentId),
     // Practical/internal tests booked from the calendar that haven't been
     // paid yet — once paid they get a normal Invoice (with a description)
-    // and show up in the invoices list below like any other charge. Only
-    // ones that have actually happened can be closed out — a test still in
-    // the future isn't owed for yet.
+    // and show up in the invoices list below like any other charge.
+    // Includes ones still in the future — the instructor can choose to
+    // charge for a scheduled test ahead of time (e.g. to collect payment
+    // up front); it just isn't counted as owed (lib/debt.ts) until it's
+    // actually happened.
     prisma.charge.findMany({
-      where: { studentId, invoiceId: null, startTime: { lte: now } },
+      where: { studentId, invoiceId: null },
       orderBy: { startTime: 'desc' },
     }),
     prisma.manualLessonRecord.findMany({ where: { studentId }, orderBy: { date: 'asc' } }),
@@ -89,10 +91,12 @@ export async function getStudentPaymentsPanelData(studentId: string) {
   const manualLessonsTotal = manualLessonRecords.reduce((sum, r) => sum + r.lessons, 0)
   const completedCount = completedSlots / 2 + student.manualPriorLessons + student.manualPriorOtherTeacherLessons + manualLessonsTotal
 
+  // Includes future lessons — the instructor can charge ahead of time (e.g.
+  // to collect payment up front for an upcoming lesson); a future lesson
+  // just isn't counted as owed (lib/debt.ts) until it's actually happened.
   const payableLessons = lessons
     .filter(l => {
       if (l.status !== 'APPROVED') return false
-      if (l.endTime > now) return false // not owed yet — hasn't happened
       const price = student.pricePer20Min != null ? student.pricePer20Min * l.slots : null
       return price == null || price - l.paidSoFar > 0
     })
