@@ -3,6 +3,15 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { format, startOfWeek, addDays, addWeeks, subWeeks } from 'date-fns'
 import { he } from 'date-fns/locale'
+import PayableItemsPanel, { type PayableLesson, type PendingCharge } from '@/components/PayableItemsPanel'
+
+type PaymentModalData = {
+  student: { pricePer20Min: number | null }
+  balance: number
+  previousPlatformDebt: number
+  payableLessons: PayableLesson[]
+  pendingCharges: PendingCharge[]
+}
 
 type Student = {
   id: string
@@ -59,6 +68,7 @@ export default function StudentsPage() {
   const [showInactive, setShowInactive] = useState(false)
   const [inactiveStudents, setInactiveStudents] = useState<Student[] | null>(null)
   const [reactivatingId, setReactivatingId] = useState<string | null>(null)
+  const [paymentModal, setPaymentModal] = useState<{ studentId: string; studentName: string; data: PaymentModalData | null; error: string } | null>(null)
   const [addingStudent, setAddingStudent] = useState(false)
   const [addForm, setAddForm] = useState({ name: '', phone: '', email: '' })
   const [addError, setAddError] = useState('')
@@ -200,6 +210,21 @@ export default function StudentsPage() {
   }
 
   useEffect(() => { fetchStudents() }, [])
+
+  async function openPaymentModal(studentId: string, studentName: string) {
+    setPaymentModal({ studentId, studentName, data: null, error: '' })
+    try {
+      const res = await fetch(`/api/students/${studentId}/payments-panel`)
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setPaymentModal({ studentId, studentName, data, error: '' })
+      } else {
+        setPaymentModal({ studentId, studentName, data: null, error: data.error || 'שגיאה בטעינה' })
+      }
+    } catch {
+      setPaymentModal({ studentId, studentName, data: null, error: 'שגיאת רשת — נסה שוב' })
+    }
+  }
 
   async function fetchInactive() {
     const res = await fetch('/api/students?archived=1')
@@ -655,6 +680,33 @@ export default function StudentsPage() {
         </div>
       )}
 
+      {/* Payment modal — same "שיעורים עם יתרה לתשלום" flow as the calendar's payments modal */}
+      {paymentModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" onClick={() => setPaymentModal(null)}>
+          <div className="bg-white rounded-xl p-5 w-full max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-bold text-lg">{paymentModal.studentName}</p>
+              <button onClick={() => setPaymentModal(null)} className="text-gray-400 hover:text-gray-600 text-sm">סגור ✕</button>
+            </div>
+            {paymentModal.error ? (
+              <p className="text-red-600 text-sm">{paymentModal.error}</p>
+            ) : !paymentModal.data ? (
+              <p className="text-gray-400 text-sm">טוען...</p>
+            ) : (
+              <PayableItemsPanel
+                studentId={paymentModal.studentId}
+                pricePer20Min={paymentModal.data.student.pricePer20Min}
+                payableLessons={paymentModal.data.payableLessons}
+                pendingCharges={paymentModal.data.pendingCharges}
+                initialPreviousPlatformDebt={paymentModal.data.previousPlatformDebt}
+                initialBalance={paymentModal.data.balance}
+                onPaid={fetchStudents}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
       {(showStudentList || search.trim().length > 0) && (() => {
         const q = search.trim().toLowerCase()
         const filtered = q
@@ -725,6 +777,10 @@ export default function StudentsPage() {
                       className="text-sm text-center bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition">
                       היסטוריה
                     </Link>
+                    <button onClick={() => openPaymentModal(s.id, s.name)}
+                      className="text-sm text-center bg-green-50 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-100 transition">
+                      💰 תשלום
+                    </button>
                     <button onClick={() => openEdit(s)}
                       className="text-sm text-center bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition">
                       ✏️ עריכת פרטים

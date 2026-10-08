@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay } from 'date-fns'
 import { he } from 'date-fns/locale'
 import StudentPaymentsPanel from '../students/[studentId]/StudentPaymentsPanel'
+import PayableItemsPanel from '@/components/PayableItemsPanel'
 import BankTransferModal from '@/components/BankTransferModal'
 import ReferenceModal from '@/components/ReferenceModal'
 
@@ -1105,15 +1106,23 @@ export default function CalendarPage() {
             ) : !paymentsModal.data ? (
               <p className="text-gray-400 text-sm">טוען...</p>
             ) : (
-              <StudentPaymentsPanel
-                studentId={paymentsModal.studentId}
-                pricePer20Min={paymentsModal.data.student.pricePer20Min}
-                payableLessons={paymentsModal.data.payableLessons}
-                pendingCharges={paymentsModal.data.pendingCharges}
-                invoices={paymentsModal.data.invoices}
-                initialBalance={paymentsModal.data.balance}
-                initialPreviousPlatformDebt={paymentsModal.data.previousPlatformDebt}
-              />
+              <div className="space-y-4">
+                <PayableItemsPanel
+                  studentId={paymentsModal.studentId}
+                  pricePer20Min={paymentsModal.data.student.pricePer20Min}
+                  payableLessons={paymentsModal.data.payableLessons}
+                  pendingCharges={paymentsModal.data.pendingCharges}
+                  initialPreviousPlatformDebt={paymentsModal.data.previousPlatformDebt}
+                  initialBalance={paymentsModal.data.balance}
+                  onPaid={refreshBookings}
+                />
+                <StudentPaymentsPanel
+                  studentId={paymentsModal.studentId}
+                  invoices={paymentsModal.data.invoices}
+                  initialBalance={paymentsModal.data.balance}
+                  initialPreviousPlatformDebt={paymentsModal.data.previousPlatformDebt}
+                />
+              </div>
             )}
           </div>
         </div>
