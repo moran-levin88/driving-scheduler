@@ -9,6 +9,7 @@ import { createInvoice, type PaymentMethodForInvoice } from '@/lib/morning'
 import { sendInvoiceToStudent } from '@/lib/email'
 import { getStudentBalance } from '@/lib/balance'
 import { formatIsraelDate, formatIsraelTime } from '@/lib/israelTime'
+import { formatLessonCount } from '@/lib/lessonLabel'
 
 const METHODS = ['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'BALANCE', 'EXTERNAL'] as const
 
@@ -98,7 +99,8 @@ export async function POST(req: NextRequest) {
   const lines = resolved.map(r => {
     const dateStr = formatIsraelDate(r.first.availability.startTime)
     const timeStr = formatIsraelTime(r.first.availability.startTime)
-    const base = `שיעור נהיגה — ${dateStr} ${timeStr} (${Math.round(r.slots * 20)} דק')`
+    const durationMin = Math.round(r.slots * 20)
+    const base = `שיעור נהיגה — ${dateStr} ${timeStr} (${durationMin} דק' — ${formatLessonCount(durationMin)})`
     return { description: noteText ? `${base} — ${noteText}` : base, amount: r.amount }
   })
 

@@ -8,6 +8,7 @@ import { findLessonChain } from '@/lib/lessonChain'
 import { createInvoice, type PaymentMethodForInvoice } from '@/lib/morning'
 import { sendInvoiceToStudent } from '@/lib/email'
 import { formatIsraelDate, formatIsraelTime } from '@/lib/israelTime'
+import { formatLessonCount } from '@/lib/lessonLabel'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // From elapsed time, not chain.length * 20 — a row isn't always
       // exactly 20 min (e.g. a 30-min lesson booked directly from the calendar).
       const durationMin = Math.round((result.last.availability.endTime.getTime() - result.first.availability.startTime.getTime()) / 60000)
-      lines.push({ description: `שיעור נהיגה — ${dateStr} ${timeStr} (${durationMin} דק')`, amount: payment.amount })
+      lines.push({ description: `שיעור נהיגה — ${dateStr} ${timeStr} (${durationMin} דק' — ${formatLessonCount(durationMin)})`, amount: payment.amount })
     }
     if (lines.length === 0) {
       return NextResponse.json({ error: 'לא נמצאו שיעורים לחשבונית זו' }, { status: 404 })
