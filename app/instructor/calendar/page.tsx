@@ -1116,12 +1116,7 @@ export default function CalendarPage() {
                   initialBalance={paymentsModal.data.balance}
                   onPaid={refreshBookings}
                 />
-                <StudentPaymentsPanel
-                  studentId={paymentsModal.studentId}
-                  invoices={paymentsModal.data.invoices}
-                  initialBalance={paymentsModal.data.balance}
-                  initialPreviousPlatformDebt={paymentsModal.data.previousPlatformDebt}
-                />
+                <StudentPaymentsPanel invoices={paymentsModal.data.invoices} />
               </div>
             )}
           </div>

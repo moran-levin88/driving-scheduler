@@ -104,12 +104,7 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
         )}
       </div>
 
-      <StudentPaymentsPanel
-        studentId={studentId}
-        invoices={invoices}
-        initialBalance={balance}
-        initialPreviousPlatformDebt={previousPlatformDebt}
-      />
+      <StudentPaymentsPanel invoices={invoices} />
     </div>
   )
 }
