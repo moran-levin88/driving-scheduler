@@ -1,17 +1,37 @@
-// A standard lesson is 40 minutes = 1 unit; 20 דק' = חצי שיעור, 60 = שיעור
-// וחצי, 80 = 2 שיעורים, etc. Used on invoice line descriptions so the
-// receipt itself says how many lessons it covers, not just the duration.
-export function formatLessonCount(durationMin: number): string {
-  const units = durationMin / 40
-  if (units === 0.5) return 'חצי שיעור'
-  if (units === 1) return 'שיעור'
-  if (units === 1.5) return 'שיעור וחצי'
-  if (Number.isInteger(units)) return `${units} שיעורים`
+import { formatIsraelDate, formatIsraelTime } from './israelTime'
 
-  const whole = Math.floor(units)
-  const frac = units - whole
-  if (Math.abs(frac - 0.5) < 1e-9) return whole > 0 ? `${whole} וחצי שיעורים` : 'חצי שיעור'
-  // An odd fraction (e.g. a 30-min lesson = 0.75 unit) — no clean Hebrew
-  // phrase for it, just state the number.
-  return `${units} שיעורים`
+// Splits one lesson chain's full time span into individual invoice lines —
+// one per 40-minute lesson, plus a trailing 20-minute line if the chain
+// doesn't divide evenly (e.g. a 60-min "שיעור וחצי") — each with its own
+// date/time and a proportional share of the total amount. The last line
+// absorbs the rounding remainder so the lines always sum to exactly the
+// amount paid.
+export function splitIntoLessonLines(params: {
+  startTime: Date
+  totalSlots: number // 20-min units
+  totalAmount: number
+}): { description: string; amount: number }[] {
+  const { startTime, totalSlots, totalAmount } = params
+
+  const segmentSlots: number[] = []
+  let remaining = totalSlots
+  while (remaining >= 2) {
+    segmentSlots.push(2)
+    remaining -= 2
+  }
+  if (remaining > 1e-9) segmentSlots.push(remaining)
+
+  const amountPerSlot = totalAmount / totalSlots
+  let cursor = startTime
+  let allocated = 0
+
+  return segmentSlots.map((slots, i) => {
+    const isLast = i === segmentSlots.length - 1
+    const amount = isLast ? totalAmount - allocated : Math.round(amountPerSlot * slots)
+    allocated += amount
+
+    const description = `שיעור נהיגה — ${formatIsraelDate(cursor)} ${formatIsraelTime(cursor)}`
+    cursor = new Date(cursor.getTime() + slots * 20 * 60 * 1000)
+    return { description, amount }
+  })
 }

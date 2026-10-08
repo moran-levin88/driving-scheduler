@@ -8,8 +8,7 @@ import { findLessonChain, type ChainBooking } from '@/lib/lessonChain'
 import { createInvoice, type PaymentMethodForInvoice } from '@/lib/morning'
 import { sendInvoiceToStudent } from '@/lib/email'
 import { getStudentBalance } from '@/lib/balance'
-import { formatIsraelDate, formatIsraelTime } from '@/lib/israelTime'
-import { formatLessonCount } from '@/lib/lessonLabel'
+import { splitIntoLessonLines } from '@/lib/lessonLabel'
 
 const METHODS = ['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'BALANCE', 'EXTERNAL'] as const
 
@@ -96,12 +95,16 @@ export async function POST(req: NextRequest) {
 
   const noteText = typeof note === 'string' ? note.trim() : ''
 
-  const lines = resolved.map(r => {
-    const dateStr = formatIsraelDate(r.first.availability.startTime)
-    const timeStr = formatIsraelTime(r.first.availability.startTime)
-    const durationMin = Math.round(r.slots * 20)
-    const base = `שיעור נהיגה — ${dateStr} ${timeStr} (${durationMin} דק' — ${formatLessonCount(durationMin)})`
-    return { description: noteText ? `${base} — ${noteText}` : base, amount: r.amount }
+  // One line per lesson, not per chain — an 80-min double books as two
+  // 40-min lines, not one "(80 דק')" line.
+  const lines = resolved.flatMap((r, ri) => {
+    const segments = splitIntoLessonLines({
+      startTime: r.first.availability.startTime,
+      totalSlots: r.slots,
+      totalAmount: r.amount,
+    })
+    if (!noteText || ri !== 0) return segments
+    return segments.map((s, i) => i === 0 ? { ...s, description: `${s.description} — ${noteText}` } : s)
   })
 
   // Always create the Invoice row (even if the Morning call below fails) so

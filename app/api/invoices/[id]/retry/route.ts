@@ -7,8 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { findLessonChain } from '@/lib/lessonChain'
 import { createInvoice, type PaymentMethodForInvoice } from '@/lib/morning'
 import { sendInvoiceToStudent } from '@/lib/email'
-import { formatIsraelDate, formatIsraelTime } from '@/lib/israelTime'
-import { formatLessonCount } from '@/lib/lessonLabel'
+import { splitIntoLessonLines } from '@/lib/lessonLabel'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
@@ -40,12 +39,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     for (const payment of invoice.payments) {
       const result = await findLessonChain(payment.bookingId, 'APPROVED')
       if (!result) continue
-      const dateStr = formatIsraelDate(result.first.availability.startTime)
-      const timeStr = formatIsraelTime(result.first.availability.startTime)
       // From elapsed time, not chain.length * 20 — a row isn't always
       // exactly 20 min (e.g. a 30-min lesson booked directly from the calendar).
-      const durationMin = Math.round((result.last.availability.endTime.getTime() - result.first.availability.startTime.getTime()) / 60000)
-      lines.push({ description: `שיעור נהיגה — ${dateStr} ${timeStr} (${durationMin} דק' — ${formatLessonCount(durationMin)})`, amount: payment.amount })
+      const totalSlots = (result.last.availability.endTime.getTime() - result.first.availability.startTime.getTime()) / (20 * 60 * 1000)
+      // One line per lesson, not per chain — an 80-min double books as two
+      // 40-min lines, not one "(80 דק')" line.
+      lines.push(...splitIntoLessonLines({
+        startTime: result.first.availability.startTime,
+        totalSlots,
+        totalAmount: payment.amount,
+      }))
     }
     if (lines.length === 0) {
       return NextResponse.json({ error: 'לא נמצאו שיעורים לחשבונית זו' }, { status: 404 })
