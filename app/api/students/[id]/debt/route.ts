@@ -7,9 +7,12 @@ import { prisma } from '@/lib/prisma'
 import { groupBookingsIntoLessons } from '@/lib/groupLessons'
 import { computeDebt } from '@/lib/debt'
 
-// Lightweight single-student debt figure — used by the calendar's lesson
-// and test click-modals, which want "what does this student owe in total"
-// rather than just the one item clicked.
+// Lightweight single-student figures — used by the calendar's lesson and
+// test click-modals: "what does this student owe in total" (rather than
+// just the one item clicked), plus the lesson-count carried over from
+// before this platform/teacher, which the modal needs as the starting
+// offset for "which lesson number is this" (computed client-side from the
+// already-loaded calendar bookings, which only cover this platform).
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
   if (!session || (session.user as any).role !== 'INSTRUCTOR') {
@@ -18,17 +21,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params
   const now = new Date()
 
-  const student = await prisma.user.findUnique({
-    where: { id, role: 'STUDENT' },
-    select: {
-      pricePer20Min: true,
-      previousPlatformDebt: true,
-      bookings: {
-        include: { availability: true, payments: { select: { amount: true } } },
+  const [student, manualLessonsAgg] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id, role: 'STUDENT' },
+      select: {
+        pricePer20Min: true,
+        previousPlatformDebt: true,
+        manualPriorLessons: true,
+        manualPriorOtherTeacherLessons: true,
+        bookings: {
+          include: { availability: true, payments: { select: { amount: true } } },
+        },
+        charges: { where: { invoiceId: null, startTime: { lte: now } }, select: { amount: true } },
       },
-      charges: { where: { invoiceId: null, startTime: { lte: now } }, select: { amount: true } },
-    },
-  })
+    }),
+    prisma.manualLessonRecord.aggregate({ where: { studentId: id }, _sum: { lessons: true } }),
+  ])
   if (!student) return NextResponse.json({ error: 'תלמיד לא נמצא' }, { status: 404 })
 
   const lessons = groupBookingsIntoLessons(student.bookings)
@@ -40,6 +48,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     unpaidChargesTotal,
     now,
   })
+  const manualPriorOffset = student.manualPriorLessons + student.manualPriorOtherTeacherLessons + (manualLessonsAgg._sum.lessons ?? 0)
 
-  return NextResponse.json({ debt })
+  return NextResponse.json({ debt, manualPriorOffset })
 }

@@ -196,6 +196,10 @@ export default function CalendarPage() {
   // instructor actually wants to know at a glance is "does this student owe
   // me money", not just whether this specific item is settled.
   const [modalStudentDebt, setModalStudentDebt] = useState<number | null>(null)
+  // Which lesson number (out of the student's overall count) the clicked
+  // lesson is — a range like "7–8" for a double lesson, since each 40-min
+  // half counts as its own lesson everywhere else in the app (invoicing).
+  const [modalLessonNumber, setModalLessonNumber] = useState<string | null>(null)
   const [pendingMethod, setPendingMethod] = useState<{ form: 'newEvent'; method: 'BANK_TRANSFER' | 'BIT' | 'PAYBOX' } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -535,8 +539,32 @@ export default function CalendarPage() {
     } catch {}
   }
 
+  // Position of this lesson among the student's own APPROVED lessons
+  // (already loaded in `lessons`, across all time — not just this week),
+  // plus the manual-prior offset fetched from the server. A multi-slot
+  // block (e.g. an 80-min double lesson) spans more than one lesson number,
+  // same as how it's split into separate 40-min invoice lines elsewhere.
+  async function loadLessonNumber(lesson: Lesson) {
+    setModalLessonNumber(null)
+    try {
+      const res = await fetch(`/api/students/${lesson.studentId}/debt`)
+      if (!res.ok) return
+      const data = await res.json()
+      const offset = typeof data.manualPriorOffset === 'number' ? data.manualPriorOffset : 0
+      const LESSON_MS = 40 * 60 * 1000
+      const unitsBefore = lessons
+        .filter(l => l.studentId === lesson.studentId && l.startTime.getTime() < lesson.startTime.getTime())
+        .reduce((sum, l) => sum + (l.endTime.getTime() - l.startTime.getTime()) / LESSON_MS, 0)
+      const unitsInThis = (lesson.endTime.getTime() - lesson.startTime.getTime()) / LESSON_MS
+      const start = Math.round(offset + unitsBefore) + 1
+      const end = Math.round(offset + unitsBefore + unitsInThis)
+      setModalLessonNumber(unitsInThis > 1 ? `${start}–${end}` : `${start}`)
+    } catch {}
+  }
+
   function openAction(lesson: Lesson) {
     loadStudentDebt(lesson.studentId)
+    loadLessonNumber(lesson)
     setActionModal({
       lesson,
       targetDate: format(lesson.startTime, 'yyyy-MM-dd'),
@@ -797,7 +825,10 @@ export default function CalendarPage() {
       {actionModal && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" onClick={() => setActionModal(null)}>
           <div className="bg-white rounded-xl p-5 w-full max-w-sm max-h-[90vh] overflow-y-auto" dir="rtl" onClick={e => e.stopPropagation()}>
-            <p className="font-bold text-lg">{actionModal.lesson.studentName}</p>
+            <p className="font-bold text-lg">
+              {actionModal.lesson.studentName}
+              {modalLessonNumber && <span className="font-normal text-gray-400 text-sm"> · שיעור מספר {modalLessonNumber}</span>}
+            </p>
             <p className="text-gray-500 text-sm">
               {format(actionModal.lesson.startTime, "EEEE, d בMMMM", { locale: he })} | {format(actionModal.lesson.startTime, 'HH:mm')}–{format(actionModal.lesson.endTime, 'HH:mm')}
             </p>
