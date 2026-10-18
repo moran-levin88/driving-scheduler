@@ -177,6 +177,11 @@ type ChargeModal = {
   deleting: boolean
   marking: boolean
   result: string
+  targetDate: string
+  targetTime: string
+  shifting: boolean
+  shiftResult: string
+  shiftedInfo: { newStart: Date; newEnd: Date } | null
 }
 
 export default function CalendarPage() {
@@ -448,7 +453,42 @@ export default function CalendarPage() {
 
   function openChargeModal(charge: ChargeItem) {
     loadStudentDebt(charge.studentId)
-    setChargeModal({ charge, deleting: false, marking: false, result: '' })
+    setChargeModal({
+      charge,
+      deleting: false,
+      marking: false,
+      result: '',
+      targetDate: format(charge.startTime, 'yyyy-MM-dd'),
+      targetTime: format(charge.startTime, 'HH:mm'),
+      shifting: false,
+      shiftResult: '',
+      shiftedInfo: null,
+    })
+  }
+
+  async function handleShiftCharge() {
+    if (!chargeModal) return
+    setChargeModal(m => m ? { ...m, shifting: true, shiftResult: '' } : m)
+    try {
+      const targetStartTimeIso = new Date(`${chargeModal.targetDate}T${chargeModal.targetTime}:00`).toISOString()
+      const res = await fetch(`/api/charges/${chargeModal.charge.id}/shift`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetStartTimeIso }),
+      })
+      if (res.ok) {
+        const newStart = new Date(`${chargeModal.targetDate}T${chargeModal.targetTime}:00`)
+        const duration = chargeModal.charge.endTime.getTime() - chargeModal.charge.startTime.getTime()
+        setChargeModal(m => m ? { ...m, shifting: false, shiftedInfo: { newStart, newEnd: new Date(newStart.getTime() + duration) } } : m)
+        refreshCharges()
+      } else {
+        let errMsg = `שגיאה (${res.status})`
+        try { const d = await res.json(); errMsg = d.error || errMsg } catch {}
+        setChargeModal(m => m ? { ...m, shifting: false, shiftResult: errMsg } : m)
+      }
+    } catch {
+      setChargeModal(m => m ? { ...m, shifting: false, shiftResult: 'שגיאת רשת — נסה שוב' } : m)
+    }
   }
 
   async function handleMarkPassed(passed: boolean) {
@@ -1298,6 +1338,52 @@ export default function CalendarPage() {
             <p className="text-gray-500 text-sm mb-3">
               {CHARGE_TYPE_LABELS[chargeModal.charge.type]} | {format(chargeModal.charge.startTime, "EEEE, d בMMMM", { locale: he })} | {format(chargeModal.charge.startTime, 'HH:mm')}–{format(chargeModal.charge.endTime, 'HH:mm')}
             </p>
+
+            {chargeModal.shiftedInfo ? (() => {
+              const dateStr = format(chargeModal.shiftedInfo.newStart, "EEEE, d בMMMM", { locale: he })
+              const timeStr = `${format(chargeModal.shiftedInfo.newStart, 'HH:mm')}–${format(chargeModal.shiftedInfo.newEnd, 'HH:mm')}`
+              const phone = chargeModal.charge.phone?.replace(/\D/g, '').replace(/^0/, '972')
+              const waText = `שלום ${chargeModal.charge.studentName}! ה${CHARGE_TYPE_LABELS[chargeModal.charge.type]} שלך הוזז: ${dateStr} בשעה ${timeStr}. בהצלחה! 🚗`
+              return (
+                <div className="bg-green-50 rounded-xl p-4 mb-3 text-center">
+                  <p className="font-semibold text-green-800 mb-0.5">✓ האירוע הוזז!</p>
+                  <p className="text-sm text-gray-600 mb-3">{dateStr} | {timeStr}</p>
+                  {phone ? (
+                    <a href={`https://wa.me/${phone}?text=${encodeURIComponent(waText)}`}
+                      target="_blank" rel="noreferrer"
+                      className="block w-full bg-green-500 text-white py-2.5 rounded-xl font-medium hover:bg-green-600 transition mb-2">
+                      📲 שלח עדכון WhatsApp לתלמיד
+                    </a>
+                  ) : (
+                    <p className="text-xs text-gray-400 mb-2">אין מספר טלפון לתלמיד</p>
+                  )}
+                  <button onClick={() => setChargeModal(null)} className="w-full border py-2 rounded-lg text-sm hover:bg-gray-50">סגור</button>
+                </div>
+              )
+            })() : (
+              <div className="bg-orange-50 rounded-xl p-3 mb-3">
+                <p className="text-sm font-semibold text-orange-800 mb-2">הזזת מועד</p>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">תאריך</label>
+                    <input type="date" value={chargeModal.targetDate}
+                      onChange={e => setChargeModal(m => m ? { ...m, targetDate: e.target.value } : m)}
+                      className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">שעת התחלה</label>
+                    <input type="time" value={chargeModal.targetTime}
+                      onChange={e => setChargeModal(m => m ? { ...m, targetTime: e.target.value } : m)}
+                      className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-orange-400" />
+                  </div>
+                </div>
+                {chargeModal.shiftResult && <p className="text-red-500 text-xs mb-2">{chargeModal.shiftResult}</p>}
+                <button onClick={handleShiftCharge} disabled={chargeModal.shifting}
+                  className="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50 transition">
+                  {chargeModal.shifting ? 'מזיז...' : `הזז ל-${chargeModal.targetTime} ב-${chargeModal.targetDate.slice(8)}.${chargeModal.targetDate.slice(5,7)}`}
+                </button>
+              </div>
+            )}
 
             {chargeModal.charge.paid ? (
               <div className="bg-green-50 rounded-xl p-3 mb-3 text-sm text-green-800">
