@@ -101,10 +101,21 @@ export default function StudentDashboard() {
     !['PENDING', 'APPROVED'].includes(l.status) || new Date(l.startTime) < new Date()
   ).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
 
+  // A "lesson" is 40 min — same unit used everywhere else in the app (the
+  // student card, debt calc, etc.) — so a double (80 min) lesson counts as 2.
+  const completedLessonCount = allLessons
+    .filter(l => l.status === 'APPROVED' && new Date(l.endTime) <= new Date())
+    .reduce((sum, l) => sum + (new Date(l.endTime).getTime() - new Date(l.startTime).getTime()) / (40 * 60 * 1000), 0)
+
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-1">{t('myLessons')}</h1>
-      {studentName && <p className="text-gray-500 mb-8">{t('hello')}, {studentName}</p>}
+      {studentName && <p className="text-gray-500 mb-4">{t('hello')}, {studentName}</p>}
+
+      <div className="bg-blue-50 rounded-xl p-4 text-center mb-6 inline-block min-w-[140px]">
+        <p className="text-3xl font-bold text-blue-700">{completedLessonCount}</p>
+        <p className="text-sm text-gray-500">{t('lessonsCompletedLabel')}</p>
+      </div>
 
       <NextAvailabilityCountdown />
 

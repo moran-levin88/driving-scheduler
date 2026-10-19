@@ -16,7 +16,6 @@ export default function BookPage() {
   const [selected, setSelected] = useState<Slot | null>(null)
   const [lessonType, setLessonType] = useState<LessonType | null>(null)
   const [notes, setNotes] = useState('')
-  const [pickupAddress, setPickupAddress] = useState('')
   const [altSlots, setAltSlots] = useState<AltSlot[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -179,7 +178,7 @@ export default function BookPage() {
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ availabilityIds, notes, pickupAddress, alternativeSlots }),
+        body: JSON.stringify({ availabilityIds, notes, alternativeSlots }),
       })
 
       if (res.ok) {
@@ -187,7 +186,6 @@ export default function BookPage() {
         setSelected(null)
         setLessonType(null)
         setNotes('')
-        setPickupAddress('')
         setAltSlots([])
         fetchSlots()
       } else {
@@ -390,15 +388,6 @@ export default function BookPage() {
               </p>
             </div>
           )}
-
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">
-              {t('pickupAddress')} <span className="text-red-500">*</span>
-            </label>
-            <input type="text" value={pickupAddress} onChange={e => setPickupAddress(e.target.value)}
-              placeholder={t('pickupPlaceholder')}
-              className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500" />
-          </div>
 
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1">{t('notes')}</label>

@@ -50,10 +50,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'החשבון אינו פעיל יותר ולא ניתן לקבוע שיעורים' }, { status: 403 })
   }
 
-  if (!pickupAddress?.trim()) {
-    return NextResponse.json({ error: 'כתובת איסוף היא שדה חובה' }, { status: 400 })
-  }
-
   if (!availabilityIds || !Array.isArray(availabilityIds) || availabilityIds.length === 0) {
     return NextResponse.json({ error: 'לא נבחרה שעה' }, { status: 400 })
   }
