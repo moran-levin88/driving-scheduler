@@ -20,14 +20,20 @@ export async function POST(req: NextRequest) {
 
   const bookings = await prisma.booking.findMany({
     where: { id: { in: bookingIds }, status: 'APPROVED' },
-    include: { student: true, availability: true },
+    include: {
+      student: { select: { id: true, name: true, email: true, phone: true } },
+      availability: true,
+    },
     orderBy: { availability: { startTime: 'asc' } },
   })
   if (bookings.length === 0) {
     return NextResponse.json({ error: 'שיעור לא נמצא' }, { status: 404 })
   }
 
-  const newStudent = await prisma.user.findUnique({ where: { id: newStudentId } })
+  const newStudent = await prisma.user.findUnique({
+    where: { id: newStudentId },
+    select: { id: true, name: true, email: true, phone: true, role: true },
+  })
   if (!newStudent || newStudent.role !== 'STUDENT') {
     return NextResponse.json({ error: 'תלמיד לא נמצא' }, { status: 404 })
   }
