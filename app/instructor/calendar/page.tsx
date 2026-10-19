@@ -11,7 +11,7 @@ type PaymentsPanelData = {
   student: { id: string; name: string; email: string; phone: string | null; pricePer20Min: number | null }
   balance: number
   previousPlatformDebt: number
-  payableLessons: { firstBookingId: string; startTime: string; endTime: string; paidSoFar: number }[]
+  payableLessons: { firstBookingId: string; startTime: string; endTime: string; paidSoFar: number; discountAmount: number; discountReason: string | null }[]
   pendingCharges: { id: string; label: string; startTime: string; amount: number }[]
   invoices: {
     id: string; amount: number; method: string; reference: string | null
@@ -39,6 +39,8 @@ type Lesson = {
   alternativeSlots: string[]  // ISO strings from student
   calendarEventId: string | null
   paidSoFar: number // sum of this lesson's Payment amounts — payment itself is managed on the student's page
+  discountAmount: number
+  discountReason: string | null
 }
 
 type Block = { id: string; startTime: Date; endTime: Date; blockNote: string | null }
@@ -74,6 +76,8 @@ type CalendarBooking = {
   student: { name: string; phone?: string | null; pricePer20Min?: number | null }
   availability: { startTime: string; endTime: string }
   payments?: { amount: number }[]
+  discountAmount?: number
+  discountReason?: string | null
 }
 
 function groupToLessons(bookings: CalendarBooking[]): Lesson[] {
@@ -105,6 +109,8 @@ function groupToLessons(bookings: CalendarBooking[]): Lesson[] {
         alternativeSlots: Array.isArray(b.alternativeSlots) ? b.alternativeSlots : [],
         calendarEventId: b.calendarEventId ?? null,
         paidSoFar: (b.payments ?? []).reduce((sum, p) => sum + p.amount, 0),
+        discountAmount: b.discountAmount ?? 0,
+        discountReason: b.discountReason ?? null,
       })
     }
   }
@@ -843,7 +849,7 @@ export default function CalendarPage() {
                         )}
                         {(() => {
                           const slots = (lesson.endTime.getTime() - lesson.startTime.getTime()) / 60000 / 20
-                          const price = lesson.pricePer20Min != null ? lesson.pricePer20Min * slots : null
+                          const price = lesson.pricePer20Min != null ? Math.max(0, lesson.pricePer20Min * slots - lesson.discountAmount) : null
                           const fullyPaid = price != null && lesson.paidSoFar >= price
                           return (
                             <span title={fullyPaid ? 'שולם' : 'טרם שולם'} className="absolute top-0.5 right-0.5 text-xs leading-none">
@@ -969,7 +975,7 @@ export default function CalendarPage() {
             {/* Payment — status + opens the full payments panel in a modal */}
             {(() => {
               const slots = (actionModal.lesson.endTime.getTime() - actionModal.lesson.startTime.getTime()) / 60000 / 20
-              const price = actionModal.lesson.pricePer20Min != null ? actionModal.lesson.pricePer20Min * slots : null
+              const price = actionModal.lesson.pricePer20Min != null ? Math.max(0, actionModal.lesson.pricePer20Min * slots - actionModal.lesson.discountAmount) : null
               const paid = actionModal.lesson.paidSoFar
               const remaining = price != null ? price - paid : null
               const statusText =
@@ -983,7 +989,12 @@ export default function CalendarPage() {
                 : 'אין יתרה לתשלום'
               return (
                 <div className="bg-green-50 rounded-xl p-3 mb-3">
-                  <p className="text-sm text-gray-700 mb-2">{statusText}</p>
+                  <p className="text-sm text-gray-700 mb-2">
+                    {statusText}
+                    {actionModal.lesson.discountAmount > 0 && (
+                      <span className="text-purple-600"> · הנחה ₪{actionModal.lesson.discountAmount}{actionModal.lesson.discountReason ? ` (${actionModal.lesson.discountReason})` : ''}</span>
+                    )}
+                  </p>
                   <button type="button" onClick={() => openPaymentsModal(actionModal.lesson.studentId)}
                     className="block w-full text-center bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition">
                     💰 ניהול תשלום וחשבוניות

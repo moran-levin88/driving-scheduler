@@ -3,7 +3,10 @@ import { useState } from 'react'
 import BankTransferModal from '@/components/BankTransferModal'
 import ReferenceModal from '@/components/ReferenceModal'
 
-export type PayableLesson = { firstBookingId: string; startTime: string; endTime: string; paidSoFar: number }
+export type PayableLesson = {
+  firstBookingId: string; startTime: string; endTime: string; paidSoFar: number
+  discountAmount: number; discountReason: string | null
+}
 export type PendingCharge = { id: string; label: string; startTime: string; amount: number }
 
 type UnifiedItem =
@@ -41,6 +44,11 @@ export default function PayableItemsPanel({
   const [chargesList, setChargesList] = useState(pendingCharges)
   const [previousPlatformDebt, setPreviousPlatformDebt] = useState(initialPreviousPlatformDebt)
   const [balance, setBalance] = useState(initialBalance)
+  // Mirrors the prop locally — same pattern as balance/previousPlatformDebt
+  // above — so handleSetDiscount can update one lesson's figures in place
+  // without waiting on the parent's own refetch (onPaid only refreshes the
+  // outer list, not this already-open modal's data).
+  const [lessonsList, setLessonsList] = useState(payableLessons)
 
   // Add to the legacy debt — pure record-keeping, no invoice (no money has
   // actually changed hands yet; that happens later, when it's paid down
@@ -82,19 +90,71 @@ export default function PayableItemsPanel({
   const [payResult, setPayResult] = useState('')
   const [dismissingId, setDismissingId] = useState<string | null>(null)
 
+  // Discount form — one lesson at a time, e.g. for a shortened/delayed
+  // lesson or a free "gift" lesson
+  const [discountOpenFor, setDiscountOpenFor] = useState<string | null>(null)
+  const [discountAmount, setDiscountAmountInput] = useState('')
+  const [discountReason, setDiscountReason] = useState('')
+  const [settingDiscount, setSettingDiscount] = useState(false)
+  const [discountError, setDiscountError] = useState('')
+
   // Which form opened the mandatory payment-details popup, if any — bank
   // transfer needs 4 fields, Bit/PayBox need just a confirmation number
   const [pendingMethod, setPendingMethod] = useState<{ form: 'deposit' | 'charge' | 'pay'; method: 'BANK_TRANSFER' | 'BIT' | 'PAYBOX' } | null>(null)
 
-  // The amount still owed on this lesson — full price if nothing's been
-  // paid yet, or just the remainder if it was partially paid before.
-  function suggestedAmount(l: PayableLesson) {
-    if (pricePer20Min == null) return ''
+  // Full price after any discount, before paidSoFar — shared by the
+  // suggested-payment amount and the lesson row's own price display.
+  function lessonPrice(l: PayableLesson) {
+    if (pricePer20Min == null) return null
     const slots = minutesBetween(l.startTime, l.endTime) / 20
-    return String(Math.max(0, pricePer20Min * slots - l.paidSoFar))
+    return Math.max(0, pricePer20Min * slots - l.discountAmount)
   }
 
-  const unvisibleLessons = payableLessons.filter(l => !paidIds.has(l.firstBookingId))
+  // The amount still owed on this lesson — full price (after discount) if
+  // nothing's been paid yet, or just the remainder if it was partially paid.
+  function suggestedAmount(l: PayableLesson) {
+    const price = lessonPrice(l)
+    if (price == null) return ''
+    return String(Math.max(0, price - l.paidSoFar))
+  }
+
+  function openDiscount(l: PayableLesson) {
+    setDiscountOpenFor(l.firstBookingId)
+    setDiscountAmountInput(l.discountAmount > 0 ? String(l.discountAmount) : '')
+    setDiscountReason(l.discountReason ?? '')
+    setDiscountError('')
+  }
+
+  async function handleSetDiscount(firstBookingId: string, overrideAmount?: string, overrideReason?: string) {
+    const amount = Number(overrideAmount ?? discountAmount) || 0
+    const reason = overrideReason ?? discountReason
+    if (amount < 0) { setDiscountError('סכום לא תקין'); return }
+    setSettingDiscount(true)
+    setDiscountError('')
+    try {
+      const res = await fetch(`/api/bookings/${firstBookingId}/discount`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, reason }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setLessonsList(prev => prev.map(l => l.firstBookingId === firstBookingId
+          ? { ...l, discountAmount: data.discountAmount, discountReason: data.discountReason }
+          : l))
+        setDiscountOpenFor(null)
+        onPaid?.()
+      } else {
+        setDiscountError(data.error || 'שגיאה')
+      }
+    } catch {
+      setDiscountError('שגיאת רשת — נסה שוב')
+    } finally {
+      setSettingDiscount(false)
+    }
+  }
+
+  const unvisibleLessons = lessonsList.filter(l => !paidIds.has(l.firstBookingId))
   const timedItems: UnifiedItem[] = [
     ...unvisibleLessons.map(l => ({ kind: 'lesson' as const, key: `lesson:${l.firstBookingId}`, lesson: l })),
     ...chargesList.map(c => ({ kind: 'charge' as const, key: `charge:${c.id}`, charge: c })),
@@ -494,40 +554,84 @@ export default function PayableItemsPanel({
         <div className="space-y-1.5 mb-3">
           {unifiedItems.map(item => {
             const isSelected = selected.has(item.key)
+            const isDiscountOpen = item.kind === 'lesson' && discountOpenFor === item.lesson.firstBookingId
             return (
-              <div key={item.key} className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg transition ${isSelected ? 'bg-green-50' : 'bg-gray-50 hover:bg-gray-100'}`}>
-                <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
-                  <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(item)} className="w-4 h-4 accent-green-600 shrink-0" />
-                  <span className="text-sm">
-                    {item.kind === 'lesson' ? (
-                      <>
-                        {new Date(item.lesson.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}
-                        {' '}
-                        {new Date(item.lesson.startTime).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}
-                        {' ('}{minutesBetween(item.lesson.startTime, item.lesson.endTime)} דק׳{')'}
-                        {item.lesson.paidSoFar > 0 && <span className="text-amber-600"> — שולם ₪{item.lesson.paidSoFar} חלקית</span>}
-                      </>
-                    ) : item.kind === 'charge' ? (
-                      <>{item.charge.label} — {new Date(item.charge.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</>
-                    ) : (
-                      <>חוב מהפלטפורמה הקודמת</>
-                    )}
-                  </span>
-                </label>
-                {isSelected ? (
-                  <input type="number" min={0} value={amounts[item.key] ?? ''}
-                    onChange={e => setAmounts(a => ({ ...a, [item.key]: e.target.value }))}
-                    className="w-20 border rounded-lg px-2 py-1 text-sm text-center shrink-0" />
-                ) : item.kind === 'lesson' ? (
-                  <button type="button" onClick={() => handleQuickDismiss(item.lesson)} disabled={dismissingId === item.lesson.firstBookingId}
-                    title="שולם בפלטפורמה הקודמת — הסר מהרשימה"
-                    className="shrink-0 text-xs text-gray-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg transition disabled:opacity-50">
-                    {dismissingId === item.lesson.firstBookingId ? '...' : '🗑'}
-                  </button>
-                ) : item.kind === 'charge' ? (
-                  <span className="shrink-0 text-xs text-gray-400">₪{item.charge.amount}</span>
-                ) : (
-                  <span className="shrink-0 text-xs text-gray-400">₪{item.amount}</span>
+              <div key={item.key}>
+                <div className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg transition ${isSelected ? 'bg-green-50' : 'bg-gray-50 hover:bg-gray-100'}`}>
+                  <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                    <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(item)} className="w-4 h-4 accent-green-600 shrink-0" />
+                    <span className="text-sm">
+                      {item.kind === 'lesson' ? (
+                        <>
+                          {new Date(item.lesson.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}
+                          {' '}
+                          {new Date(item.lesson.startTime).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}
+                          {' ('}{minutesBetween(item.lesson.startTime, item.lesson.endTime)} דק׳{')'}
+                          {item.lesson.paidSoFar > 0 && <span className="text-amber-600"> — שולם ₪{item.lesson.paidSoFar} חלקית</span>}
+                          {item.lesson.discountAmount > 0 && (
+                            <span className="text-purple-600"> — הנחה ₪{item.lesson.discountAmount}{item.lesson.discountReason ? ` (${item.lesson.discountReason})` : ''}</span>
+                          )}
+                        </>
+                      ) : item.kind === 'charge' ? (
+                        <>{item.charge.label} — {new Date(item.charge.startTime).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</>
+                      ) : (
+                        <>חוב מהפלטפורמה הקודמת</>
+                      )}
+                    </span>
+                  </label>
+                  {isSelected ? (
+                    <input type="number" min={0} value={amounts[item.key] ?? ''}
+                      onChange={e => setAmounts(a => ({ ...a, [item.key]: e.target.value }))}
+                      className="w-20 border rounded-lg px-2 py-1 text-sm text-center shrink-0" />
+                  ) : item.kind === 'lesson' ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button type="button" onClick={() => isDiscountOpen ? setDiscountOpenFor(null) : openDiscount(item.lesson)}
+                        title="הנחה — עיכוב/קיצור שיעור או שיעור מתנה"
+                        className={`text-xs px-2 py-1 rounded-lg transition ${isDiscountOpen ? 'text-purple-700 bg-purple-100' : 'text-gray-400 hover:text-purple-700 hover:bg-purple-50'}`}>
+                        הנחה
+                      </button>
+                      <button type="button" onClick={() => handleQuickDismiss(item.lesson)} disabled={dismissingId === item.lesson.firstBookingId}
+                        title="שולם בפלטפורמה הקודמת — הסר מהרשימה"
+                        className="text-xs text-gray-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg transition disabled:opacity-50">
+                        {dismissingId === item.lesson.firstBookingId ? '...' : '🗑'}
+                      </button>
+                    </div>
+                  ) : item.kind === 'charge' ? (
+                    <span className="shrink-0 text-xs text-gray-400">₪{item.charge.amount}</span>
+                  ) : (
+                    <span className="shrink-0 text-xs text-gray-400">₪{item.amount}</span>
+                  )}
+                </div>
+                {isDiscountOpen && item.kind === 'lesson' && (
+                  <div className="bg-purple-50 rounded-xl p-3 mt-1 space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">סכום הנחה (₪)</label>
+                        <input type="number" min={0} value={discountAmount} onChange={e => setDiscountAmountInput(e.target.value)}
+                          className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-purple-400" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">סיבה</label>
+                        <input type="text" value={discountReason} onChange={e => setDiscountReason(e.target.value)}
+                          placeholder="עיכוב / קיצור שיעור / שיעור מתנה"
+                          className="w-full border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-purple-400" />
+                      </div>
+                    </div>
+                    {discountError && <p className="text-xs text-red-600">{discountError}</p>}
+                    <div className="flex gap-2">
+                      <button onClick={() => handleSetDiscount(item.lesson.firstBookingId)} disabled={settingDiscount}
+                        className="flex-1 bg-purple-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition">
+                        {settingDiscount ? 'שומר...' : 'שמירת הנחה'}
+                      </button>
+                      {item.lesson.discountAmount > 0 && (
+                        <button onClick={() => handleSetDiscount(item.lesson.firstBookingId, '0', '')}
+                          disabled={settingDiscount}
+                          className="text-sm text-gray-500 hover:text-red-600 px-3 py-2 rounded-lg transition disabled:opacity-50">
+                          הסר הנחה
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             )

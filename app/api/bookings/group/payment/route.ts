@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
 
   if (student.pricePer20Min != null) {
     for (const r of resolved) {
-      const price = student.pricePer20Min * r.slots
+      const price = Math.max(0, student.pricePer20Min * r.slots - r.first.discountAmount)
       const paidSoFar = paidByBooking.get(r.first.id) ?? 0
       if (price - paidSoFar <= 0) {
         return NextResponse.json({ error: 'אחד השיעורים כבר שולם במלואו' }, { status: 409 })

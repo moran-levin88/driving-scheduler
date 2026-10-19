@@ -17,7 +17,10 @@ export function computeDebt(params: {
   // difference, not just lessons with zero payments.
   const approvedLessons = params.lessons.filter(l => l.status === 'APPROVED' && l.endTime <= params.now)
   const lessonDebt = params.pricePer20Min != null
-    ? approvedLessons.reduce((sum, l) => sum + Math.max(0, params.pricePer20Min! * l.slots - l.paidSoFar), 0)
+    ? approvedLessons.reduce((sum, l) => {
+        const price = Math.max(0, params.pricePer20Min! * l.slots - l.discountAmount)
+        return sum + Math.max(0, price - l.paidSoFar)
+      }, 0)
     : 0
   return lessonDebt + params.unpaidChargesTotal + params.previousPlatformDebt
 }

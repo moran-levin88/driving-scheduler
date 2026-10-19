@@ -149,6 +149,11 @@ model Booking {
   alternativeSlots  Json?
   reminderSent      Boolean       @default(false)
   calendarEventId   String?
+  // ₪ off this lesson's price — set only on a chain's first booking, same
+  // convention as Payment (lib/lessonChain.ts) — e.g. a shortened/delayed
+  // lesson or a free "gift" lesson. 0 = no discount.
+  discountAmount Int     @default(0)
+  discountReason String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 

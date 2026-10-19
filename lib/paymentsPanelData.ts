@@ -46,7 +46,10 @@ export async function getStudentPaymentsPanelData(studentId: string) {
   // Booking row over time (e.g. a cancelled earlier attempt sitting at the
   // same time as the real one), and that interloper's different status would
   // otherwise break the chain between two bookings that are really one lesson.
-  type Lesson = { firstBookingId: string; status: string; startTime: Date; endTime: Date; slots: number; paidSoFar: number }
+  type Lesson = {
+    firstBookingId: string; status: string; startTime: Date; endTime: Date; slots: number; paidSoFar: number
+    discountAmount: number; discountReason: string | null
+  }
   const byStatus = new Map<string, typeof student.bookings>()
   for (const b of student.bookings) {
     const arr = byStatus.get(b.status)
@@ -74,6 +77,8 @@ export async function getStudentPaymentsPanelData(studentId: string) {
           endTime: b.availability.endTime,
           slots: rowSlots,
           paidSoFar: b.payments.reduce((sum, p) => sum + p.amount, 0),
+          discountAmount: b.discountAmount,
+          discountReason: b.discountReason,
         }
         lessons.push(last)
       }
@@ -97,7 +102,7 @@ export async function getStudentPaymentsPanelData(studentId: string) {
   const payableLessons = lessons
     .filter(l => {
       if (l.status !== 'APPROVED') return false
-      const price = student.pricePer20Min != null ? student.pricePer20Min * l.slots : null
+      const price = student.pricePer20Min != null ? Math.max(0, student.pricePer20Min * l.slots - l.discountAmount) : null
       return price == null || price - l.paidSoFar > 0
     })
     .map(l => ({
@@ -105,6 +110,8 @@ export async function getStudentPaymentsPanelData(studentId: string) {
       startTime: l.startTime.toISOString(),
       endTime: l.endTime.toISOString(),
       paidSoFar: l.paidSoFar,
+      discountAmount: l.discountAmount,
+      discountReason: l.discountReason,
     }))
 
   const CHARGE_LABELS: Record<string, string> = { PRACTICAL_TEST: 'מבחן מעשי', INTERNAL_TEST: 'טסט פנימי' }

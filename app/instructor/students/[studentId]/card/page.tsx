@@ -13,6 +13,7 @@ type Row = {
   timeLabel: string
   lessonUnits: number
   price: number | null
+  discountAmount: number
   amountPaid: number | null
   remaining: number | null
   invoiceNumber: string | null
@@ -43,7 +44,7 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
   const completedLessons = groupedLessons.filter(l => ['APPROVED', 'COMPLETED'].includes(l.status) && l.endTime <= now)
 
   const bookingRows: Row[] = completedLessons.map(l => {
-    const price = student.pricePer20Min != null ? student.pricePer20Min * l.slots : null
+    const price = student.pricePer20Min != null ? Math.max(0, student.pricePer20Min * l.slots - l.discountAmount) : null
     const amountPaid = l.paidSoFar > 0 ? l.paidSoFar : null
     // A lesson's Payment rows all live on the chain's first booking — see
     // the schema comment on Payment.bookingId.
@@ -54,6 +55,7 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
       timeLabel: `${l.startTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}–${l.endTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}`,
       lessonUnits: l.slots / 2,
       price,
+      discountAmount: l.discountAmount,
       amountPaid,
       remaining: price != null ? Math.max(0, price - l.paidSoFar) : null,
       invoiceNumber: invoiceNumbers.length > 0 ? invoiceNumbers.join(', ') : null,
@@ -64,6 +66,7 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
     timeLabel: '—',
     lessonUnits: r.lessons,
     price: null,
+    discountAmount: 0,
     amountPaid: r.amountPaid,
     remaining: null,
     invoiceNumber: null,
@@ -163,7 +166,10 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
                 <td className="py-1.5">{r.date.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</td>
                 <td className="py-1.5 text-gray-600">{r.timeLabel}</td>
                 <td className="py-1.5">{r.lessonUnits}</td>
-                <td className="py-1.5">{r.price != null ? `₪${r.price}` : '—'}</td>
+                <td className="py-1.5">
+                  {r.price != null ? `₪${r.price}` : '—'}
+                  {r.discountAmount > 0 && <span className="text-purple-600 text-xs"> (הנחה ₪{r.discountAmount})</span>}
+                </td>
                 <td className="py-1.5 text-gray-600">{r.invoiceNumber ?? '—'}</td>
                 <td className="py-1.5">{r.amountPaid != null ? `₪${r.amountPaid}` : '—'}</td>
                 <td className={`py-1.5 ${r.remaining ? 'text-red-600' : ''}`}>{r.remaining != null ? `₪${r.remaining}` : '—'}</td>
