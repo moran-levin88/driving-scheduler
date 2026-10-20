@@ -18,7 +18,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
   const invoice = await prisma.invoice.findUnique({
     where: { id },
-    include: { student: true, payments: true },
+    include: {
+      student: { select: { name: true, email: true, idNumber: true } },
+      payments: true,
+    },
   })
   if (!invoice) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (invoice.invoiceId) return NextResponse.json({ error: 'כבר הופקה חשבונית' }, { status: 409 })

@@ -1,8 +1,14 @@
 import { prisma } from './prisma'
 import type { Prisma, BookingStatus } from '@prisma/client'
 
+// A narrow select, not a bare `student: true` — the latter pulls every User
+// scalar field, including the bcrypt password hash, into memory on every
+// lesson lookup (the same class of bug fixed in GET /api/students and
+// bookings/reassign). These are the only student fields any caller of
+// findLessonChain actually reads: name/phone for calendar events, email/
+// idNumber/pricePer20Min for invoicing.
 const chainInclude = {
-  student: true,
+  student: { select: { id: true, name: true, email: true, phone: true, idNumber: true, pricePer20Min: true } },
   availability: true,
 } satisfies Prisma.BookingInclude
 
