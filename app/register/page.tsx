@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { isHebrewName, filterHebrewInput } from '@/lib/hebrewName'
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', password: '', idNumber: '', dateOfBirth: '', address: '' })
@@ -18,6 +19,13 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+
+    // Required regardless of which UI language (he/ru) is selected — the
+    // name field itself only ever accepts Hebrew.
+    if (!isHebrewName(form.firstName) || !isHebrewName(form.lastName)) {
+      setError(t('hebrewNameOnly'))
+      return
+    }
 
     if (form.password !== confirm) {
       setError(t('passwordsNoMatch'))
@@ -87,12 +95,14 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('firstName')} <span className="text-red-500">*</span></label>
-            <input type="text" value={form.firstName} onChange={e => setForm({...form, firstName: e.target.value})} required
+            <input type="text" value={form.firstName} onChange={e => setForm({...form, firstName: filterHebrewInput(e.target.value)})} required
+              dir="rtl" placeholder={t('hebrewOnlyPlaceholder')}
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{t('lastName')} <span className="text-red-500">*</span></label>
-            <input type="text" value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} required
+            <input type="text" value={form.lastName} onChange={e => setForm({...form, lastName: filterHebrewInput(e.target.value)})} required
+              dir="rtl" placeholder={t('hebrewOnlyPlaceholder')}
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>

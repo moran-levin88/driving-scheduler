@@ -4,14 +4,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { logSecurityEvent } from '@/lib/securityLog'
+import { isHebrewName } from '@/lib/hebrewName'
 
 export async function POST(req: NextRequest) {
-  const { name, email: rawEmail, phone, password, idNumber, dateOfBirth, address, agreedToPrivacy } = await req.json()
+  const { firstName, lastName, email: rawEmail, phone, password, idNumber, dateOfBirth, address, agreedToPrivacy } = await req.json()
   const email = rawEmail?.toLowerCase()
 
-  if (!name || !email || !password || !idNumber || !dateOfBirth) {
+  if (!firstName || !lastName || !email || !password || !idNumber || !dateOfBirth) {
     return NextResponse.json({ error: 'יש למלא את כל השדות' }, { status: 400 })
   }
+
+  // Enforced server-side, not just filtered in the form — a request that
+  // skips the UI entirely could otherwise submit any script. Checked
+  // regardless of which UI language (he/ru) the registration page itself
+  // was shown in.
+  if (!isHebrewName(firstName) || !isHebrewName(lastName)) {
+    return NextResponse.json({ error: 'שם פרטי ושם משפחה חייבים להיות בעברית בלבד' }, { status: 400 })
+  }
+  // Derived here, not trusted from the client — name is what actually gets
+  // stored, so it has to come from the two fields that were just validated.
+  const name = `${firstName.trim()} ${lastName.trim()}`.trim()
 
   if (password.length < 8) {
     return NextResponse.json({ error: 'הסיסמה חייבת להכיל לפחות 8 תווים' }, { status: 400 })
