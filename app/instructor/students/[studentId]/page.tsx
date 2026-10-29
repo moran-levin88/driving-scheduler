@@ -30,6 +30,9 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
           <Link href={`/instructor/students/${studentId}/card`} className="text-sm text-blue-600 hover:underline mt-1 inline-block">
             🖨️ כרטיס תלמיד להדפסה
           </Link>
+          <Link href={`/instructor/students/${studentId}/study-stages`} className="text-sm text-blue-600 hover:underline mt-1 mr-4 inline-block">
+            📋 שלבי לימוד
+          </Link>
         </div>
         <div className="flex gap-3">
           <div className="bg-blue-50 rounded-xl p-4 text-center">

@@ -793,6 +793,10 @@ export default function StudentsPage() {
                       className="text-sm text-center bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition">
                       🖨️ כרטיס תלמיד
                     </Link>
+                    <Link href={`/instructor/students/${s.id}/study-stages`}
+                      className="text-sm text-center bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition">
+                      📋 שלבי לימוד
+                    </Link>
 
                     {confirmId === s.id ? (
                       <div className="flex gap-1.5">
@@ -854,6 +858,10 @@ export default function StudentsPage() {
                       <Link href={`/instructor/students/${s.id}/card`}
                         className="text-sm text-center bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition">
                         🖨️ כרטיס תלמיד
+                      </Link>
+                      <Link href={`/instructor/students/${s.id}/study-stages`}
+                        className="text-sm text-center bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition">
+                        📋 שלבי לימוד
                       </Link>
                       <button onClick={() => reactivateStudent(s.id)} disabled={reactivatingId === s.id}
                         className="text-sm bg-green-50 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-100 transition disabled:opacity-50">
