@@ -179,6 +179,31 @@ export async function sendPasswordReset(user: { name: string; email: string }, r
   )
 }
 
+// One-off reminder for students the instructor added directly (never had a
+// moment to consent at account creation) who still haven't accepted the
+// privacy-policy gate that blocks every /student page — see
+// app/student/layout.tsx and app/consent/page.tsx, whose wording this matches.
+export async function sendPrivacyConsentReminder(student: { name: string; email: string }) {
+  const loginUrl = `${process.env.NEXTAUTH_URL}/login`
+  const privacyUrl = `${process.env.NEXTAUTH_URL}/privacy`
+  await send(
+    student.email,
+    'עדכון מדיניות פרטיות — נדרש אישור להמשך שימוש במערכת',
+    `
+      <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>עדכון מדיניות פרטיות</h2>
+        <p>שלום ${student.name.trim()},</p>
+        <p>עדכנו את מדיניות הפרטיות של מערכת קביעת שיעורי הנהיגה, שמסבירה אילו פרטים נשמרים עליך ולמה.</p>
+        <p>כדי להמשיך להשתמש במערכת (קביעת שיעורים, צפייה בהיסטוריה וכו׳) צריך לאשר אותה — פשוט היכנסו למערכת כרגיל, ויוצג לכם מסך קצר לאישור.</p>
+        <p style="margin: 24px 0;">
+          <a href="${loginUrl}" style="background:#2563eb;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;">כניסה למערכת</a>
+        </p>
+        <p>ניתן לקרוא את מדיניות הפרטיות המלאה כאן: <a href="${privacyUrl}">${privacyUrl}</a></p>
+      </div>
+    `
+  )
+}
+
 export async function sendLessonReminder(booking: BookingWithRelations) {
   await send(
     booking.student.email,

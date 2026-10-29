@@ -50,6 +50,7 @@ export default function StudentsPage() {
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [resettingId, setResettingId] = useState<string | null>(null)
   const [resetResult, setResetResult] = useState<ResetResult | null>(null)
+  const [sendingPrivacyReminder, setSendingPrivacyReminder] = useState(false)
   const [search, setSearch] = useState('')
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
@@ -275,6 +276,27 @@ export default function StudentsPage() {
     }
   }
 
+  async function handleSendPrivacyReminder() {
+    const count = students.filter(s => !s.privacyConsentAt).length
+    if (count === 0) return
+    if (!confirm(`לשלוח תזכורת אישור מדיניות פרטיות ב-${count} תלמידים שטרם אישרו?`)) return
+    setSendingPrivacyReminder(true)
+    try {
+      const res = await fetch('/api/students/privacy-reminder', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        const skippedMsg = data.skippedNoEmail > 0 ? `\n${data.skippedNoEmail} דולגו — אין להם אימייל אמיתי במערכת.` : ''
+        alert(`נשלחה תזכורת ל-${data.sent} תלמידים.${data.failed > 0 ? ` ${data.failed} נכשלו.` : ''}${skippedMsg}`)
+      } else {
+        alert(data.error || 'שגיאה בשליחת התזכורות')
+      }
+    } catch {
+      alert('שגיאת רשת — נסה שוב')
+    } finally {
+      setSendingPrivacyReminder(false)
+    }
+  }
+
   async function deleteStudent(id: string) {
     setDeletingId(id)
     await fetch('/api/students', {
@@ -306,6 +328,13 @@ export default function StudentsPage() {
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition">
             ➕ הוספת תלמיד
           </button>
+          {students.some(s => !s.privacyConsentAt) && (
+            <button onClick={handleSendPrivacyReminder} disabled={sendingPrivacyReminder}
+              title="שלח תזכורת אישור מדיניות פרטיות לכל מי שטרם אישר"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition disabled:opacity-50">
+              {sendingPrivacyReminder ? 'שולח...' : `📧 תזכורת פרטיות (${students.filter(s => !s.privacyConsentAt).length})`}
+            </button>
+          )}
           <button onClick={() => setShowWeeklyCheck(v => !v)}
             title="מי עוד לא קבע שיעור"
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
