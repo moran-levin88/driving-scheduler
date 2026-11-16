@@ -63,6 +63,14 @@ export async function POST(req: NextRequest) {
       if (slots.length !== availabilityIds.length) throw new Error('SLOT_UNAVAILABLE')
       if (slots.some(s => s.isBooked)) throw new Error('SLOT_UNAVAILABLE')
 
+      // A scheduled test occupies the instructor even though no Availability
+      // row is marked for it — a student with a stale page could otherwise
+      // still book into those hours.
+      const testConflict = await tx.charge.findFirst({
+        where: { OR: slots.map(s => ({ startTime: { lt: s.endTime }, endTime: { gt: s.startTime } })) },
+      })
+      if (testConflict) throw new Error('SLOT_UNAVAILABLE')
+
       // Enforce isRestricted: lesson must not end in the last 20 min of that day's availability
       const studentUser = await tx.user.findUnique({ where: { id: studentId }, select: { isRestricted: true } })
       if (studentUser?.isRestricted) {

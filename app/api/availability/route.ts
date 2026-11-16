@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   const student = await prisma.user.findUnique({ where: { id: studentId }, select: { isRestricted: true } })
   const isRestricted = student?.isRestricted ?? false
 
-  const [slotsRaw, blockedRanges] = await Promise.all([
+  const [slotsRaw, explicitBlocks, charges] = await Promise.all([
     prisma.availability.findMany({
       where: {
         isBlocked: false,
@@ -49,7 +49,15 @@ export async function GET(req: NextRequest) {
       where: { isBlocked: true, endTime: { gte: now } },
       select: { id: true, startTime: true, endTime: true },
     }),
+    // A scheduled test (practical/internal) occupies the instructor just like
+    // a block does — derived here rather than stored as a block row, so
+    // deleting or moving the test reopens the hours with no cleanup step.
+    prisma.charge.findMany({
+      where: { endTime: { gte: now } },
+      select: { id: true, startTime: true, endTime: true },
+    }),
   ])
+  const blockedRanges = [...explicitBlocks, ...charges]
   const slots = slotsRaw.map(({ bookings, ...s }) => ({ ...s, booking: bookings[0] ?? null }))
 
   // Round to nearest minute to avoid millisecond precision issues
