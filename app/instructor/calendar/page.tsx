@@ -902,7 +902,10 @@ export default function CalendarPage() {
               const dateStr = format(newStart, "EEEE, d בMMMM", { locale: he })
               const timeStr = `${format(newStart, 'HH:mm')}–${format(newEnd, 'HH:mm')}`
               const phone = actionModal.lesson.phone?.replace(/\D/g, '').replace(/^0/, '972')
-              const waText = `שלום ${actionModal.lesson.studentName}! שיעור הנהיגה שלך הוזז: ${dateStr} בשעה ${timeStr}. בהצלחה! 🚗`
+              // lesson still holds the pre-shift times — the refetch only swaps the grid
+              const oldDateStr = format(actionModal.lesson.startTime, "EEEE, d בMMMM", { locale: he })
+              const oldTimeStr = `${format(actionModal.lesson.startTime, 'HH:mm')}–${format(actionModal.lesson.endTime, 'HH:mm')}`
+              const waText = `שלום ${actionModal.lesson.studentName}! שיעור הנהיגה שלך שהיה קבוע ל${oldDateStr} בשעה ${oldTimeStr} הוזז ל${dateStr} בשעה ${timeStr}. בהצלחה! 🚗`
               return (
                 <div className="bg-green-50 rounded-xl p-4 mb-3 text-center">
                   <p className="font-semibold text-green-800 mb-0.5">✓ השיעור הוזז!</p>
@@ -1354,7 +1357,9 @@ export default function CalendarPage() {
               const dateStr = format(chargeModal.shiftedInfo.newStart, "EEEE, d בMMMM", { locale: he })
               const timeStr = `${format(chargeModal.shiftedInfo.newStart, 'HH:mm')}–${format(chargeModal.shiftedInfo.newEnd, 'HH:mm')}`
               const phone = chargeModal.charge.phone?.replace(/\D/g, '').replace(/^0/, '972')
-              const waText = `שלום ${chargeModal.charge.studentName}! ה${CHARGE_TYPE_LABELS[chargeModal.charge.type]} שלך הוזז: ${dateStr} בשעה ${timeStr}. בהצלחה! 🚗`
+              const oldDateStr = format(chargeModal.charge.startTime, "EEEE, d בMMMM", { locale: he })
+              const oldTimeStr = `${format(chargeModal.charge.startTime, 'HH:mm')}–${format(chargeModal.charge.endTime, 'HH:mm')}`
+              const waText = `שלום ${chargeModal.charge.studentName}! ה${CHARGE_TYPE_LABELS[chargeModal.charge.type]} שלך שהיה קבוע ל${oldDateStr} בשעה ${oldTimeStr} הוזז ל${dateStr} בשעה ${timeStr}. בהצלחה! 🚗`
               return (
                 <div className="bg-green-50 rounded-xl p-4 mb-3 text-center">
                   <p className="font-semibold text-green-800 mb-0.5">✓ האירוע הוזז!</p>
