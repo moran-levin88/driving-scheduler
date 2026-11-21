@@ -1,4 +1,5 @@
 import { prisma } from './prisma'
+import { releaseSlots } from './availabilityRelease'
 
 // Archive, don't delete — keeps the User row (and all its Booking/Payment/
 // Invoice/Charge history) intact, just hidden from the active roster and
@@ -14,12 +15,7 @@ export async function archiveStudent(studentId: string) {
       availability: { startTime: { gt: now } },
     },
   })
-  for (const b of futureBookings) {
-    await prisma.availability.update({
-      where: { id: b.availabilityId },
-      data: { isBooked: false },
-    })
-  }
+  await releaseSlots(futureBookings.map(b => b.availabilityId))
   if (futureBookings.length > 0) {
     await prisma.booking.updateMany({
       where: { id: { in: futureBookings.map(b => b.id) } },

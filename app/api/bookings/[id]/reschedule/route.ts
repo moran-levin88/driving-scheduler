@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { releaseSlots } from '@/lib/availabilityRelease'
 import { updateCalendarEvent } from '@/lib/calendar'
 import { sendBookingApproved } from '@/lib/email'
 
@@ -81,13 +82,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (existingFree) {
       await prisma.booking.update({ where: { id: b.id }, data: { availabilityId: existingFree.id, status: 'APPROVED' } })
       await prisma.availability.update({ where: { id: existingFree.id }, data: { isBooked: true } })
-      await prisma.availability.update({ where: { id: b.availabilityId }, data: { isBooked: false } })
+      await releaseSlots([b.availabilityId])
     } else {
       const newSlot = await prisma.availability.create({
-        data: { instructorId, startTime: newSlotStart, endTime: newSlotEnd, isBooked: true },
+        data: { instructorId, startTime: newSlotStart, endTime: newSlotEnd, isBooked: true, adHoc: true },
       })
       await prisma.booking.update({ where: { id: b.id }, data: { availabilityId: newSlot.id, status: 'APPROVED' } })
-      await prisma.availability.update({ where: { id: b.availabilityId }, data: { isBooked: false } })
+      await releaseSlots([b.availabilityId])
     }
   }
 

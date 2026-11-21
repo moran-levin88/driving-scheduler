@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { releaseSlots } from '@/lib/availabilityRelease'
 import { updateCalendarEvent } from '@/lib/calendar'
 import { sendBookingShifted } from '@/lib/email'
 
@@ -96,16 +97,16 @@ export async function POST(req: NextRequest) {
         // Reassign booking to the pre-existing slot, free the original slot.
         await prisma.booking.update({ where: { id: b.id }, data: { availabilityId: existingAtTarget.id } })
         await prisma.availability.update({ where: { id: existingAtTarget.id }, data: { isBooked: true } })
-        await prisma.availability.update({ where: { id: oldSlotId }, data: { isBooked: false } })
+        await releaseSlots([oldSlotId])
       } else {
         // Create a new booked slot at the target time and free the original.
         // Never mutate the slot's time in place — that causes duplicates when the
         // shift amount is smaller than the lesson duration (target overlaps source slots).
         const newSlot = await prisma.availability.create({
-          data: { instructorId, startTime: newSlotStart, endTime: newSlotEnd, isBooked: true },
+          data: { instructorId, startTime: newSlotStart, endTime: newSlotEnd, isBooked: true, adHoc: true },
         })
         await prisma.booking.update({ where: { id: b.id }, data: { availabilityId: newSlot.id } })
-        await prisma.availability.update({ where: { id: oldSlotId }, data: { isBooked: false } })
+        await releaseSlots([oldSlotId])
       }
     }
 

@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
           // into one that was just marked blocked back then is fine.
           if (slot?.isBlocked && !isPast) throw new Error('SLOT_UNAVAILABLE')
           if (!slot) {
-            slot = await tx.availability.create({ data: { instructorId, startTime: cursor, endTime: slotEnd, isBooked: false } })
+            slot = await tx.availability.create({ data: { instructorId, startTime: cursor, endTime: slotEnd, isBooked: false, adHoc: true } })
           }
           resolved.push(slot.id)
           cursor = slot.endTime
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
         let slot = await tx.availability.findFirst({ where: { instructorId, startTime: start, endTime: end } })
         if (slot?.isBlocked && !isPast) throw new Error('SLOT_UNAVAILABLE')
         if (!slot) {
-          slot = await tx.availability.create({ data: { instructorId, startTime: start, endTime: end, isBooked: false } })
+          slot = await tx.availability.create({ data: { instructorId, startTime: start, endTime: end, isBooked: false, adHoc: true } })
         }
         ids = [slot.id]
       }

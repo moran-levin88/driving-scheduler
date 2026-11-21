@@ -15,7 +15,9 @@ export async function GET(req: NextRequest) {
 
   if (role === 'INSTRUCTOR') {
     const slots = await prisma.availability.findMany({
-      where: { startTime: { gte: now } },
+      // A released ad-hoc slot in a week the instructor never opened isn't
+      // part of his availability — hide it until/unless he publishes there.
+      where: { startTime: { gte: now }, OR: [{ unpublished: false }, { isBooked: true }] },
       include: {
         // A slot can carry more than one Booking row over its history (an old
         // cancelled one kept for its payment trail, say) — only the active
@@ -40,7 +42,10 @@ export async function GET(req: NextRequest) {
       where: {
         isBlocked: false,
         startTime: { gte: now },
-        OR: [{ isBooked: true }, { publishAt: null }, { publishAt: { lte: now } }],
+        AND: [
+          { OR: [{ isBooked: true }, { publishAt: null }, { publishAt: { lte: now } }] },
+          { OR: [{ unpublished: false }, { isBooked: true }] },
+        ],
       },
       include: { bookings: { where: { status: { notIn: ['CANCELLED', 'REJECTED'] } }, select: { status: true, studentId: true } } },
       orderBy: { startTime: 'asc' },
@@ -149,7 +154,7 @@ export async function POST(req: NextRequest) {
     })
     // Mark any free lesson slots inside the blocked range as blocked too
     await prisma.availability.updateMany({
-      where: { isBlocked: false, isBooked: false, startTime: { gte: start }, endTime: { lte: end } },
+      where: { isBlocked: false, isBooked: false, unpublished: false, startTime: { gte: start }, endTime: { lte: end } },
       data: { isBlocked: true },
     })
     return NextResponse.json({ created: 1, blocked: true }, { status: 201 })
@@ -171,6 +176,12 @@ export async function POST(req: NextRequest) {
   }
 
   // Skip slots that already exist at the same startTime
+  // A hidden leftover from a cancelled calendar booking doesn't count as
+  // existing — opening the week there turns it into a real published slot.
+  await prisma.availability.updateMany({
+    where: { startTime: { in: slots.map(s => s.startTime) }, unpublished: true, isBooked: false },
+    data: { unpublished: false, adHoc: false, publishAt: publishAtDate },
+  })
   const existingTimes = await prisma.availability.findMany({
     where: { startTime: { in: slots.map(s => s.startTime) } },
     select: { startTime: true },
@@ -198,7 +209,7 @@ export async function DELETE(req: NextRequest) {
   if (!(end > start)) return NextResponse.json({ error: 'טווח לא תקין' }, { status: 400 })
 
   const toDelete = await prisma.availability.findMany({
-    where: { isBooked: false, isBlocked: false, startTime: { gte: start }, endTime: { lte: end } },
+    where: { isBooked: false, isBlocked: false, unpublished: false, startTime: { gte: start }, endTime: { lte: end } },
     select: { id: true },
   })
   if (toDelete.length === 0) return NextResponse.json({ deleted: 0 })

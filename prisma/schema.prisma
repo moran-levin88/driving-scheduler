@@ -125,6 +125,14 @@ model Availability {
   blockNote       String?
   calendarEventId String?
   publishAt       DateTime?
+  // Created on the fly when the instructor booked a time he never opened
+  // (calendar booking / move / duration change), as opposed to a slot he
+  // published. Only these are subject to being hidden again when released.
+  adHoc           Boolean  @default(false)
+  // A free ad-hoc slot released while its week was never opened: kept only
+  // as the anchor for its cancelled bookings' payment trail, and not offered
+  // to anyone. Only meaningful while !isBooked.
+  unpublished     Boolean  @default(false)
   createdAt       DateTime @default(now())
 
   bookings Booking[]

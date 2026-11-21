@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { updateCalendarEvent } from '@/lib/calendar'
 import { findLessonChain, type ChainBooking } from '@/lib/lessonChain'
 import type { Prisma } from '@prisma/client'
+import { releaseSlotOps, freedSlotState } from '@/lib/availabilityRelease'
 
 const SLOT_MINUTES = 20
 const ALLOWED_MINUTES = [20, 40, 60, 80, 100, 120]
@@ -90,7 +91,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
       if (!slot) {
         slot = await prisma.availability.create({
-          data: { instructorId, startTime: cursor, endTime: slotEnd, isBooked: false },
+          data: { instructorId, startTime: cursor, endTime: slotEnd, isBooked: false, adHoc: true },
         })
       }
       claimed.push(slot)
@@ -140,14 +141,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (toCancel.length > 0) {
       ops.push(
         prisma.booking.updateMany({ where: { id: { in: toCancel.map(b => b.id) } }, data: { status: 'CANCELLED' } }),
-        prisma.availability.updateMany({ where: { id: { in: toCancel.map(b => b.availabilityId) } }, data: { isBooked: false } }),
+        ...(await releaseSlotOps(toCancel.map(b => b.availabilityId))),
       )
     }
     if (trim) {
+      // The freed tail of the trimmed row follows the same rule as any
+      // released slot: reopened only if it came from a published slot or the
+      // week is actually open to students.
+      const tail = await freedSlotState(instructorId, lastKeptEnd, trim.booking.availability.adHoc)
       ops.push(
         prisma.availability.update({ where: { id: trim.booking.availabilityId }, data: { endTime: lastKeptEnd } }),
         prisma.availability.create({
-          data: { instructorId, startTime: lastKeptEnd, endTime: trim.booking.availability.endTime, isBooked: false },
+          data: { instructorId, startTime: lastKeptEnd, endTime: trim.booking.availability.endTime, adHoc: trim.booking.availability.adHoc, ...tail },
         }),
       )
     }

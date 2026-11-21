@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { releaseSlotOps } from '@/lib/availabilityRelease'
 import { deleteCalendarEvent } from '@/lib/calendar'
 import { sendSmsToInstructor } from '@/lib/sms'
 import { sendPushToInstructor } from '@/lib/push'
@@ -67,7 +68,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   await prisma.$transaction([
     prisma.booking.updateMany({ where: { id: { in: ids } }, data: { status: 'CANCELLED' } }),
-    prisma.availability.updateMany({ where: { id: { in: chain.map(b => b.availabilityId) } }, data: { isBooked: false } }),
+    ...(await releaseSlotOps(chain.map(b => b.availabilityId))),
   ])
 
   if ((first as any).calendarEventId) {

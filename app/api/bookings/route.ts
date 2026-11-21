@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
         where: { id: { in: availabilityIds } },
       })
       if (slots.length !== availabilityIds.length) throw new Error('SLOT_UNAVAILABLE')
-      if (slots.some(s => s.isBooked)) throw new Error('SLOT_UNAVAILABLE')
+      if (slots.some(s => s.isBooked || s.unpublished)) throw new Error('SLOT_UNAVAILABLE')
 
       // A scheduled test occupies the instructor even though no Availability
       // row is marked for it — a student with a stale page could otherwise
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
       for (const availabilityId of availabilityIds) {
         // Atomic claim: only succeeds if the slot is still free at this exact moment
         const claimed = await tx.availability.updateMany({
-          where: { id: availabilityId, isBooked: false, isBlocked: false },
+          where: { id: availabilityId, isBooked: false, isBlocked: false, unpublished: false },
           data: { isBooked: true },
         })
         if (claimed.count !== 1) throw new Error('SLOT_UNAVAILABLE')

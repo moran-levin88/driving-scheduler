@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { releaseSlots } from '@/lib/availabilityRelease'
 import { sendBookingApproved, sendBookingRejected, sendBookingCancelled } from '@/lib/email'
 import { createCalendarEvent, deleteCalendarEvent } from '@/lib/calendar'
 import { sendSmsToInstructor } from '@/lib/sms'
@@ -38,10 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   await prisma.booking.updateMany({ where: { id: { in: ids } }, data: { status } })
 
   if (status === 'REJECTED' || status === 'CANCELLED') {
-    await prisma.availability.updateMany({
-      where: { id: { in: chain.map(b => b.availabilityId) } },
-      data: { isBooked: false },
-    })
+    await releaseSlots(chain.map(b => b.availabilityId))
     if (status === 'CANCELLED' && (first as any).calendarEventId) {
       await deleteCalendarEvent((first as any).calendarEventId)
     }
