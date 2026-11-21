@@ -48,6 +48,7 @@ export default function StudentDashboard() {
   const { data: session } = useSession()
   const studentName = (session?.user as any)?.name || ''
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [tests, setTests] = useState<{ id: string; startTime: string; endTime: string }[]>([])
   const [cancelling, setCancelling] = useState<string | null>(null)
   const [error, setError] = useState<Record<string, string>>({})
   const { t, lang } = useLanguage()
@@ -64,7 +65,10 @@ export default function StudentDashboard() {
     setBookings(Array.isArray(data) ? data : [])
   }
 
-  useEffect(() => { fetchBookings() }, [])
+  useEffect(() => {
+    fetchBookings()
+    fetch('/api/student/tests').then(r => r.json()).then(d => setTests(Array.isArray(d) ? d : [])).catch(() => {})
+  }, [])
 
   // Cancel the first booking — the DELETE handler cascades to all siblings
   async function cancelLesson(lesson: Lesson) {
@@ -97,6 +101,12 @@ export default function StudentDashboard() {
   const upcoming = allLessons.filter(l =>
     ['PENDING', 'APPROVED'].includes(l.status) && new Date(l.startTime) >= new Date()
   )
+  // A scheduled practical test sits in the same upcoming list as lessons
+  // (no cancel action — only the instructor can move or remove it).
+  const upcomingItems = [
+    ...upcoming.map(lesson => ({ kind: 'lesson' as const, startTime: lesson.startTime, lesson })),
+    ...tests.map(test => ({ kind: 'test' as const, startTime: test.startTime, test })),
+  ].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
   const past = allLessons.filter(l =>
     !['PENDING', 'APPROVED'].includes(l.status) || new Date(l.startTime) < new Date()
   ).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
@@ -121,14 +131,34 @@ export default function StudentDashboard() {
 
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-4 text-gray-800">{t('upcomingLessons')}</h2>
-        {upcoming.length === 0 ? (
+        {upcomingItems.length === 0 ? (
           <div className="bg-white rounded-xl shadow p-6 text-center text-gray-500">
             {t('noLessons')}{' '}
             <a href="/student/book" className="text-blue-600 hover:underline">{t('bookNow')}</a>
           </div>
         ) : (
           <div className="space-y-3">
-            {upcoming.map(lesson => {
+            {upcomingItems.map(item => {
+              if (item.kind === 'test') {
+                return (
+                  <div key={`test-${item.test.id}`} className="bg-white rounded-xl shadow p-5 border-r-4 border-orange-400">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="font-medium text-lg">
+                          {format(new Date(item.test.startTime), t('dateFormat'), { locale })}
+                        </p>
+                        <p className="text-gray-600">
+                          {format(new Date(item.test.startTime), 'HH:mm')} – {format(new Date(item.test.endTime), 'HH:mm')}
+                        </p>
+                      </div>
+                      <span className="text-sm px-3 py-1 rounded-full font-medium bg-orange-100 text-orange-800">
+                        {t('practicalTest')}
+                      </span>
+                    </div>
+                  </div>
+                )
+              }
+              const lesson = item.lesson
               const key = lesson.ids[0]
               return (
                 <div key={key} className="bg-white rounded-xl shadow p-5">
