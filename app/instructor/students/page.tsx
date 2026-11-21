@@ -769,6 +769,15 @@ export default function StudentsPage() {
                           חוב: ₪{s.debt}
                         </span>
                       )}
+                      {s.debt > 0 && s.phone && (
+                        <a href={`https://wa.me/${s.phone.replace(/\D/g, '').replace(/^0/, '972')}?text=${encodeURIComponent(
+                          `שלום ${s.name.trim()},\nרציתי להזכיר שיש יתרת חוב של ₪${s.debt} על שיעורי הנהיגה.\nאשמח אם תוכל/י להסדיר את התשלום בהקדם.\nתודה רבה, אלכס לוין 🚗`
+                        )}`} target="_blank" rel="noreferrer"
+                          title="שליחת תזכורת חוב בוואטסאפ"
+                          className="bg-green-500 text-white px-2.5 py-0.5 rounded-full text-xs hover:bg-green-600 transition">
+                          📲 תזכורת חוב
+                        </a>
+                      )}
                       {s.balance > 0 && (
                         <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-medium">
                           יתרה: ₪{s.balance}
