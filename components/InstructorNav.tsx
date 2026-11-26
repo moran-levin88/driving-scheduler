@@ -16,12 +16,20 @@ function urlBase64ToUint8Array(base64String: string) {
 export default function InstructorNav() {
   const pathname = usePathname()
   const [pendingCount, setPendingCount] = useState(0)
+  const [missingInvoices, setMissingInvoices] = useState(0)
   const [notifStatus, setNotifStatus] = useState<'unknown' | 'default' | 'granted' | 'denied'>('unknown')
 
   useEffect(() => {
     fetch('/api/instructor/pending-count')
       .then(r => r.json())
       .then(d => setPendingCount(d.count ?? 0))
+      .catch(() => {})
+
+    // Payments recorded without a tax invoice — a persistent reminder, since
+    // the error at payment time is a one-off dialog that's easy to miss.
+    fetch('/api/instructor/missing-invoices-count')
+      .then(r => r.json())
+      .then(d => setMissingInvoices(d.count ?? 0))
       .catch(() => {})
 
     if ('Notification' in window) {
@@ -89,7 +97,7 @@ export default function InstructorNav() {
     { href: '/instructor/availability', label: 'ניהול זמינות' },
     { href: '/instructor/calendar', label: 'קלנדר' },
     { href: '/instructor/bookings', label: 'הזמנות', badge: pendingCount },
-    { href: '/instructor/students', label: 'תלמידים' },
+    { href: '/instructor/students', label: 'תלמידים', badge: missingInvoices, badgeTitle: `${missingInvoices} תשלומים בלי חשבונית — פתח/י את התלמיד ולחצ/י "נסה שוב"`, badgeClass: 'bg-amber-500' },
     { href: '/instructor/vehicle-log', label: '🚗 ספר הרכב' },
     { href: '/instructor/security-log', label: '🔒 אבטחה' },
   ]
@@ -106,7 +114,7 @@ export default function InstructorNav() {
             }`}>
             {l.label}
             {l.badge ? (
-              <span className="absolute -top-0.5 -left-0.5 bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 leading-none">
+              <span title={(l as any).badgeTitle} className={`absolute -top-0.5 -left-0.5 ${(l as any).badgeClass ?? 'bg-red-500'} text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 leading-none`}>
                 {l.badge}
               </span>
             ) : null}

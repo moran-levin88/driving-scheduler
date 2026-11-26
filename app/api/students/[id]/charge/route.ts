@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createInvoice, type PaymentMethodForInvoice } from '@/lib/morning'
 import { sendInvoiceToStudent } from '@/lib/email'
+import { notifyInvoiceFailed } from '@/lib/invoiceAlert'
 
 const CHARGE_METHODS: PaymentMethodForInvoice[] = ['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER']
 
@@ -87,6 +88,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (err: any) {
     console.error('Morning one-off charge invoice failed:', err)
     invoiceError = err.message || 'יצירת החשבונית נכשלה — ניתן לנסות שוב'
+    await notifyInvoiceFailed(student.name, invoiceError ?? '')
   }
 
   const finalInvoice = await prisma.invoice.findUnique({ where: { id: invoice.id } })

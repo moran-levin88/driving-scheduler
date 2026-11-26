@@ -9,6 +9,7 @@ import { createInvoice, type PaymentMethodForInvoice } from '@/lib/morning'
 import { sendInvoiceToStudent } from '@/lib/email'
 import { getStudentBalance } from '@/lib/balance'
 import { splitIntoLessonLines } from '@/lib/lessonLabel'
+import { notifyInvoiceFailed } from '@/lib/invoiceAlert'
 
 const METHODS = ['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'BALANCE', 'EXTERNAL'] as const
 
@@ -138,6 +139,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('Morning invoice creation failed:', err)
     invoiceError = err.message || 'יצירת החשבונית נכשלה — ניתן לנסות שוב'
+    await notifyInvoiceFailed(student.name, invoiceError ?? '')
   }
 
   const payments = await prisma.$transaction(
