@@ -33,3 +33,10 @@ export function lessonOverpayment(pricePer20Min: number | null, lessons: Grouped
   }
   return total
 }
+
+// A test (Charge) has a fixed price; if the student paid more than that and
+// the instructor recorded the full amount received, the invoice is bigger than
+// the charge — the difference is credit, same as a lesson overpayment.
+export function chargeOverpayment(charges: { amount: number; invoice: { amount: number } | null }[]): number {
+  return charges.reduce((sum, c) => sum + (c.invoice ? Math.max(0, c.invoice.amount - c.amount) : 0), 0)
+}

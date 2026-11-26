@@ -192,6 +192,10 @@ export default function PayableItemsPanel({
   // Typed more than a lesson still owes — the surplus goes to the student's
   // balance automatically (and is a separate "יתרה" line on the invoice).
   const excessTotal = method === 'EXTERNAL' ? 0 : [...selected].reduce((sum, key) => {
+    if (key.startsWith('charge:')) {
+      const c = chargesList.find(x => x.id === key.slice(7))
+      return c ? sum + Math.max(0, (Number(amounts[key]) || 0) - c.amount) : sum
+    }
     if (!key.startsWith('lesson:')) return sum
     const l = lessonsList.find(x => x.firstBookingId === key.slice(7))
     if (!l) return sum
@@ -414,6 +418,7 @@ export default function PayableItemsPanel({
       setPaidIds(prev => new Set([...prev, ...lessonKeys.map(k => k.slice(7))]))
       setChargesList(prev => prev.filter(c => !chargeKeys.includes(`charge:${c.id}`)))
       if (method === 'BALANCE') setBalance(b => b - total)
+      // (the surplus on a test is credited the same way as on a lesson)
       const addedToBalance = excessTotal > 0 && method !== 'BALANCE' ? ` ₪${excessTotal} נוספו ליתרת התלמיד.` : ''
       if (addedToBalance) setBalance(b => b + excessTotal)
       setPayResult((anyError ? `✓ התשלום נרשם, אך ${anyError}` : '✓ התשלום נרשם בהצלחה') + addedToBalance)
@@ -656,7 +661,7 @@ export default function PayableItemsPanel({
           <p className="text-sm font-semibold text-green-800">{selected.size} פריטים נבחרו — סה"כ ₪{total}</p>
           {excessTotal > 0 && method !== 'BALANCE' && (
             <p className="text-sm text-blue-700 bg-blue-50 rounded-lg px-3 py-2 mt-2">
-              ₪{excessTotal} מעבר למחיר השיעור — יתווספו אוטומטית ליתרת התלמיד, ויופיעו בחשבונית בשורה נפרדת של &quot;יתרה&quot;. אם החזרת לתלמיד עודף — עדכני את הסכום למה שנשאר לשלם.
+              ₪{excessTotal} מעבר למחיר — יתווספו אוטומטית ליתרת התלמיד, ויופיעו בחשבונית בשורה נפרדת של &quot;יתרה&quot;. אם החזרת לתלמיד עודף — עדכני את הסכום למה שנשאר לשלם.
             </p>
           )}
           <div className="grid grid-cols-3 gap-1.5">

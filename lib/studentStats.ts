@@ -2,7 +2,7 @@ import { prisma } from './prisma'
 import { getAllStudentBalances } from './balance'
 import { groupBookingsIntoLessons } from './groupLessons'
 import { computeDebt } from './debt'
-import { lessonOverpayment } from './overpayment'
+import { lessonOverpayment, chargeOverpayment } from './overpayment'
 
 const STUDENT_SELECT = {
   id: true,
@@ -40,7 +40,7 @@ export async function getStudentsWithStats(scope: 'active' | 'archived' | 'all')
     scope === 'archived' ? { role: 'STUDENT' as const, archivedAt: { not: null } } :
     { role: 'STUDENT' as const, archivedAt: null }
 
-  const [students, balances, unpaidCharges, manualLessonSums, missingInvoiceCounts] = await Promise.all([
+  const [students, balances, unpaidCharges, manualLessonSums, missingInvoiceCounts, paidCharges] = await Promise.all([
     prisma.user.findMany({ where, select: STUDENT_SELECT, orderBy: { name: 'asc' } }),
     getAllStudentBalances(),
     // Only a test that's already happened can be owed for — one scheduled
@@ -50,7 +50,11 @@ export async function getStudentsWithStats(scope: 'active' | 'archived' | 'all')
     // Recorded payments that never got a tax invoice (EXTERNAL = paid on the
     // previous platform, never invoiced here) — flagged on the student's card.
     prisma.invoice.groupBy({ by: ['studentId'], where: { invoiceId: null, method: { not: 'EXTERNAL' } }, _count: { _all: true } }),
+    // Paid tests — an invoice bigger than the test's price is credit (lib/overpayment.ts)
+    prisma.charge.findMany({ where: { invoiceId: { not: null } }, select: { studentId: true, amount: true, invoice: { select: { amount: true } } } }),
   ])
+  const chargeCreditByStudent = new Map<string, number>()
+  for (const c of paidCharges) chargeCreditByStudent.set(c.studentId, (chargeCreditByStudent.get(c.studentId) ?? 0) + chargeOverpayment([c]))
   const missingInvoicesByStudent = new Map(missingInvoiceCounts.map(m => [m.studentId, m._count._all]))
   const unpaidChargeByStudent = new Map(unpaidCharges.map(c => [c.studentId, c._sum.amount ?? 0]))
   const manualLessonsByStudent = new Map(manualLessonSums.map(m => [m.studentId, m._sum.lessons ?? 0]))
@@ -76,7 +80,7 @@ export async function getStudentsWithStats(scope: 'active' | 'archived' | 'all')
       ...s,
       lessonCount: completedSlots / 2 + s.manualPriorLessons + s.manualPriorOtherTeacherLessons + (manualLessonsByStudent.get(s.id) ?? 0),
       debt,
-      balance: (balances.get(s.id) ?? 0) + lessonOverpayment(s.pricePer20Min, lessons),
+      balance: (balances.get(s.id) ?? 0) + lessonOverpayment(s.pricePer20Min, lessons) + (chargeCreditByStudent.get(s.id) ?? 0),
       missingInvoices: missingInvoicesByStudent.get(s.id) ?? 0,
     }
   })

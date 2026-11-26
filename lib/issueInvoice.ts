@@ -21,6 +21,7 @@ export async function issueMissingInvoice(id: string, opts: { useTodayDate?: boo
     include: {
       student: { select: { name: true, email: true, idNumber: true, pricePer20Min: true } },
       payments: true,
+      charge: { select: { amount: true } },
     },
   })
   if (!invoice) return { ok: false, status: 404, error: 'Not found' }
@@ -36,7 +37,11 @@ export async function issueMissingInvoice(id: string, opts: { useTodayDate?: boo
     // A one-off charge not tied to any lesson — it never gets a Payment row
     // (see /api/students/[id]/charge), so the lesson lookup below would
     // always come up empty for it.
-    lines = [{ description: invoice.description, amount: invoice.amount }]
+    // A test paid for more than its price carries a separate "יתרה" line
+    const chargeExcess = invoice.charge ? Math.max(0, invoice.amount - invoice.charge.amount) : 0
+    lines = chargeExcess > 0
+      ? [{ description: invoice.description, amount: invoice.amount - chargeExcess }, { description: 'יתרה — הפקדה לשיעורים הבאים', amount: chargeExcess }]
+      : [{ description: invoice.description, amount: invoice.amount }]
   } else {
     lines = []
     let totalExcess = 0

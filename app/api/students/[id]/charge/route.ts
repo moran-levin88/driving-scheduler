@@ -36,10 +36,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const student = await prisma.user.findUnique({ where: { id, role: 'STUDENT' } })
   if (!student) return NextResponse.json({ error: 'תלמיד לא נמצא' }, { status: 404 })
 
+  // Paying a test (Charge) more than its fixed price: the surplus becomes the
+  // student's prepaid credit (derived in lib/balance.ts from invoice amount vs
+  // charge amount) and is its own "יתרה" line on the same invoice.
+  let excess = 0
   if (chargeId) {
     const charge = await prisma.charge.findUnique({ where: { id: chargeId } })
     if (!charge || charge.studentId !== id) return NextResponse.json({ error: 'אירוע לא נמצא' }, { status: 404 })
     if (charge.invoiceId) return NextResponse.json({ error: 'האירוע כבר שולם' }, { status: 409 })
+    excess = Math.max(0, amount - charge.amount)
   }
 
   const paidAtDate = paidAt ? new Date(paidAt) : new Date()
@@ -70,7 +75,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const created = await createInvoice({
       student: { name: student.name, email: student.email, idNumber: student.idNumber },
-      lines: [{ description: desc, amount }],
+      lines: excess > 0
+        ? [{ description: desc, amount: amount - excess }, { description: 'יתרה — הפקדה לשיעורים הבאים', amount: excess }]
+        : [{ description: desc, amount }],
       method,
       paidAt: paidAtDate,
       reference: reference || undefined,
@@ -93,7 +100,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const finalInvoice = await prisma.invoice.findUnique({ where: { id: invoice.id } })
   return NextResponse.json(
-    { ok: true, invoice: finalInvoice, invoiceError, remainingDebt },
+    { ok: true, invoice: finalInvoice, invoiceError, remainingDebt, excess },
     { status: invoiceError ? 207 : 200 },
   )
 }

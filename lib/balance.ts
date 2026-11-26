@@ -1,13 +1,13 @@
 import { prisma } from './prisma'
 import { groupBookingsIntoLessons } from './groupLessons'
-import { lessonOverpayment } from './overpayment'
+import { lessonOverpayment, chargeOverpayment } from './overpayment'
 
 // A student's prepaid credit, always computed fresh — never stored — so it
 // can't drift: deposits add to it, lessons settled with method BALANCE
 // subtract from it, and anything paid beyond a lesson's price counts as credit
 // (see lib/overpayment.ts).
 export async function getStudentBalance(studentId: string): Promise<number> {
-  const [deposits, deductions, student, bookings] = await Promise.all([
+  const [deposits, deductions, student, bookings, paidCharges] = await Promise.all([
     prisma.invoice.aggregate({
       where: { studentId, isDeposit: true },
       _sum: { amount: true },
@@ -25,8 +25,12 @@ export async function getStudentBalance(studentId: string): Promise<number> {
         payments: { select: { amount: true, method: true } },
       },
     }),
+    prisma.charge.findMany({
+      where: { studentId, invoiceId: { not: null } },
+      select: { amount: true, invoice: { select: { amount: true } } },
+    }),
   ])
-  const overpaid = lessonOverpayment(student?.pricePer20Min ?? null, groupBookingsIntoLessons(bookings))
+  const overpaid = lessonOverpayment(student?.pricePer20Min ?? null, groupBookingsIntoLessons(bookings)) + chargeOverpayment(paidCharges)
   return (deposits._sum.amount ?? 0) - (deductions._sum.amount ?? 0) + overpaid
 }
 
