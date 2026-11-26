@@ -97,8 +97,7 @@ export default function InstructorNav() {
     { href: '/instructor/availability', label: 'ניהול זמינות' },
     { href: '/instructor/calendar', label: 'קלנדר' },
     { href: '/instructor/bookings', label: 'הזמנות', badge: pendingCount },
-    { href: '/instructor/students', label: 'תלמידים' },
-    ...(missingInvoices > 0 ? [{ href: '/instructor/missing-invoices', label: 'חשבוניות חסרות', badge: missingInvoices, badgeTitle: `${missingInvoices} תשלומים בלי חשבונית`, badgeClass: 'bg-amber-500' }] : []),
+    { href: '/instructor/students', label: 'תלמידים', badge: missingInvoices, badgeTitle: `${missingInvoices} תשלומים בלי חשבונית — מסומנים ברשימת התלמידים`, badgeClass: 'bg-amber-500' },
     { href: '/instructor/vehicle-log', label: '🚗 ספר הרכב' },
     { href: '/instructor/security-log', label: '🔒 אבטחה' },
   ]
