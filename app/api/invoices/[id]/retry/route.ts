@@ -12,7 +12,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   const { id } = await params
   const body = await req.json().catch(() => ({}))
-  const result = await issueMissingInvoice(id, { useTodayDate: body?.useTodayDate === true })
+  const result = await issueMissingInvoice(id, { useTodayDate: body?.useTodayDate === true, omitTaxId: body?.omitTaxId === true })
   if (!result.ok) return NextResponse.json({ error: result.error, code: result.code }, { status: result.status })
   return NextResponse.json({ ok: true, invoice: result.invoice })
 }

@@ -8,13 +8,13 @@ export type IssueResult =
   | { ok: true; invoice: { id: string; invoiceId: string | null; invoiceNumber: string | null; invoiceUrl: string | null } }
   // code DATE_REJECTED: Morning refused the (old) payment date — the caller can
   // offer to issue it dated today instead
-  | { ok: false; status: number; error: string; code?: 'DATE_REJECTED' }
+  | { ok: false; status: number; error: string; code?: 'DATE_REJECTED' | 'BAD_TAX_ID' }
 
 // Issues the Morning document for an Invoice row that was saved without one
 // (the payment itself was already recorded — see the comment at the top of
 // lib/morning.ts). Shared by the single "נסה שוב" button and the bulk
 // "issue all missing" action.
-export async function issueMissingInvoice(id: string, opts: { useTodayDate?: boolean } = {}): Promise<IssueResult> {
+export async function issueMissingInvoice(id: string, opts: { useTodayDate?: boolean; omitTaxId?: boolean } = {}): Promise<IssueResult> {
   const invoice = await prisma.invoice.findUnique({
     where: { id },
     include: {
@@ -65,6 +65,7 @@ export async function issueMissingInvoice(id: string, opts: { useTodayDate?: boo
       paidAt: invoice.paidAt,
       reference: invoice.reference || undefined,
       documentDate: opts.useTodayDate ? new Date() : undefined,
+      omitTaxId: opts.omitTaxId,
     })
 
     const updated = await prisma.invoice.update({
@@ -83,6 +84,6 @@ export async function issueMissingInvoice(id: string, opts: { useTodayDate?: boo
   } catch (err: any) {
     console.error('Morning invoice issue failed:', err)
     const message: string = err.message || 'יצירת החשבונית נכשלה'
-    return { ok: false, status: 502, error: message, code: /"errorCode":\s*2405/.test(message) ? 'DATE_REJECTED' : undefined }
+    return { ok: false, status: 502, error: message, code: /"errorCode":\s*2405/.test(message) ? 'DATE_REJECTED' : /"errorCode":\s*1111/.test(message) ? 'BAD_TAX_ID' : undefined }
   }
 }

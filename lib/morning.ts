@@ -88,6 +88,10 @@ export async function createInvoice(params: {
   // when Morning refuses a backdated document (error 2405). The payment's own
   // date stays the real one, and the original date and a late-issue note are added to each line.
   documentDate?: Date
+  // Leave the student's ID number off the document (Morning error 1111 —
+  // the stored ID number isn't a valid one). A private customer's receipt
+  // doesn't need it.
+  omitTaxId?: boolean
 }): Promise<{ id: string; number: string; url: string }> {
   const token = await getToken()
   const total = params.lines.reduce((sum, l) => sum + l.amount, 0)
@@ -133,7 +137,7 @@ export async function createInvoice(params: {
       client: {
         name: params.student.name,
         emails: params.student.email ? [params.student.email] : [],
-        taxId: params.student.idNumber || undefined,
+        taxId: params.omitTaxId ? undefined : (params.student.idNumber || undefined),
       },
       income: params.lines.map(l => ({
         description: params.documentDate

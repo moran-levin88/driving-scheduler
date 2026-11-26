@@ -20,17 +20,25 @@ const METHOD_LABELS: Record<string, string> = {
 export default function StudentPaymentsPanel({ invoices }: { invoices: InvoiceRow[] }) {
   const [invoiceList, setInvoiceList] = useState(invoices)
 
-  async function handleRetry(invoiceId: string, useTodayDate = false) {
+  async function handleRetry(invoiceId: string, opts: { useTodayDate?: boolean; omitTaxId?: boolean } = {}) {
     const res = await fetch(`/api/invoices/${invoiceId}/retry`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ useTodayDate }),
+      body: JSON.stringify(opts),
     })
     const data = await res.json().catch(() => ({}))
     // Morning won't backdate this far — offer to issue it dated today, with
     // the real payment date written on the invoice line.
-    if (!res.ok && data.code === 'DATE_REJECTED' && !useTodayDate) {
+    if (!res.ok && data.code === 'DATE_REJECTED' && !opts.useTodayDate) {
       if (window.confirm('Morning לא מאפשר להנפיק חשבונית בתאריך התשלום המקורי (התאריך ישן מדי).\n\nלהנפיק אותה בתאריך של היום? בשורת החשבונית ייכתב: "שולם ב-(תאריך התשלום) ובשל תקלה במערכת הונפקה חשבונית מאוחר", והיא תישלח לתלמיד.')) {
-        return handleRetry(invoiceId, true)
+        return handleRetry(invoiceId, { ...opts, useTodayDate: true })
+      }
+      return
+    }
+    // The ID number saved for this student isn't a valid one — Morning rejects
+    // the document. Offer to issue without it (and fix the number on the student).
+    if (!res.ok && data.code === 'BAD_TAX_ID' && !opts.omitTaxId) {
+      if (window.confirm('מספר הת.ז. השמור לתלמיד הזה אינו תקין ו-Morning דוחה אותו.\n\nלהנפיק את החשבונית בלי מספר ת.ז.? (חשבונית לתלמיד פרטי לא חייבת אותו. מומלץ לתקן את המספר בעריכת התלמיד ברשימת התלמידים.)')) {
+        return handleRetry(invoiceId, { ...opts, omitTaxId: true })
       }
       return
     }
