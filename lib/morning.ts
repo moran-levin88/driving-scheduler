@@ -5,6 +5,17 @@
 
 const BASE_URL = process.env.MORNING_API_BASE_URL || 'https://api.greeninvoice.co.il/api/v1'
 
+// Morning's 2026 infrastructure update retired POST {BASE_URL}/account/token
+// (it now answers 404 to every key, valid or not — that's what silently
+// stopped every invoice from being issued). Tokens now come from their
+// identity service as an OAuth client-credentials grant; the existing API
+// key id/secret are sent as client_id/client_secret. Document calls stay on
+// BASE_URL. MORNING_TOKEN_URL overrides this if Morning moves it again.
+const TOKEN_URL = process.env.MORNING_TOKEN_URL
+  || (BASE_URL.includes('sandbox')
+    ? 'https://api.sandbox.morning.dev/idp/v1/oauth/token'
+    : 'https://api.morning.co/idp/v1/oauth/token')
+
 let cachedToken: { token: string; expiresAt: number } | null = null
 
 async function getToken(): Promise<string> {
@@ -18,18 +29,24 @@ async function getToken(): Promise<string> {
     return cachedToken.token
   }
 
-  const res = await fetch(`${BASE_URL}/account/token`, {
+  const res = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: apiKey, secret: apiSecret, grant_type: 'client_credentials' }),
+    body: JSON.stringify({ grant_type: 'client_credentials', client_id: apiKey, client_secret: apiSecret }),
   })
   if (!res.ok) {
-    throw new Error(`Morning auth failed (${res.status}): ${await res.text()}`)
+    throw new Error(`Morning auth failed (${res.status}) at ${new URL(TOKEN_URL).host}: ${await res.text()}`)
   }
   const data = await res.json()
-  // Token is valid for a while; refresh a minute early to be safe.
-  cachedToken = { token: data.token, expiresAt: Date.now() + 25 * 60 * 1000 }
-  return data.token
+  // Accept the documented field name plus the OAuth-standard and the old
+  // one, so a rename on Morning's side doesn't cause another silent outage.
+  const token: string | undefined = data.accessToken || data.access_token || data.token
+  if (!token) throw new Error('Morning auth failed: no token in response')
+  // Refresh a few minutes early; fall back to 25 min if no expiry is given.
+  const expiresAtMs = typeof data.expires_in === 'number' ? Date.now() + data.expires_in * 1000
+    : data.expiresAt ? new Date(data.expiresAt).getTime() : NaN
+  cachedToken = { token, expiresAt: Number.isFinite(expiresAtMs) ? expiresAtMs - 5 * 60_000 : Date.now() + 25 * 60 * 1000 }
+  return token
 }
 
 export type PaymentMethodForInvoice = 'CASH' | 'BIT' | 'PAYBOX' | 'BANK_TRANSFER'
