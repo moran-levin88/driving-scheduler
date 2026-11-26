@@ -86,7 +86,7 @@ export async function createInvoice(params: {
   reference?: string
   // Date printed on the document itself. Defaults to paidAt; set to "today"
   // when Morning refuses a backdated document (error 2405). The payment's own
-  // date stays the real one, and the original date is added to each line.
+  // date stays the real one, and the original date and a late-issue note are added to each line.
   documentDate?: Date
 }): Promise<{ id: string; number: string; url: string }> {
   const token = await getToken()
@@ -137,7 +137,7 @@ export async function createInvoice(params: {
       },
       income: params.lines.map(l => ({
         description: params.documentDate
-          ? `${l.description} — שולם ב-${params.paidAt.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}`
+          ? `${l.description} — שולם ב-${params.paidAt.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })} ובשל תקלה במערכת הונפקה חשבונית מאוחר`
           : l.description,
         quantity: 1,
         price: l.amount,

@@ -29,7 +29,7 @@ export default function StudentPaymentsPanel({ invoices }: { invoices: InvoiceRo
     // Morning won't backdate this far — offer to issue it dated today, with
     // the real payment date written on the invoice line.
     if (!res.ok && data.code === 'DATE_REJECTED' && !useTodayDate) {
-      if (window.confirm('Morning לא מאפשר להנפיק חשבונית בתאריך התשלום המקורי (התאריך ישן מדי).\n\nלהנפיק אותה בתאריך של היום? תאריך התשלום המקורי ייכתב בשורת החשבונית, והיא תישלח לתלמיד.')) {
+      if (window.confirm('Morning לא מאפשר להנפיק חשבונית בתאריך התשלום המקורי (התאריך ישן מדי).\n\nלהנפיק אותה בתאריך של היום? בשורת החשבונית ייכתב: "שולם ב-(תאריך התשלום) ובשל תקלה במערכת הונפקה חשבונית מאוחר", והיא תישלח לתלמיד.')) {
         return handleRetry(invoiceId, true)
       }
       return
