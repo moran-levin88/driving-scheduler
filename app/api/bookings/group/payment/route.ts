@@ -9,6 +9,7 @@ import { createInvoice, type PaymentMethodForInvoice } from '@/lib/morning'
 import { sendInvoiceToStudent } from '@/lib/email'
 import { getStudentBalance } from '@/lib/balance'
 import { splitIntoLessonLines } from '@/lib/lessonLabel'
+import { lessonPriceOf, excessOver } from '@/lib/overpayment'
 import { notifyInvoiceFailed } from '@/lib/invoiceAlert'
 
 const METHODS = ['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'BALANCE', 'EXTERNAL'] as const
@@ -73,6 +74,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Paying more than a lesson's remaining price is allowed: the surplus
+  // becomes prepaid credit on the student (derived in lib/balance.ts) and
+  // shows on the invoice as its own "יתרה" line. Only for real payments —
+  // EXTERNAL just records an old settlement, and BALANCE can't draw more
+  // than is owed.
+  const excessByItem = resolved.map(r => {
+    const price = lessonPriceOf(student.pricePer20Min, r.slots, r.first.discountAmount)
+    return excessOver(r.amount, price, paidByBooking.get(r.first.id) ?? 0)
+  })
+  const totalExcess = method === 'EXTERNAL' ? 0 : excessByItem.reduce((a, b) => a + b, 0)
+  if (method === 'BALANCE' && totalExcess > 0) {
+    return NextResponse.json({ error: 'לא ניתן לנכות מהיתרה יותר ממה שנשאר לשלם על השיעור' }, { status: 400 })
+  }
+
   const total = resolved.reduce((sum, r) => sum + r.amount, 0)
   const paidAtDate = paidAt ? new Date(paidAt) : new Date()
 
@@ -91,22 +106,26 @@ export async function POST(req: NextRequest) {
         data: { bookingId: r.first.id, studentId, amount: r.amount, method, paidAt: paidAtDate },
       }))
     )
-    return NextResponse.json({ ok: true, payments })
+    return NextResponse.json({ ok: true, payments, excess: 0 })
   }
 
   const noteText = typeof note === 'string' ? note.trim() : ''
 
   // One line per lesson, not per chain — an 80-min double books as two
   // 40-min lines, not one "(80 דק')" line.
-  const lines = resolved.flatMap((r, ri) => {
+  const lessonLines = resolved.flatMap((r, ri) => {
     const segments = splitIntoLessonLines({
       startTime: r.first.availability.startTime,
       totalSlots: r.slots,
-      totalAmount: r.amount,
+      // Only the part that settles the lesson — the surplus gets its own line
+      totalAmount: r.amount - excessByItem[ri],
     })
     if (!noteText || ri !== 0) return segments
     return segments.map((s, i) => i === 0 ? { ...s, description: `${s.description} — ${noteText}` } : s)
   })
+  const lines = totalExcess > 0
+    ? [...lessonLines, { description: 'יתרה — הפקדה לשיעורים הבאים', amount: totalExcess }]
+    : lessonLines
 
   // Always create the Invoice row (even if the Morning call below fails) so
   // the money is on record and retryable via /api/invoices/[id]/retry.
@@ -150,7 +169,7 @@ export async function POST(req: NextRequest) {
 
   const finalInvoice = await prisma.invoice.findUnique({ where: { id: invoice.id } })
   return NextResponse.json(
-    { ok: true, invoice: finalInvoice, payments, invoiceError },
+    { ok: true, invoice: finalInvoice, payments, invoiceError, excess: totalExcess },
     { status: invoiceError ? 207 : 200 },
   )
 }

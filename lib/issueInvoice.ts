@@ -3,6 +3,7 @@ import { findLessonChain } from '@/lib/lessonChain'
 import { createInvoice, type PaymentMethodForInvoice } from '@/lib/morning'
 import { sendInvoiceToStudent } from '@/lib/email'
 import { splitIntoLessonLines } from '@/lib/lessonLabel'
+import { lessonPriceOf, excessOver } from '@/lib/overpayment'
 
 export type IssueResult =
   | { ok: true; invoice: { id: string; invoiceId: string | null; invoiceNumber: string | null; invoiceUrl: string | null } }
@@ -18,7 +19,7 @@ export async function issueMissingInvoice(id: string, opts: { useTodayDate?: boo
   const invoice = await prisma.invoice.findUnique({
     where: { id },
     include: {
-      student: { select: { name: true, email: true, idNumber: true } },
+      student: { select: { name: true, email: true, idNumber: true, pricePer20Min: true } },
       payments: true,
     },
   })
@@ -38,6 +39,7 @@ export async function issueMissingInvoice(id: string, opts: { useTodayDate?: boo
     lines = [{ description: invoice.description, amount: invoice.amount }]
   } else {
     lines = []
+    let totalExcess = 0
     for (const payment of invoice.payments) {
       const result = await findLessonChain(payment.bookingId, 'APPROVED')
       if (!result) continue
@@ -46,11 +48,23 @@ export async function issueMissingInvoice(id: string, opts: { useTodayDate?: boo
       const totalSlots = (result.last.availability.endTime.getTime() - result.first.availability.startTime.getTime()) / (20 * 60 * 1000)
       // One line per lesson, not per chain — an 80-min double books as two
       // 40-min lines, not one "(80 דק')" line.
+      // Anything paid beyond what was still owed on the lesson is shown as
+      // its own "יתרה" line (same as when the payment was first recorded)
+      const earlier = await prisma.payment.aggregate({
+        where: { bookingId: payment.bookingId, id: { not: payment.id }, createdAt: { lt: payment.createdAt } },
+        _sum: { amount: true },
+      })
+      const price = lessonPriceOf(invoice.student.pricePer20Min, totalSlots, result.first.discountAmount)
+      const excess = excessOver(payment.amount, price, earlier._sum.amount ?? 0)
+      totalExcess += excess
       lines.push(...splitIntoLessonLines({
         startTime: result.first.availability.startTime,
         totalSlots,
-        totalAmount: payment.amount,
+        totalAmount: payment.amount - excess,
       }))
+    }
+    if (lines.length > 0 && totalExcess > 0) {
+      lines.push({ description: 'יתרה — הפקדה לשיעורים הבאים', amount: totalExcess })
     }
     if (lines.length === 0) {
       return { ok: false, status: 404, error: 'לא נמצאו שיעורים לחשבונית זו' }

@@ -189,6 +189,16 @@ export default function PayableItemsPanel({
   }
 
   const total = [...selected].reduce((sum, key) => sum + (Number(amounts[key]) || 0), 0)
+  // Typed more than a lesson still owes — the surplus goes to the student's
+  // balance automatically (and is a separate "יתרה" line on the invoice).
+  const excessTotal = method === 'EXTERNAL' ? 0 : [...selected].reduce((sum, key) => {
+    if (!key.startsWith('lesson:')) return sum
+    const l = lessonsList.find(x => x.firstBookingId === key.slice(7))
+    if (!l) return sum
+    const owed = Number(suggestedAmount(l))
+    if (!Number.isFinite(owed) || suggestedAmount(l) === '') return sum
+    return sum + Math.max(0, (Number(amounts[key]) || 0) - owed)
+  }, 0)
   // Tests and the legacy debt both require a real payment method — neither
   // can be settled from prepaid balance or marked as paid-on-the-old-platform.
   const hasChargeSelected = [...selected].some(k => k.startsWith('charge:') || k === 'legacyDebt')
@@ -404,7 +414,9 @@ export default function PayableItemsPanel({
       setPaidIds(prev => new Set([...prev, ...lessonKeys.map(k => k.slice(7))]))
       setChargesList(prev => prev.filter(c => !chargeKeys.includes(`charge:${c.id}`)))
       if (method === 'BALANCE') setBalance(b => b - total)
-      setPayResult(anyError ? `✓ התשלום נרשם, אך ${anyError}` : '✓ התשלום נרשם בהצלחה')
+      const addedToBalance = excessTotal > 0 && method !== 'BALANCE' ? ` ₪${excessTotal} נוספו ליתרת התלמיד.` : ''
+      if (addedToBalance) setBalance(b => b + excessTotal)
+      setPayResult((anyError ? `✓ התשלום נרשם, אך ${anyError}` : '✓ התשלום נרשם בהצלחה') + addedToBalance)
       setSelected(new Set()); setAmounts({}); setReference(''); setPayNote('')
       onPaid?.()
     } catch {
@@ -642,6 +654,11 @@ export default function PayableItemsPanel({
       {selected.size > 0 && (
         <div className="bg-green-50 rounded-xl p-3 space-y-2">
           <p className="text-sm font-semibold text-green-800">{selected.size} פריטים נבחרו — סה"כ ₪{total}</p>
+          {excessTotal > 0 && method !== 'BALANCE' && (
+            <p className="text-sm text-blue-700 bg-blue-50 rounded-lg px-3 py-2 mt-2">
+              ₪{excessTotal} מעבר למחיר השיעור — יתווספו אוטומטית ליתרת התלמיד, ויופיעו בחשבונית בשורה נפרדת של &quot;יתרה&quot;. אם החזרת לתלמיד עודף — עדכני את הסכום למה שנשאר לשלם.
+            </p>
+          )}
           <div className="grid grid-cols-3 gap-1.5">
             {(['CASH', 'BIT', 'PAYBOX', 'BANK_TRANSFER', 'BALANCE', 'EXTERNAL'] as const).map(m => (
               <button key={m} type="button"

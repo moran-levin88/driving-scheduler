@@ -19,7 +19,7 @@ type BookingLike = {
   id: string
   status: string
   availability: { startTime: Date | string; endTime: Date | string }
-  payments?: { amount: number }[]
+  payments?: { amount: number; method?: string }[]
   discountAmount?: number
   discountReason?: string | null
 }
@@ -31,6 +31,7 @@ export type GroupedLesson = {
   endTime: Date
   slots: number
   paidSoFar: number // sum of this lesson's Payment amounts — may be partial
+  realPaid: number // the part of paidSoFar that's real money received (not an EXTERNAL previous-platform record)
   discountAmount: number // ₪ off this lesson's price — from the chain's first booking
   discountReason: string | null
 }
@@ -68,6 +69,7 @@ export function groupBookingsIntoLessons<T extends BookingLike>(bookings: T[]): 
           endTime: new Date(bEnd),
           slots: rowSlots,
           paidSoFar: (b.payments ?? []).reduce((sum, p) => sum + p.amount, 0),
+          realPaid: (b.payments ?? []).filter(p => p.method !== 'EXTERNAL').reduce((sum, p) => sum + p.amount, 0),
           discountAmount: b.discountAmount ?? 0,
           discountReason: b.discountReason ?? null,
         }

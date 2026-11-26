@@ -2,6 +2,7 @@ import { prisma } from './prisma'
 import { getAllStudentBalances } from './balance'
 import { groupBookingsIntoLessons } from './groupLessons'
 import { computeDebt } from './debt'
+import { lessonOverpayment } from './overpayment'
 
 const STUDENT_SELECT = {
   id: true,
@@ -23,7 +24,7 @@ const STUDENT_SELECT = {
   privacyConsentAt: true,
   archivedAt: true,
   bookings: {
-    include: { availability: true, payments: { select: { amount: true } } },
+    include: { availability: true, payments: { select: { amount: true, method: true } } },
     orderBy: { createdAt: 'desc' as const },
   },
 } as const
@@ -75,7 +76,7 @@ export async function getStudentsWithStats(scope: 'active' | 'archived' | 'all')
       ...s,
       lessonCount: completedSlots / 2 + s.manualPriorLessons + s.manualPriorOtherTeacherLessons + (manualLessonsByStudent.get(s.id) ?? 0),
       debt,
-      balance: balances.get(s.id) ?? 0,
+      balance: (balances.get(s.id) ?? 0) + lessonOverpayment(s.pricePer20Min, lessons),
       missingInvoices: missingInvoicesByStudent.get(s.id) ?? 0,
     }
   })
