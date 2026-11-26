@@ -20,9 +20,20 @@ const METHOD_LABELS: Record<string, string> = {
 export default function StudentPaymentsPanel({ invoices }: { invoices: InvoiceRow[] }) {
   const [invoiceList, setInvoiceList] = useState(invoices)
 
-  async function handleRetry(invoiceId: string) {
-    const res = await fetch(`/api/invoices/${invoiceId}/retry`, { method: 'POST' })
+  async function handleRetry(invoiceId: string, useTodayDate = false) {
+    const res = await fetch(`/api/invoices/${invoiceId}/retry`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ useTodayDate }),
+    })
     const data = await res.json().catch(() => ({}))
+    // Morning won't backdate this far — offer to issue it dated today, with
+    // the real payment date written on the invoice line.
+    if (!res.ok && data.code === 'DATE_REJECTED' && !useTodayDate) {
+      if (window.confirm('Morning לא מאפשר להנפיק חשבונית בתאריך התשלום המקורי (התאריך ישן מדי).\n\nלהנפיק אותה בתאריך של היום? תאריך התשלום המקורי ייכתב בשורת החשבונית, והיא תישלח לתלמיד.')) {
+        return handleRetry(invoiceId, true)
+      }
+      return
+    }
     if (res.ok && data.invoice) {
       setInvoiceList(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, invoiceId: data.invoice.invoiceId, invoiceUrl: data.invoice.invoiceUrl } : inv))
     } else {

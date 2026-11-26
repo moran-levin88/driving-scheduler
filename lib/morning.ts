@@ -84,6 +84,10 @@ export async function createInvoice(params: {
   // transactionId) so they print in the invoice's "פרטי תשלומים" table, in
   // the "פירוט" column next to the payment method itself.
   reference?: string
+  // Date printed on the document itself. Defaults to paidAt; set to "today"
+  // when Morning refuses a backdated document (error 2405). The payment's own
+  // date stays the real one, and the original date is added to each line.
+  documentDate?: Date
 }): Promise<{ id: string; number: string; url: string }> {
   const token = await getToken()
   const total = params.lines.reduce((sum, l) => sum + l.amount, 0)
@@ -123,7 +127,7 @@ export async function createInvoice(params: {
     },
     body: JSON.stringify({
       type: 320, // חשבונית מס/קבלה — payment already received
-      date: params.paidAt.toISOString().slice(0, 10),
+      date: (params.documentDate ?? params.paidAt).toISOString().slice(0, 10),
       lang: 'he',
       currency: 'ILS',
       client: {
@@ -132,7 +136,9 @@ export async function createInvoice(params: {
         taxId: params.student.idNumber || undefined,
       },
       income: params.lines.map(l => ({
-        description: l.description,
+        description: params.documentDate
+          ? `${l.description} — שולם ב-${params.paidAt.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}`
+          : l.description,
         quantity: 1,
         price: l.amount,
         // 1 = price already includes VAT (what the student actually paid).
