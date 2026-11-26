@@ -16,6 +16,8 @@ type Row = {
   amountPaid: number | null
   remaining: number | null
   invoiceNumber: string | null
+  // Set for a test row — shown in place of the lesson count
+  testLabel?: string
 }
 
 export default async function StudentCardPage({ params }: { params: Promise<{ studentId: string }> }) {
@@ -30,7 +32,7 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
           orderBy: { availability: { startTime: 'asc' } },
         },
         manualLessonRecords: { orderBy: { date: 'asc' } },
-        charges: true,
+        charges: { include: { invoice: { select: { invoiceNumber: true } } } },
       },
     }),
     getDefaultVehicle(),
@@ -70,7 +72,21 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
     remaining: null,
     invoiceNumber: null,
   }))
-  const allRows = [...bookingRows, ...manualRows].sort((a, b) => a.date.getTime() - b.date.getTime())
+  // Tests (paid or not) belong in the history too — they used to be counted
+  // only in the "מבחנים" totals above and never listed as a row.
+  const testRows: Row[] = student.charges.map(c => ({
+    date: c.startTime,
+    timeLabel: `${c.startTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}–${c.endTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}`,
+    lessonUnits: 0,
+    price: c.amount,
+    discountAmount: 0,
+    amountPaid: c.invoiceId ? c.amount : null,
+    // Only owed once it has actually happened (same rule as the debt total)
+    remaining: c.invoiceId ? 0 : (c.startTime <= now ? c.amount : null),
+    invoiceNumber: c.invoice?.invoiceNumber ?? null,
+    testLabel: c.type === 'PRACTICAL_TEST' ? 'מבחן מעשי' : 'טסט פנימי',
+  }))
+  const allRows = [...bookingRows, ...manualRows, ...testRows].sort((a, b) => a.date.getTime() - b.date.getTime())
 
   const completedSlots = completedLessons.reduce((sum, l) => sum + l.slots, 0)
   const manualTotal = student.manualLessonRecords.reduce((sum, r) => sum + r.lessons, 0)
@@ -160,7 +176,7 @@ export default async function StudentCardPage({ params }: { params: Promise<{ st
               <tr key={i} className="border-b border-gray-100">
                 <td className="py-1.5">{r.date.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</td>
                 <td className="py-1.5 text-gray-600">{r.timeLabel}</td>
-                <td className="py-1.5">{r.lessonUnits}</td>
+                <td className="py-1.5">{r.testLabel ?? r.lessonUnits}</td>
                 <td className="py-1.5">
                   {r.price != null ? `₪${r.price}` : '—'}
                   {r.discountAmount > 0 && <span className="text-purple-600 text-xs"> (הנחה ₪{r.discountAmount})</span>}

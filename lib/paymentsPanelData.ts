@@ -18,7 +18,7 @@ export async function getStudentPaymentsPanelData(studentId: string) {
 
   const now = new Date()
 
-  const [invoices, balance, pendingCharges, manualLessonRecords] = await Promise.all([
+  const [invoices, balance, pendingCharges, allCharges, manualLessonRecords] = await Promise.all([
     prisma.invoice.findMany({
       where: { studentId },
       include: { payments: true },
@@ -34,6 +34,14 @@ export async function getStudentPaymentsPanelData(studentId: string) {
     // actually happened.
     prisma.charge.findMany({
       where: { studentId, invoiceId: null },
+      orderBy: { startTime: 'desc' },
+    }),
+    // Every test, paid or not — for the history table. (pendingCharges above
+    // is only the unpaid ones, which is what the payment panel needs; a test
+    // used to vanish from the student's page entirely once it was paid.)
+    prisma.charge.findMany({
+      where: { studentId },
+      include: { invoice: { select: { invoiceNumber: true, invoiceUrl: true } } },
       orderBy: { startTime: 'desc' },
     }),
     prisma.manualLessonRecord.findMany({ where: { studentId }, orderBy: { date: 'asc' } }),
@@ -125,6 +133,17 @@ export async function getStudentPaymentsPanelData(studentId: string) {
     payableLessons,
     manualLessonRecords: manualLessonRecords.map(r => ({
       id: r.id, date: r.date.toISOString(), lessons: r.lessons, amountPaid: r.amountPaid,
+    })),
+    tests: allCharges.map(c => ({
+      id: c.id,
+      label: CHARGE_LABELS[c.type] ?? c.type,
+      startTime: c.startTime,
+      endTime: c.endTime,
+      amount: c.amount,
+      paid: !!c.invoiceId,
+      passed: c.passed,
+      invoiceNumber: c.invoice?.invoiceNumber ?? null,
+      invoiceUrl: c.invoice?.invoiceUrl ?? null,
     })),
     pendingCharges: pendingCharges.map(c => ({
       id: c.id,

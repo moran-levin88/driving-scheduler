@@ -18,7 +18,13 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
   const { studentId } = await params
   const data = await getStudentPaymentsPanelData(studentId)
   if (!data) notFound()
-  const { student, lessons, completedCount, balance, previousPlatformDebt, manualLessonRecords, invoices } = data
+  const { student, lessons, completedCount, balance, previousPlatformDebt, manualLessonRecords, invoices, tests } = data
+
+  // Lessons and tests share one table, newest first
+  const historyItems = [
+    ...lessons.map(l => ({ kind: 'lesson' as const, startTime: l.startTime, lesson: l })),
+    ...tests.map(t => ({ kind: 'test' as const, startTime: t.startTime, test: t })),
+  ].sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
 
   return (
     <div>
@@ -67,7 +73,33 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
               </tr>
             </thead>
             <tbody className="divide-y">
-              {lessons.map((l, i) => (
+              {historyItems.map((item, i) => {
+                if (item.kind === 'test') {
+                  const t = item.test
+                  return (
+                    <tr key={`test-${t.id}`} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">{t.startTime.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</td>
+                      <td className="px-6 py-4 text-gray-600 whitespace-nowrap">
+                        {t.startTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}
+                        {' - '}
+                        {t.endTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-xs px-2 py-1 rounded-full font-medium bg-orange-100 text-orange-800">{t.label}</span>
+                        {t.passed === true && <span className="text-xs text-green-700 mr-2">עבר</span>}
+                        {t.passed === false && <span className="text-xs text-red-600 mr-2">נכשל</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {t.paid
+                          ? <span className="text-xs text-green-700">✓ שולם (₪{t.amount})</span>
+                          : <span className="text-xs text-gray-400">טרם שולם (₪{t.amount})</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap"></td>
+                    </tr>
+                  )
+                }
+                const l = item.lesson
+                return (
                 <tr key={i} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">{l.startTime.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</td>
                   <td className="px-6 py-4 text-gray-600 whitespace-nowrap">
@@ -98,11 +130,12 @@ export default async function StudentHistoryPage({ params }: { params: Promise<{
                     )}
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
-        {lessons.length === 0 && (
+        {historyItems.length === 0 && (
           <div className="p-8 text-center text-gray-500">אין היסטוריית שיעורים</div>
         )}
       </div>
