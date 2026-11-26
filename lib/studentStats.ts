@@ -39,14 +39,18 @@ export async function getStudentsWithStats(scope: 'active' | 'archived' | 'all')
     scope === 'archived' ? { role: 'STUDENT' as const, archivedAt: { not: null } } :
     { role: 'STUDENT' as const, archivedAt: null }
 
-  const [students, balances, unpaidCharges, manualLessonSums] = await Promise.all([
+  const [students, balances, unpaidCharges, manualLessonSums, missingInvoiceCounts] = await Promise.all([
     prisma.user.findMany({ where, select: STUDENT_SELECT, orderBy: { name: 'asc' } }),
     getAllStudentBalances(),
     // Only a test that's already happened can be owed for — one scheduled
     // for the future isn't a debt yet.
     prisma.charge.groupBy({ by: ['studentId'], where: { invoiceId: null, startTime: { lte: now } }, _sum: { amount: true } }),
     prisma.manualLessonRecord.groupBy({ by: ['studentId'], _sum: { lessons: true } }),
+    // Recorded payments that never got a tax invoice (EXTERNAL = paid on the
+    // previous platform, never invoiced here) — flagged on the student's card.
+    prisma.invoice.groupBy({ by: ['studentId'], where: { invoiceId: null, method: { not: 'EXTERNAL' } }, _count: { _all: true } }),
   ])
+  const missingInvoicesByStudent = new Map(missingInvoiceCounts.map(m => [m.studentId, m._count._all]))
   const unpaidChargeByStudent = new Map(unpaidCharges.map(c => [c.studentId, c._sum.amount ?? 0]))
   const manualLessonsByStudent = new Map(manualLessonSums.map(m => [m.studentId, m._sum.lessons ?? 0]))
 
@@ -72,6 +76,7 @@ export async function getStudentsWithStats(scope: 'active' | 'archived' | 'all')
       lessonCount: completedSlots / 2 + s.manualPriorLessons + s.manualPriorOtherTeacherLessons + (manualLessonsByStudent.get(s.id) ?? 0),
       debt,
       balance: balances.get(s.id) ?? 0,
+      missingInvoices: missingInvoicesByStudent.get(s.id) ?? 0,
     }
   })
 }

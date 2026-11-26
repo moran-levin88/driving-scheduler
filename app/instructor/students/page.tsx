@@ -33,6 +33,7 @@ type Student = {
   lessonCount: number
   debt: number
   balance: number
+  missingInvoices?: number
   bookings: { status: string; availability: { startTime: string } }[]
 }
 
@@ -776,6 +777,13 @@ export default function StudentsPage() {
                           title="שליחת תזכורת חוב בוואטסאפ"
                           className="bg-green-500 text-white px-2.5 py-0.5 rounded-full text-xs hover:bg-green-600 transition">
                           📲 תזכורת חוב
+                        </a>
+                      )}
+                      {(s.missingInvoices ?? 0) > 0 && (
+                        <a href={`/instructor/students/${s.id}`}
+                          title="יש תשלומים שלא הונפקה עבורם חשבונית — לחצי לפתיחת התלמיד ולחצי 'נסה שוב' בטבלת החשבוניות"
+                          className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-xs font-medium hover:bg-amber-200 transition">
+                          🧾 {s.missingInvoices === 1 ? 'חשבונית חסרה' : `${s.missingInvoices} חשבוניות חסרות`}
                         </a>
                       )}
                       {s.balance > 0 && (
